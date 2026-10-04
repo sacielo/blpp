@@ -1,0 +1,1927 @@
+diff --git a/cblas.h b/cblas.h
+index 9eb7028..0b04b36 100644
+--- a/cblas.h
++++ b/cblas.h
+@@ -431,6 +431,14 @@ void cblas_caxpby(OPENBLAS_CONST blasint n, OPENBLAS_CONST void *alpha, OPENBLAS
+ 
+ void cblas_zaxpby(OPENBLAS_CONST blasint n, OPENBLAS_CONST void *alpha, OPENBLAS_CONST void *x, OPENBLAS_CONST blasint incx,OPENBLAS_CONST void *beta, void *y, OPENBLAS_CONST blasint incy);
+ 
++void cblas_s1xypa(OPENBLAS_CONST blasint n, OPENBLAS_CONST float a, OPENBLAS_CONST float *q, OPENBLAS_CONST blasint incq, OPENBLAS_CONST float *t, OPENBLAS_CONST blasint inct, float *r, OPENBLAS_CONST blasint incr);
++
++void cblas_d1xypa(OPENBLAS_CONST blasint n, OPENBLAS_CONST double a, OPENBLAS_CONST double *q, OPENBLAS_CONST blasint incq, OPENBLAS_CONST double *t, OPENBLAS_CONST blasint inct, double *r, OPENBLAS_CONST blasint incr);
++
++void cblas_c1xypa(OPENBLAS_CONST blasint n, OPENBLAS_CONST void *a, OPENBLAS_CONST void *q, OPENBLAS_CONST blasint incq, OPENBLAS_CONST void *t, OPENBLAS_CONST blasint inct, void *r, OPENBLAS_CONST blasint incr);
++
++void cblas_z1xypa(OPENBLAS_CONST blasint n, OPENBLAS_CONST void *a, OPENBLAS_CONST void *q, OPENBLAS_CONST blasint incq, OPENBLAS_CONST void *t, OPENBLAS_CONST blasint inct, void *r, OPENBLAS_CONST blasint incr);
++
+ void cblas_somatcopy(OPENBLAS_CONST enum CBLAS_ORDER CORDER, OPENBLAS_CONST enum CBLAS_TRANSPOSE CTRANS, OPENBLAS_CONST blasint crows, OPENBLAS_CONST blasint ccols, OPENBLAS_CONST float calpha, OPENBLAS_CONST float *a, 
+ 		     OPENBLAS_CONST blasint clda, float *b, OPENBLAS_CONST blasint cldb); 
+ void cblas_domatcopy(OPENBLAS_CONST enum CBLAS_ORDER CORDER, OPENBLAS_CONST enum CBLAS_TRANSPOSE CTRANS, OPENBLAS_CONST blasint crows, OPENBLAS_CONST blasint ccols, OPENBLAS_CONST double calpha, OPENBLAS_CONST double *a,
+diff --git a/cmake/kernel.cmake b/cmake/kernel.cmake
+index 3b9e384..e359a5f 100644
+--- a/cmake/kernel.cmake
++++ b/cmake/kernel.cmake
+@@ -143,6 +143,10 @@ macro(SetDefaultL1)
+   SetFallback(DAXPBYKERNEL ../arm/axpby.c)
+   SetFallback(CAXPBYKERNEL ../arm/zaxpby.c)
+   SetFallback(ZAXPBYKERNEL ../arm/zaxpby.c)
++  SetFallback(S1XYPAKERNEL ../generic/1xypa.c)
++  SetFallback(D1XYPAKERNEL ../generic/1xypa.c)
++  SetFallback(C1XYPAKERNEL ../generic/z1xypa.c)
++  SetFallback(Z1XYPAKERNEL ../generic/z1xypa.c)
+   SetFallback(SSUMKERNEL sum.S)
+   SetFallback(DSUMKERNEL sum.S)
+   SetFallback(CSUMKERNEL zsum.S)
+diff --git a/common_c.h b/common_c.h
+index 6cff610..6444a3c 100644
+--- a/common_c.h
++++ b/common_c.h
+@@ -231,6 +231,7 @@
+ #define CIMATCOPY_K_RTC         cimatcopy_k_rtc
+ 
+ #define CGEADD_K                cgeadd_k 
++#define C1XYPA_K                c1xypa_k
+ 
+ #define CGEMM_SMALL_MATRIX_PERMIT	cgemm_small_matrix_permit
+ 
+@@ -427,6 +428,7 @@
+ #define CIMATCOPY_K_RTC         gotoblas -> cimatcopy_k_rtc
+ 
+ #define CGEADD_K                gotoblas -> cgeadd_k 
++#define C1XYPA_K                gotoblas -> c1xypa_k
+ 
+ #define CGEMM_SMALL_MATRIX_PERMIT	gotoblas -> cgemm_small_matrix_permit
+ 
+diff --git a/common_d.h b/common_d.h
+index 1e8c33d..118d61c 100644
+--- a/common_d.h
++++ b/common_d.h
+@@ -157,6 +157,7 @@
+ #define DIMATCOPY_K_CT      dimatcopy_k_ct
+ #define DIMATCOPY_K_RT      dimatcopy_k_rt
+ #define DGEADD_K                dgeadd_k 
++#define D1XYPA_K                d1xypa_k
+ 
+ #define DGEMM_SMALL_MATRIX_PERMIT	dgemm_small_matrix_permit
+ 
+@@ -284,6 +285,7 @@
+ #define DIMATCOPY_K_RT		gotoblas -> dimatcopy_k_rt
+ 
+ #define DGEADD_K                gotoblas -> dgeadd_k 
++#define D1XYPA_K                gotoblas -> d1xypa_k
+ 
+ #define DGEMM_SMALL_MATRIX_PERMIT	gotoblas -> dgemm_small_matrix_permit
+ 
+diff --git a/common_interface.h b/common_interface.h
+index 2610763..94abda2 100644
+--- a/common_interface.h
++++ b/common_interface.h
+@@ -112,6 +112,10 @@ void    BLASFUNC(xaxpy) (blasint *, xdouble *, xdouble *, blasint *, xdouble *,
+ void    BLASFUNC(caxpyc)(blasint *, float  *, float  *, blasint *, float  *, blasint *);
+ void    BLASFUNC(zaxpyc)(blasint *, double *, double *, blasint *, double *, blasint *);
+ void    BLASFUNC(xaxpyc)(blasint *, xdouble *, xdouble *, blasint *, xdouble *, blasint *);
++void    BLASFUNC(s1xypa)(blasint *, float  *, float  *, blasint *, float  *, blasint *, float  *, blasint *);
++void    BLASFUNC(d1xypa)(blasint *, double *, double *, blasint *, double *, blasint *, double *, blasint *);
++void    BLASFUNC(c1xypa)(blasint *, float  *, float  *, blasint *, float  *, blasint *, float  *, blasint *);
++void    BLASFUNC(z1xypa)(blasint *, double *, double *, blasint *, double *, blasint *, double *, blasint *);
+ 
+ void    BLASFUNC(scopy) (blasint *, float  *, blasint *, float  *, blasint *);
+ void    BLASFUNC(dcopy) (blasint *, double *, blasint *, double *, blasint *);
+diff --git a/common_level1.h b/common_level1.h
+index 7ab45a4..f22ba70 100644
+--- a/common_level1.h
++++ b/common_level1.h
+@@ -80,6 +80,15 @@ int    zaxpyc_k (BLASLONG, BLASLONG, BLASLONG, double, double,
+ int    xaxpyc_k (BLASLONG, BLASLONG, BLASLONG, xdouble, xdouble,
+ 	       xdouble *, BLASLONG, xdouble *, BLASLONG, xdouble *, BLASLONG);
+ 
++int    s1xypa_k (BLASLONG, BLASLONG, BLASLONG, float,
++	       float  *, BLASLONG, float  *, BLASLONG, float  *, BLASLONG, float  *, BLASLONG);
++int    d1xypa_k (BLASLONG, BLASLONG, BLASLONG, double,
++	       double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG);
++int    c1xypa_k (BLASLONG, BLASLONG, BLASLONG, float,  float,
++	       float  *, BLASLONG, float  *, BLASLONG, float  *, BLASLONG, float  *, BLASLONG);
++int    z1xypa_k (BLASLONG, BLASLONG, BLASLONG, double, double,
++	       double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG);
++
+ int    scopy_k(BLASLONG, float  *, BLASLONG, float  *, BLASLONG);
+ int    dcopy_k(BLASLONG, double *, BLASLONG, double *, BLASLONG);
+ int    qcopy_k(BLASLONG, xdouble *, BLASLONG, xdouble *, BLASLONG);
+diff --git a/common_macro.h b/common_macro.h
+index ea2cf5e..a0d4cf8 100644
+--- a/common_macro.h
++++ b/common_macro.h
+@@ -648,6 +648,7 @@
+ #define IMATCOPY_K_RT		DIMATCOPY_K_RT
+ 
+ #define GEADD_K                 DGEADD_K
++#define XYPA_K                  D1XYPA_K
+ 
+ #define GEMM_SMALL_MATRIX_PERMIT	DGEMM_SMALL_MATRIX_PERMIT
+ 
+@@ -1359,6 +1360,7 @@
+ #define IMATCOPY_K_RT		SIMATCOPY_K_RT
+ 
+ #define GEADD_K 		SGEADD_K
++#define XYPA_K 		S1XYPA_K
+ 
+ #define GEMM_SMALL_MATRIX_PERMIT	SGEMM_SMALL_MATRIX_PERMIT
+ 
+@@ -2198,6 +2200,7 @@
+ #define IMATCOPY_K_RTC		ZIMATCOPY_K_RTC
+ 
+ #define GEADD_K                 ZGEADD_K
++#define XYPA_K                  Z1XYPA_K
+ 
+ #define GEMM_SMALL_MATRIX_PERMIT	ZGEMM_SMALL_MATRIX_PERMIT
+ 
+@@ -2663,6 +2666,7 @@
+ #define IMATCOPY_K_RTC		CIMATCOPY_K_RTC
+ 
+ #define GEADD_K                 CGEADD_K
++#define XYPA_K                  C1XYPA_K
+ 
+ #define GEMM_SMALL_MATRIX_PERMIT	CGEMM_SMALL_MATRIX_PERMIT
+ 
+diff --git a/common_param.h b/common_param.h
+index fd20945..7bd6c57 100644
+--- a/common_param.h
++++ b/common_param.h
+@@ -1267,6 +1267,19 @@ int (*shgemv_t) (BLASLONG, BLASLONG, float, hfloat16 *, BLASLONG, hfloat16 *, BL
+ #if (BUILD_COMPLEX16==1)
+   int    (*zgeadd_k) (BLASLONG, BLASLONG, double, double, double *, BLASLONG, double, double, double *, BLASLONG, BLASLONG, BLASLONG); 
+ #endif
++
++#if (BUILD_SINGLE==1)
++  int    (*s1xypa_k) (BLASLONG, BLASLONG, BLASLONG, float, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG);
++#endif
++#if (BUILD_DOUBLE==1)
++  int    (*d1xypa_k) (BLASLONG, BLASLONG, BLASLONG, double, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG);
++#endif
++#if (BUILD_COMPLEX==1)
++  int    (*c1xypa_k) (BLASLONG, BLASLONG, BLASLONG, float, float, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG);
++#endif
++#if (BUILD_COMPLEX16==1)
++  int    (*z1xypa_k) (BLASLONG, BLASLONG, BLASLONG, double, double, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG);
++#endif
+ } gotoblas_t;
+ 
+ extern gotoblas_t *gotoblas;
+diff --git a/common_s.h b/common_s.h
+index e43b74b..ad59731 100644
+--- a/common_s.h
++++ b/common_s.h
+@@ -179,6 +179,7 @@
+ #define SIMATCOPY_K_RT          simatcopy_k_rt
+ 
+ #define SGEADD_K                sgeadd_k 
++#define S1XYPA_K                s1xypa_k
+ 
+ #define SGEMM_SMALL_MATRIX_PERMIT	sgemm_small_matrix_permit
+ 
+@@ -332,6 +333,7 @@
+ #define SIMATCOPY_K_RT          gotoblas -> simatcopy_k_rt
+ 
+ #define SGEADD_K                gotoblas -> sgeadd_k 
++#define S1XYPA_K                gotoblas -> s1xypa_k
+ 
+ #define SGEMM_SMALL_MATRIX_PERMIT	gotoblas -> sgemm_small_matrix_permit
+ 
+diff --git a/common_z.h b/common_z.h
+index c12d71b..f91d32c 100644
+--- a/common_z.h
++++ b/common_z.h
+@@ -231,6 +231,7 @@
+ #define ZIMATCOPY_K_RTC         zimatcopy_k_rtc
+ 
+ #define ZGEADD_K                zgeadd_k 
++#define Z1XYPA_K                z1xypa_k
+ 
+ #define ZGEMM_SMALL_MATRIX_PERMIT	zgemm_small_matrix_permit
+ 
+@@ -427,6 +428,7 @@
+ #define ZIMATCOPY_K_RTC         gotoblas -> zimatcopy_k_rtc
+ 
+ #define ZGEADD_K                gotoblas -> zgeadd_k
++#define Z1XYPA_K                gotoblas -> z1xypa_k
+ 
+ #define ZGEMM_SMALL_MATRIX_PERMIT	gotoblas -> zgemm_small_matrix_permit
+ 
+diff --git a/exports/gensymbol b/exports/gensymbol
+index bd4652b..ffd92c6 100755
+--- a/exports/gensymbol
++++ b/exports/gensymbol
+@@ -49,7 +49,7 @@ blasobjsc="
+     chbmv chemm chemv cher2 cher2k cher cherk scabs1 scamax
+     chpmv chpr2 chpr crotg cscal csrot csscal cswap scamin scasum scnrm2
+     csymm csyr2k csyrk ctbmv ctbsv ctpmv ctpsv ctrmm ctrmv ctrsm
+-    ctrsv icamax icamin cimatcopy comatcopy cgeadd scsum cgemmt cgemmtr"
++    ctrsv icamax icamin cimatcopy comatcopy cgeadd scsum cgemmt cgemmtr c1xypa"
+ 
+ blasobjsd="
+     damax damin dasum daxpy daxpby dcabs1 dcopy ddot dgbmv dgemm
+@@ -57,7 +57,7 @@ blasobjsd="
+     dscal dsdot dspmv dspr2 dimatcopy domatcopy
+     dspr dswap dsymm dsymv dsyr2 dsyr2k dsyr dsyrk dtbmv dtbsv
+     dtpmv dtpsv dtrmm dtrmv dtrsm dtrsv
+-        idamax idamin idmax idmin dgeadd dsum dgemmt dgemmtr"
++        idamax idamin idmax idmin dgeadd dsum dgemmt dgemmtr d1xypa"
+ 
+ blasobjss="
+     isamax isamin ismax ismin
+@@ -66,7 +66,7 @@ blasobjss="
+     smax smin snrm2 simatcopy somatcopy
+     srot srotg srotm srotmg ssbmv sscal sspmv sspr2 sspr sswap
+     ssymm ssymv ssyr2 ssyr2k ssyr ssyrk stbmv stbsv stpmv stpsv
+-    strmm strmv strsm strsv  sgeadd ssum sgemmt sgemmtr"
++    strmm strmv strsm strsv  sgeadd ssum sgemmt sgemmtr s1xypa"
+ 
+ blasobjsz="
+     izamax izamin
+@@ -76,7 +76,7 @@ blasobjsz="
+     zhpr zrotg zscal zswap zsymm zsyr2k zsyrk ztbmv
+     ztbsv ztpmv ztpsv ztrmm ztrmv ztrsm ztrsv
+     zomatcopy  zimatcopy dzamax dzamin dzasum dznrm2
+-    zgeadd  dzsum zgemmt zgemmtr"
++    zgeadd  dzsum zgemmt zgemmtr z1xypa"
+ 
+ blasobjs="lsame xerbla"
+ bfblasobjs="bgemm bgemv sbgemm sbgemmt sbgemmtr sbgemv sbdot sbstobf16 sbdtobf16 sbf16tos dbf16tod"
+@@ -86,7 +86,7 @@ cblasobjsc="
+     cblas_cgerc cblas_cgeru cblas_chbmv cblas_chemm cblas_chemv cblas_cher2 cblas_cher2k
+     cblas_cher cblas_cherk  cblas_chpmv cblas_chpr2 cblas_chpr cblas_cscal cblas_caxpby
+     cblas_csscal cblas_cswap cblas_csymm cblas_csyr2k cblas_csyrk cblas_ctbmv cblas_cgeadd
+-    cblas_ctbsv cblas_ctpmv cblas_ctpsv cblas_ctrmm cblas_ctrmv cblas_ctrsm cblas_ctrsv
++    cblas_ctbsv cblas_ctpmv cblas_ctpsv cblas_ctrmm cblas_ctrmv cblas_ctrsm cblas_ctrsv cblas_c1xypa
+     cblas_scnrm2 cblas_scasum cblas_cgemmt cblas_cgemmtr
+     cblas_icamax cblas_icamin cblas_icmin cblas_icmax cblas_scsum cblas_cimatcopy cblas_comatcopy
+     cblas_caxpyc cblas_crotg cblas_csrot cblas_scamax cblas_scamin cblas_cgemm_batch
+@@ -97,7 +97,7 @@ cblasobjsd="
+     cblas_drot cblas_drotg cblas_drotm cblas_drotmg cblas_dsbmv cblas_dscal cblas_dsdot
+     cblas_dspmv cblas_dspr2 cblas_dspr cblas_dswap cblas_dsymm cblas_dsymv cblas_dsyr2
+     cblas_dsyr2k cblas_dsyr cblas_dsyrk cblas_dtbmv cblas_dtbsv cblas_dtpmv cblas_dtpsv
+-    cblas_dtrmm cblas_dtrmv cblas_dtrsm cblas_dtrsv cblas_daxpby cblas_dgeadd cblas_dgemmt cblas_dgemmtr
++    cblas_dtrmm cblas_dtrmv cblas_dtrsm cblas_dtrsv cblas_daxpby cblas_dgeadd cblas_dgemmt cblas_dgemmtr cblas_d1xypa
+     cblas_idamax cblas_idamin cblas_idmin cblas_idmax cblas_dsum cblas_dimatcopy cblas_domatcopy
+     cblas_damax  cblas_damin cblas_dgemm_batch
+     "
+@@ -109,7 +109,7 @@ cblasobjss="
+     cblas_srotm cblas_srotmg cblas_ssbmv cblas_sscal cblas_sspmv cblas_sspr2 cblas_sspr
+     cblas_sswap cblas_ssymm cblas_ssymv cblas_ssyr2 cblas_ssyr2k cblas_ssyr cblas_ssyrk
+     cblas_stbmv cblas_stbsv cblas_stpmv cblas_stpsv cblas_strmm cblas_strmv cblas_strsm
+-    cblas_strsv cblas_sgeadd cblas_sgemmt cblas_sgemmtr
++    cblas_strsv cblas_sgeadd cblas_sgemmt cblas_sgemmtr cblas_s1xypa
+     cblas_isamax cblas_isamin cblas_ismin cblas_ismax cblas_ssum cblas_simatcopy cblas_somatcopy
+     cblas_samax cblas_samin cblas_sgemm_batch
+     "
+@@ -121,7 +121,7 @@ cblasobjsz="
+     cblas_zhpr cblas_zscal cblas_zswap cblas_zsymm cblas_zsyr2k cblas_zsyrk
+     cblas_ztbmv cblas_ztbsv cblas_ztpmv cblas_ztpsv cblas_ztrmm cblas_ztrmv cblas_ztrsm
+     cblas_ztrsv cblas_cdotc_sub cblas_cdotu_sub cblas_zdotc_sub cblas_zdotu_sub
+-    cblas_zaxpby cblas_zgeadd cblas_zgemmt cblas_zgemmtr
++    cblas_zaxpby cblas_zgeadd cblas_zgemmt cblas_zgemmtr cblas_z1xypa
+     cblas_izamax cblas_izamin cblas_izmin cblas_izmax cblas_dzsum cblas_zimatcopy cblas_zomatcopy
+     cblas_zaxpyc cblas_zdrot cblas_zrotg cblas_dzamax cblas_dzamin cblas_zgemm_batch
+ "
+diff --git a/interface/1xypa.c b/interface/1xypa.c
+new file mode 100644
+index 0000000..647bf38
+--- /dev/null
++++ b/interface/1xypa.c
+@@ -0,0 +1,113 @@
++/***************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in source code must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++
++#include <stdio.h>
++#include "common.h"
++#ifdef FUNCTION_PROFILE
++#include "functable.h"
++#endif
++#if  defined(Z13)
++#define MULTI_THREAD_MINIMAL  200000
++#else
++#define MULTI_THREAD_MINIMAL  10000
++#endif
++#ifndef CBLAS
++
++void NAME(blasint *N, FLOAT *A, FLOAT *q, blasint *INCQ, FLOAT *t, blasint *INCT, FLOAT *r, blasint *INCR){
++
++  BLASLONG n    = *N;
++  FLOAT a       = *A;
++  BLASLONG incq = *INCQ;
++  BLASLONG inct = *INCT;
++  BLASLONG incr = *INCR;
++
++#else
++
++void CNAME(blasint n, FLOAT a, FLOAT *q, blasint incq, FLOAT *t, blasint inct, FLOAT *r, blasint incr){
++
++#endif
++
++#ifdef SMP
++  int mode, nthreads;
++#endif
++
++#ifndef CBLAS
++  PRINT_DEBUG_NAME;
++#else
++  PRINT_DEBUG_CNAME;
++#endif
++
++  if (n <= 0) return;
++
++  IDEBUG_START;
++
++  FUNCTION_PROFILE_START();
++
++  if (incq < 0) q -= (n - 1) * incq;
++  if (inct < 0) t -= (n - 1) * inct;
++  if (incr < 0) r -= (n - 1) * incr;
++
++#ifdef SMP
++  //disable multi-thread when incq==0 or inct==0 or incr==0
++  //In that case, the threads would be dependent.
++  //
++  //Temporarily work-around the low performance issue with small input size &
++  //multithreads.
++  if (incq == 0 || inct == 0 || incr == 0 || n <= MULTI_THREAD_MINIMAL)
++	  nthreads = 1;
++  else
++	  nthreads = num_cpu_avail(1);
++
++  if (nthreads == 1) {
++#endif
++
++  XYPA_K(n, 0, 0, a, q, incq, t, inct, r, incr, NULL, 0);
++
++#ifdef SMP
++  } else {
++
++#ifdef XDOUBLE
++    mode  =  BLAS_XDOUBLE | BLAS_REAL;
++#elif defined(DOUBLE)
++    mode  =  BLAS_DOUBLE  | BLAS_REAL;
++#else
++    mode  =  BLAS_SINGLE  | BLAS_REAL;
++#endif
++
++    blas_level1_thread(mode, n, 0, 0, &a,
++		       q, incq, t, inct, r, incr, (int (*)(void))XYPA_K, nthreads);
++
++  }
++#endif
++
++  FUNCTION_PROFILE_END(1, 3 * n, 3 * n);
++
++  IDEBUG_END;
++
++  return;
++
++}
+diff --git a/interface/CMakeLists.txt b/interface/CMakeLists.txt
+index ee7d40d..9f33b3b 100644
+--- a/interface/CMakeLists.txt
++++ b/interface/CMakeLists.txt
+@@ -49,6 +49,7 @@ set(BLAS1_MANGLED_SOURCES
+   dot.c
+   rotg.c
+   axpby.c
++  1xypa.c
+ )
+ 
+ # TODO: USE_NETLIB_GEMV should switch gemv.c to netlib/*gemv.f
+diff --git a/interface/Makefile b/interface/Makefile
+index 2b6b60c..7056bc4 100644
+--- a/interface/Makefile
++++ b/interface/Makefile
+@@ -57,8 +57,8 @@ SBLAS1OBJS    = \
+ 		smax.$(SUFFIX) samax.$(SUFFIX) ismax.$(SUFFIX) isamax.$(SUFFIX) \
+ 		smin.$(SUFFIX) samin.$(SUFFIX) ismin.$(SUFFIX) isamin.$(SUFFIX) \
+ 		srot.$(SUFFIX) srotg.$(SUFFIX) srotm.$(SUFFIX) srotmg.$(SUFFIX) \
+-		saxpby.$(SUFFIX)
+-
++		saxpby.$(SUFFIX) \
++		s1xypa.$(SUFFIX)
+ SBLAS2OBJS    = \
+ 		sgemv.$(SUFFIX) sger.$(SUFFIX) \
+ 		strsv.$(SUFFIX) strmv.$(SUFFIX) ssymv.$(SUFFIX) \
+@@ -98,8 +98,8 @@ DBLAS1OBJS    = \
+ 		dmax.$(SUFFIX) damax.$(SUFFIX) idmax.$(SUFFIX) idamax.$(SUFFIX) \
+ 		dmin.$(SUFFIX) damin.$(SUFFIX) idmin.$(SUFFIX) idamin.$(SUFFIX) \
+ 		drot.$(SUFFIX) drotg.$(SUFFIX) drotm.$(SUFFIX) drotmg.$(SUFFIX) \
+-		daxpby.$(SUFFIX)
+-
++		daxpby.$(SUFFIX) \
++		d1xypa.$(SUFFIX)
+ DBLAS2OBJS    = \
+ 		dgemv.$(SUFFIX) dger.$(SUFFIX) \
+ 		dtrsv.$(SUFFIX) dtrmv.$(SUFFIX) dsymv.$(SUFFIX) \
+@@ -124,8 +124,8 @@ CBLAS1OBJS    = \
+ 		scamax.$(SUFFIX) icamax.$(SUFFIX) \
+ 		scamin.$(SUFFIX) icamin.$(SUFFIX) \
+ 		csrot.$(SUFFIX) crotg.$(SUFFIX) \
+-		caxpby.$(SUFFIX)
+-
++		caxpby.$(SUFFIX) \
++		c1xypa.$(SUFFIX)
+ CBLAS2OBJS    = \
+ 		cgemv.$(SUFFIX) cgeru.$(SUFFIX) cgerc.$(SUFFIX) \
+ 		ctrsv.$(SUFFIX) ctrmv.$(SUFFIX) \
+@@ -154,8 +154,8 @@ ZBLAS1OBJS    = \
+ 		dzamax.$(SUFFIX) izamax.$(SUFFIX) \
+ 		dzamin.$(SUFFIX) izamin.$(SUFFIX) \
+ 		zdrot.$(SUFFIX) zrotg.$(SUFFIX) \
+-		zaxpby.$(SUFFIX)
+-
++		zaxpby.$(SUFFIX) \
++		z1xypa.$(SUFFIX)
+ ZBLAS2OBJS    = \
+ 		zgemv.$(SUFFIX) zgeru.$(SUFFIX) zgerc.$(SUFFIX) \
+ 		ztrsv.$(SUFFIX) ztrmv.$(SUFFIX) \
+@@ -309,7 +309,7 @@ CSBLAS1OBJS   = \
+ 	cblas_isamax.$(SUFFIX) cblas_isamin.$(SUFFIX) cblas_sasum.$(SUFFIX) cblas_saxpy.$(SUFFIX) \
+ 	cblas_scopy.$(SUFFIX) cblas_sdot.$(SUFFIX) cblas_sdsdot.$(SUFFIX) cblas_dsdot.$(SUFFIX) \
+ 	cblas_srot.$(SUFFIX) cblas_srotg.$(SUFFIX) cblas_srotm.$(SUFFIX) cblas_srotmg.$(SUFFIX) \
+-	cblas_sscal.$(SUFFIX) cblas_sswap.$(SUFFIX) cblas_snrm2.$(SUFFIX) cblas_saxpby.$(SUFFIX) \
++	cblas_sscal.$(SUFFIX) cblas_sswap.$(SUFFIX) cblas_snrm2.$(SUFFIX) cblas_saxpby.$(SUFFIX) cblas_s1xypa.$(SUFFIX) \
+ 	cblas_ismin.$(SUFFIX) cblas_ismax.$(SUFFIX) cblas_ssum.$(SUFFIX) cblas_samax.$(SUFFIX) \
+ 	cblas_samin.$(SUFFIX)
+ 
+@@ -346,7 +346,7 @@ CDBLAS1OBJS   = \
+ 	cblas_idamax.$(SUFFIX) cblas_idamin.$(SUFFIX) cblas_dasum.$(SUFFIX) cblas_daxpy.$(SUFFIX) \
+ 	cblas_dcopy.$(SUFFIX) cblas_ddot.$(SUFFIX) \
+ 	cblas_drot.$(SUFFIX) cblas_drotg.$(SUFFIX) cblas_drotm.$(SUFFIX) cblas_drotmg.$(SUFFIX) \
+-	cblas_dscal.$(SUFFIX) cblas_dswap.$(SUFFIX) cblas_dnrm2.$(SUFFIX) cblas_daxpby.$(SUFFIX) \
++	cblas_dscal.$(SUFFIX) cblas_dswap.$(SUFFIX) cblas_dnrm2.$(SUFFIX) cblas_daxpby.$(SUFFIX) cblas_d1xypa.$(SUFFIX) \
+ 	cblas_idmin.$(SUFFIX) cblas_idmax.$(SUFFIX) cblas_dsum.$(SUFFIX) cblas_damax.$(SUFFIX) \
+ 	cblas_damin.$(SUFFIX)
+ 
+@@ -368,7 +368,7 @@ CCBLAS1OBJS   = \
+ 	cblas_cdotc_sub.$(SUFFIX) cblas_cdotu_sub.$(SUFFIX) \
+ 	cblas_cscal.$(SUFFIX) cblas_csscal.$(SUFFIX) \
+ 	cblas_cswap.$(SUFFIX) cblas_scnrm2.$(SUFFIX) \
+-	cblas_caxpby.$(SUFFIX) cblas_scamax.$(SUFFIX) cblas_caxpyc.$(SUFFIX) cblas_scamin.$(SUFFIX) \
++	cblas_caxpby.$(SUFFIX) cblas_c1xypa.$(SUFFIX) cblas_scamax.$(SUFFIX) cblas_caxpyc.$(SUFFIX) cblas_scamin.$(SUFFIX) \
+ 	cblas_icmin.$(SUFFIX) cblas_icmax.$(SUFFIX) cblas_scsum.$(SUFFIX) cblas_csrot.$(SUFFIX) cblas_crotg.$(SUFFIX)
+ 
+ CCBLAS2OBJS   = \
+@@ -398,7 +398,7 @@ CZBLAS1OBJS   = \
+ 	cblas_zdotc_sub.$(SUFFIX) cblas_zdotu_sub.$(SUFFIX) \
+ 	cblas_zscal.$(SUFFIX) cblas_zdscal.$(SUFFIX) \
+ 	cblas_zswap.$(SUFFIX) cblas_dznrm2.$(SUFFIX) \
+-	cblas_zaxpby.$(SUFFIX) cblas_zaxpyc.$(SUFFIX) \
++	cblas_zaxpby.$(SUFFIX) cblas_zaxpyc.$(SUFFIX) cblas_z1xypa.$(SUFFIX) \
+ 	cblas_izmin.$(SUFFIX) cblas_izmax.$(SUFFIX) cblas_dzsum.$(SUFFIX) cblas_zdrot.$(SUFFIX) cblas_zrotg.$(SUFFIX)
+ 
+ 
+@@ -2467,6 +2467,30 @@ caxpby.$(SUFFIX) caxpby.$(PSUFFIX) : zaxpby.c
+ cblas_caxpby.$(SUFFIX) cblas_caxpby.$(PSUFFIX) : zaxpby.c
+ 	$(CC) $(CFLAGS) -DCBLAS -c $< -o $(@F)
+ 
++s1xypa.$(SUFFIX) s1xypa.$(PSUFFIX) : 1xypa.c
++	$(CC) $(CFLAGS) -c $< -o $(@F)
++
++cblas_s1xypa.$(SUFFIX) cblas_s1xypa.$(PSUFFIX) : 1xypa.c
++	$(CC) $(CFLAGS) -DCBLAS -c $< -o $(@F)
++
++d1xypa.$(SUFFIX) d1xypa.$(PSUFFIX) : 1xypa.c
++	$(CC) $(CFLAGS) -c $< -o $(@F)
++
++cblas_d1xypa.$(SUFFIX) cblas_d1xypa.$(PSUFFIX) : 1xypa.c
++	$(CC) $(CFLAGS) -DCBLAS -c $< -o $(@F)
++
++z1xypa.$(SUFFIX) z1xypa.$(PSUFFIX) : z1xypa.c
++	$(CC) $(CFLAGS) -c $< -o $(@F)
++
++cblas_z1xypa.$(SUFFIX) cblas_z1xypa.$(PSUFFIX) : z1xypa.c
++	$(CC) $(CFLAGS) -DCBLAS -c $< -o $(@F)
++
++c1xypa.$(SUFFIX) c1xypa.$(PSUFFIX) : z1xypa.c
++	$(CC) $(CFLAGS) -c $< -o $(@F)
++
++cblas_c1xypa.$(SUFFIX) cblas_c1xypa.$(PSUFFIX) : z1xypa.c
++	$(CC) $(CFLAGS) -DCBLAS -c $< -o $(@F)
++
+ domatcopy.$(SUFFIX) domatcopy.$(PSUFFIX) : omatcopy.c
+ 	$(CC) -c $(CFLAGS) $< -o $(@F)
+ 
+diff --git a/interface/z1xypa.c b/interface/z1xypa.c
+new file mode 100644
+index 0000000..9d4e844
+--- /dev/null
++++ b/interface/z1xypa.c
+@@ -0,0 +1,119 @@
++/***************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in source code must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++
++#include <stdio.h>
++#include "common.h"
++#ifdef FUNCTION_PROFILE
++#include "functable.h"
++#endif
++#if  defined(Z13)
++#define MULTI_THREAD_MINIMAL  200000
++#else
++#define MULTI_THREAD_MINIMAL  10000
++#endif
++#ifndef CBLAS
++
++void NAME(blasint *N, FLOAT *A, FLOAT *Q, blasint *INCQ, FLOAT *T, blasint *INCT, FLOAT *R, blasint *INCR){
++
++  BLASLONG n    = *N;
++  BLASLONG incq = *INCQ;
++  BLASLONG inct = *INCT;
++  BLASLONG incr = *INCR;
++
++#else
++
++void CNAME(blasint n, void *VA, void *VQ, blasint incq, void *VT, blasint inct, void *VR, blasint incr){
++FLOAT *A = (FLOAT*) VA;
++FLOAT *Q = (FLOAT*) VQ;
++FLOAT *T = (FLOAT*) VT;
++FLOAT *R = (FLOAT*) VR;
++
++#endif
++
++  FLOAT ar = *(A + 0);
++  FLOAT ai = *(A + 1);
++
++#ifdef SMP
++  int mode, nthreads;
++#endif
++
++#ifndef CBLAS
++  PRINT_DEBUG_NAME;
++#else
++  PRINT_DEBUG_CNAME;
++#endif
++
++  if (n <= 0) return;
++
++  IDEBUG_START;
++
++  FUNCTION_PROFILE_START();
++
++  if (incq < 0) Q -= (n - 1) * incq * 2;
++  if (inct < 0) T -= (n - 1) * inct * 2;
++  if (incr < 0) R -= (n - 1) * incr * 2;
++
++#ifdef SMP
++  //disable multi-thread when incq==0 or inct==0 or incr==0
++  //In that case, the threads would be dependent.
++  //
++  //Temporarily work-around the low performance issue with small input size &
++  //multithreads.
++  if (incq == 0 || inct == 0 || incr == 0 || n <= MULTI_THREAD_MINIMAL)
++	  nthreads = 1;
++  else
++	  nthreads = num_cpu_avail(1);
++
++  if (nthreads == 1) {
++#endif
++
++  XYPA_K(n, 0, 0, ar, ai, Q, incq, T, inct, R, incr, NULL, 0);
++
++#ifdef SMP
++  } else {
++
++#ifdef XDOUBLE
++    mode  =  BLAS_XDOUBLE | BLAS_COMPLEX;
++#elif defined(DOUBLE)
++    mode  =  BLAS_DOUBLE  | BLAS_COMPLEX;
++#else
++    mode  =  BLAS_SINGLE  | BLAS_COMPLEX;
++#endif
++
++    blas_level1_thread(mode, n, 0, 0, A,
++		       Q, incq, T, inct, R, incr, (int (*)(void))XYPA_K, nthreads);
++
++  }
++#endif
++
++  FUNCTION_PROFILE_END(4, 3 * n, 3 * n);
++
++  IDEBUG_END;
++
++  return;
++
++}
+diff --git a/kernel/CMakeLists.txt b/kernel/CMakeLists.txt
+index 38f484a..3cde059 100644
+--- a/kernel/CMakeLists.txt
++++ b/kernel/CMakeLists.txt
+@@ -28,6 +28,22 @@
+ 
+ include_directories(${PROJECT_SOURCE_DIR})
+ 
++# Physics extension kernels (1xypa, 3dot, ...) are compiled with -O3 by
++# default. Every kernel registration must pass its generated wrappers to
++# PhysicsKernelOptimize().
++option(PHYS_KERNELS_O3 "Compile physics extension kernels with -O3" ON)
++if (PHYS_KERNELS_O3)
++  message(WARNING "Physics extension kernels (1xypa, ...) are compiled with -O3. Disable with -DPHYS_KERNELS_O3=OFF")
++else ()
++  message(WARNING "Physics extension kernels (1xypa, ...) are compiled WITHOUT -O3 (PHYS_KERNELS_O3=OFF). Re-enable with -DPHYS_KERNELS_O3=ON")
++endif ()
++
++function(PhysicsKernelOptimize sources)
++  if (PHYS_KERNELS_O3)
++    set_source_files_properties(${sources} PROPERTIES COMPILE_FLAGS " -O3")
++  endif ()
++endfunction()
++
+ # Makefile
+ function (build_core TARGET_CORE KDIR TSUFFIX KERNEL_DEFINITIONS)
+     set (OPENBLAS_SRC "")
+@@ -96,6 +112,11 @@ function (build_core TARGET_CORE KDIR TSUFFIX KERNEL_DEFINITIONS)
+       GenerateNamedObjects("${KERNELDIR}/${${float_char}SCALKERNEL}" "" "scal_k" false "" "" false ${float_type})
+       GenerateNamedObjects("${KERNELDIR}/${${float_char}SWAPKERNEL}" "" "swap_k" false "" "" false ${float_type})
+       GenerateNamedObjects("${KERNELDIR}/${${float_char}AXPBYKERNEL}" "" "axpby_k" false "" "" false ${float_type})
++      if (DEFINED ${float_char}1XYPAKERNEL)
++        string(TOLOWER ${float_char} xypa_char)
++        GenerateNamedObjects("${KERNELDIR}/${${float_char}1XYPAKERNEL}" "" "1xypa_k" false "" "" false ${float_type})
++        PhysicsKernelOptimize("${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${xypa_char}1xypa_k.c")
++      endif ()
+       GenerateNamedObjects("${KERNELDIR}/${${float_char}SUMKERNEL}" "" "sum_k" false "" "" false ${float_type})
+ 
+       if (${float_type} STREQUAL "COMPLEX" OR ${float_type} STREQUAL "ZCOMPLEX")
+diff --git a/kernel/Makefile.L1 b/kernel/Makefile.L1
+index 221cc51..fe2fe9f 100644
+--- a/kernel/Makefile.L1
++++ b/kernel/Makefile.L1
+@@ -548,14 +548,14 @@ SBLASOBJS	+= \
+ 	sasum_k$(TSUFFIX).$(SUFFIX) ssum_k$(TSUFFIX).$(SUFFIX) saxpy_k$(TSUFFIX).$(SUFFIX) scopy_k$(TSUFFIX).$(SUFFIX) \
+ 	sdot_k$(TSUFFIX).$(SUFFIX) sdsdot_k$(TSUFFIX).$(SUFFIX) dsdot_k$(TSUFFIX).$(SUFFIX) \
+ 	snrm2_k$(TSUFFIX).$(SUFFIX) srot_k$(TSUFFIX).$(SUFFIX) sscal_k$(TSUFFIX).$(SUFFIX) sswap_k$(TSUFFIX).$(SUFFIX) \
+-	saxpby_k$(TSUFFIX).$(SUFFIX) srotm_k$(TSUFFIX).$(SUFFIX)
++	saxpby_k$(TSUFFIX).$(SUFFIX) srotm_k$(TSUFFIX).$(SUFFIX) s1xypa_k$(TSUFFIX).$(SUFFIX)
+ 
+ DBLASOBJS	+= \
+ 	 damax_k$(TSUFFIX).$(SUFFIX)  damin_k$(TSUFFIX).$(SUFFIX)  dmax_k$(TSUFFIX).$(SUFFIX)  dmin_k$(TSUFFIX).$(SUFFIX) \
+ 	idamax_k$(TSUFFIX).$(SUFFIX) idamin_k$(TSUFFIX).$(SUFFIX) idmax_k$(TSUFFIX).$(SUFFIX) idmin_k$(TSUFFIX).$(SUFFIX) \
+ 	dasum_k$(TSUFFIX).$(SUFFIX) daxpy_k$(TSUFFIX).$(SUFFIX) dcopy_k$(TSUFFIX).$(SUFFIX) ddot_k$(TSUFFIX).$(SUFFIX) \
+ 	dnrm2_k$(TSUFFIX).$(SUFFIX) drot_k$(TSUFFIX).$(SUFFIX) dscal_k$(TSUFFIX).$(SUFFIX) dswap_k$(TSUFFIX).$(SUFFIX) \
+-	daxpby_k$(TSUFFIX).$(SUFFIX) dsum_k$(TSUFFIX).$(SUFFIX) drotm_k$(TSUFFIX).$(SUFFIX)
++	daxpby_k$(TSUFFIX).$(SUFFIX) dsum_k$(TSUFFIX).$(SUFFIX) drotm_k$(TSUFFIX).$(SUFFIX) d1xypa_k$(TSUFFIX).$(SUFFIX)
+ 
+ QBLASOBJS	+= \
+ 	 qamax_k$(TSUFFIX).$(SUFFIX)  qamin_k$(TSUFFIX).$(SUFFIX)  qmax_k$(TSUFFIX).$(SUFFIX)  qmin_k$(TSUFFIX).$(SUFFIX) \
+@@ -568,13 +568,12 @@ CBLASOBJS	+= \
+ 	camax_k$(TSUFFIX).$(SUFFIX)  camin_k$(TSUFFIX).$(SUFFIX) icamax_k$(TSUFFIX).$(SUFFIX) icamin_k$(TSUFFIX).$(SUFFIX) \
+ 	casum_k$(TSUFFIX).$(SUFFIX) caxpy_k$(TSUFFIX).$(SUFFIX) caxpyc_k$(TSUFFIX).$(SUFFIX) ccopy_k$(TSUFFIX).$(SUFFIX) \
+ 	cdotc_k$(TSUFFIX).$(SUFFIX) cdotu_k$(TSUFFIX).$(SUFFIX) cnrm2_k$(TSUFFIX).$(SUFFIX) csrot_k$(TSUFFIX).$(SUFFIX) \
+-	cscal_k$(TSUFFIX).$(SUFFIX) cswap_k$(TSUFFIX).$(SUFFIX) caxpby_k$(TSUFFIX).$(SUFFIX) csum_k$(TSUFFIX).$(SUFFIX)
+-
++	cscal_k$(TSUFFIX).$(SUFFIX) cswap_k$(TSUFFIX).$(SUFFIX) caxpby_k$(TSUFFIX).$(SUFFIX) csum_k$(TSUFFIX).$(SUFFIX) c1xypa_k$(TSUFFIX).$(SUFFIX)
+ ZBLASOBJS	+= \
+ 	 zamax_k$(TSUFFIX).$(SUFFIX)  zamin_k$(TSUFFIX).$(SUFFIX) izamax_k$(TSUFFIX).$(SUFFIX) izamin_k$(TSUFFIX).$(SUFFIX) \
+ 	zasum_k$(TSUFFIX).$(SUFFIX) zaxpy_k$(TSUFFIX).$(SUFFIX) zaxpyc_k$(TSUFFIX).$(SUFFIX) zcopy_k$(TSUFFIX).$(SUFFIX) \
+ 	zdotc_k$(TSUFFIX).$(SUFFIX) zdotu_k$(TSUFFIX).$(SUFFIX) znrm2_k$(TSUFFIX).$(SUFFIX) zdrot_k$(TSUFFIX).$(SUFFIX) \
+-	zscal_k$(TSUFFIX).$(SUFFIX) zswap_k$(TSUFFIX).$(SUFFIX) zaxpby_k$(TSUFFIX).$(SUFFIX) zsum_k$(TSUFFIX).$(SUFFIX)
++	zscal_k$(TSUFFIX).$(SUFFIX) zswap_k$(TSUFFIX).$(SUFFIX) zaxpby_k$(TSUFFIX).$(SUFFIX) zsum_k$(TSUFFIX).$(SUFFIX) z1xypa_k$(TSUFFIX).$(SUFFIX)
+ 
+ XBLASOBJS	+= \
+ 	 xamax_k$(TSUFFIX).$(SUFFIX)  xamin_k$(TSUFFIX).$(SUFFIX) ixamax_k$(TSUFFIX).$(SUFFIX) ixamin_k$(TSUFFIX).$(SUFFIX) \
+@@ -958,4 +957,28 @@ $(KDIR)caxpby_k$(TSUFFIX).$(SUFFIX)  $(KDIR)caxpby_k$(TPSUFFIX).$(PSUFFIX)  : $(
+ $(KDIR)zaxpby_k$(TSUFFIX).$(SUFFIX)  $(KDIR)zaxpby_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(ZAXPBYKERNEL)
+ 	$(CC) -c $(CFLAGS) -DCOMPLEX -UCONJ -DDOUBLE $< -o $@
+ 
++ifndef S1XYPAKERNEL
++S1XYPAKERNEL = ../generic/1xypa.c
++endif
++$(KDIR)s1xypa_k$(TSUFFIX).$(SUFFIX)  $(KDIR)s1xypa_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(S1XYPAKERNEL)
++	$(CC) -c $(CFLAGS) -UCOMPLEX -UDOUBLE $< -o $@
++
++ifndef D1XYPAKERNEL
++D1XYPAKERNEL = ../generic/1xypa.c
++endif
++$(KDIR)d1xypa_k$(TSUFFIX).$(SUFFIX)  $(KDIR)d1xypa_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(D1XYPAKERNEL)
++	$(CC) -c $(CFLAGS) -UCOMPLEX -DDOUBLE $< -o $@
++
++ifndef C1XYPAKERNEL
++C1XYPAKERNEL = ../generic/z1xypa.c
++endif
++$(KDIR)c1xypa_k$(TSUFFIX).$(SUFFIX)  $(KDIR)c1xypa_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(C1XYPAKERNEL)
++	$(CC) -c $(CFLAGS) -DCOMPLEX -UDOUBLE $< -o $@
++
++ifndef Z1XYPAKERNEL
++Z1XYPAKERNEL = ../generic/z1xypa.c
++endif
++$(KDIR)z1xypa_k$(TSUFFIX).$(SUFFIX)  $(KDIR)z1xypa_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(Z1XYPAKERNEL)
++	$(CC) -c $(CFLAGS) -DCOMPLEX -DDOUBLE $< -o $@
++
+ 
+diff --git a/kernel/generic/1xypa.c b/kernel/generic/1xypa.c
+new file mode 100644
+index 0000000..03146ec
+--- /dev/null
++++ b/kernel/generic/1xypa.c
+@@ -0,0 +1,70 @@
++/***************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in source code must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++
++#include "common.h"
++
++int CNAME(BLASLONG n, BLASLONG dummy0, BLASLONG dummy1, FLOAT a, FLOAT *q,
++          BLASLONG incq, FLOAT *t, BLASLONG inct, FLOAT *r, BLASLONG incr,
++          FLOAT *dummy, BLASLONG dummy2)
++{
++	BLASLONG i = 0;
++	BLASLONG iq = 0;
++	BLASLONG it = 0;
++	BLASLONG ir = 0;
++
++	if ( n < 0 )  return(0);
++
++	if ( incr == 0 )
++	{
++		r[0] = q[0] * t[0] + a;
++		return(0);
++	}
++
++	if ( incq == 1 && inct == 1 && incr == 1 )
++	{
++		for (i = 0; i + 4 <= n; i += 4)
++		{
++			r[i]     = q[i]     * t[i]     + a;
++			r[i + 1] = q[i + 1] * t[i + 1] + a;
++			r[i + 2] = q[i + 2] * t[i + 2] + a;
++			r[i + 3] = q[i + 3] * t[i + 3] + a;
++		}
++		iq = i;
++		it = i;
++		ir = i;
++	}
++
++	while(i < n)
++	{
++		r[ir] = q[iq] * t[it] + a;
++		iq += incq ;
++		it += inct ;
++		ir += incr ;
++		i++ ;
++	}
++	return(0);
++}
+diff --git a/kernel/generic/z1xypa.c b/kernel/generic/z1xypa.c
+new file mode 100644
+index 0000000..62b4129
+--- /dev/null
++++ b/kernel/generic/z1xypa.c
+@@ -0,0 +1,93 @@
++/***************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in source code must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++
++#include "common.h"
++
++int CNAME(BLASLONG n, BLASLONG dummy0, BLASLONG dummy1, FLOAT ar, FLOAT ai,
++          FLOAT *q, BLASLONG incq, FLOAT *t, BLASLONG inct, FLOAT *r,
++          BLASLONG incr, FLOAT *dummy, BLASLONG dummy2)
++{
++	BLASLONG i = 0;
++	BLASLONG iq = 0;
++	BLASLONG it = 0;
++	BLASLONG ir = 0;
++	BLASLONG incq2 = 2 * incq;
++	BLASLONG inct2 = 2 * inct;
++	BLASLONG incr2 = 2 * incr;
++	FLOAT qr, qi, tr, ti;
++
++	if ( n < 0 )  return(0);
++
++	if ( incr == 0 )
++	{
++		r[0]     = q[0] * t[0] - q[1] * t[1] + ar;
++		r[1]     = q[0] * t[1] + q[1] * t[0] + ai;
++		return(0);
++	}
++
++	if ( incq == 1 && inct == 1 && incr == 1 )
++	{
++		for (i = 0; i + 4 <= n; i += 4)
++		{
++			qr = q[2 * i];     qi = q[2 * i + 1];
++			tr = t[2 * i];     ti = t[2 * i + 1];
++			r[2 * i]     = qr * tr - qi * ti + ar;
++			r[2 * i + 1] = qr * ti + qi * tr + ai;
++			qr = q[2 * i + 2]; qi = q[2 * i + 3];
++			tr = t[2 * i + 2]; ti = t[2 * i + 3];
++			r[2 * i + 2] = qr * tr - qi * ti + ar;
++			r[2 * i + 3] = qr * ti + qi * tr + ai;
++			qr = q[2 * i + 4]; qi = q[2 * i + 5];
++			tr = t[2 * i + 4]; ti = t[2 * i + 5];
++			r[2 * i + 4] = qr * tr - qi * ti + ar;
++			r[2 * i + 5] = qr * ti + qi * tr + ai;
++			qr = q[2 * i + 6]; qi = q[2 * i + 7];
++			tr = t[2 * i + 6]; ti = t[2 * i + 7];
++			r[2 * i + 6] = qr * tr - qi * ti + ar;
++			r[2 * i + 7] = qr * ti + qi * tr + ai;
++		}
++		iq = 2 * i;
++		it = 2 * i;
++		ir = 2 * i;
++	}
++
++	while(i < n)
++	{
++		qr = q[iq];
++		qi = q[iq + 1];
++		tr = t[it];
++		ti = t[it + 1];
++
++		r[ir]     = qr * tr - qi * ti + ar;
++		r[ir + 1] = qr * ti + qi * tr + ai;
++		iq += incq2 ;
++		it += inct2 ;
++		ir += incr2 ;
++		i++ ;
++	}
++	return(0);
++}
+diff --git a/kernel/setparam-ref.c b/kernel/setparam-ref.c
+index 107f1f4..8f36add 100644
+--- a/kernel/setparam-ref.c
++++ b/kernel/setparam-ref.c
+@@ -947,6 +947,18 @@ gotoblas_t TABLE_NAME = {
+ #if BUILD_COMPLEX16==1
+   zgeadd_kTS,
+ #endif
++#if BUILD_SINGLE == 1
++  s1xypa_kTS,
++#endif
++#if BUILD_DOUBLE==1
++  d1xypa_kTS,
++#endif
++#if BUILD_COMPLEX==1
++  c1xypa_kTS,
++#endif
++#if BUILD_COMPLEX16==1
++  z1xypa_kTS,
++#endif
+ };
+ 
+ #if (ARCH_ARM64)
+diff --git a/utest/CMakeLists.txt b/utest/CMakeLists.txt
+index 1551cef..b349545 100644
+--- a/utest/CMakeLists.txt
++++ b/utest/CMakeLists.txt
+@@ -18,6 +18,7 @@ else ()
+     test_zscal.c
+     test_amin.c
+     test_axpby.c
++    test_1xypa.c
+     test_gemv.c
+   )
+ endif ()
+@@ -60,6 +61,10 @@ ${DIR_EXT}/test_sgeadd.c
+ ${DIR_EXT}/test_dgeadd.c
+ ${DIR_EXT}/test_cgeadd.c
+ ${DIR_EXT}/test_zgeadd.c
++${DIR_EXT}/test_s1xypa.c
++${DIR_EXT}/test_d1xypa.c
++${DIR_EXT}/test_c1xypa.c
++${DIR_EXT}/test_z1xypa.c
+ ${DIR_EXT}/test_saxpby.c
+ ${DIR_EXT}/test_daxpby.c
+ ${DIR_EXT}/test_caxpby.c
+diff --git a/utest/Makefile b/utest/Makefile
+index 07de0c2..97432bf 100644
+--- a/utest/Makefile
++++ b/utest/Makefile
+@@ -14,7 +14,7 @@ UTESTEXTBIN=openblas_utest_ext$(EXE)
+ include $(TOPDIR)/Makefile.system
+ 
+ OBJS=utest_main.o test_min.o test_amax.o test_ismin.o test_rotmg.o test_axpy.o test_dotu.o test_dsdot.o test_swap.o test_rot.o test_dnrm2.o test_zscal.o \
+-     test_amin.o test_axpby.o test_gemv.o
++     test_amin.o test_axpby.o test_gemv.o test_1xypa.o
+ #test_rot.o test_swap.o test_axpy.o test_dotu.o test_dsdot.o test_fork.o
+ OBJS_EXT=utest_main.o $(DIR_EXT)/xerbla.o $(DIR_EXT)/common.o 
+ OBJS_EXT+=$(DIR_EXT)/test_isamin.o $(DIR_EXT)/test_idamin.o $(DIR_EXT)/test_icamin.o $(DIR_EXT)/test_izamin.o 
+@@ -26,6 +26,7 @@ OBJS_EXT+=$(DIR_EXT)/test_zscal.o $(DIR_EXT)/test_cscal.o
+ OBJS_EXT+=$(DIR_EXT)/test_domatcopy.o $(DIR_EXT)/test_somatcopy.o $(DIR_EXT)/test_zomatcopy.o $(DIR_EXT)/test_comatcopy.o
+ OBJS_EXT+=$(DIR_EXT)/test_simatcopy.o $(DIR_EXT)/test_dimatcopy.o $(DIR_EXT)/test_cimatcopy.o $(DIR_EXT)/test_zimatcopy.o
+ OBJS_EXT+=$(DIR_EXT)/test_sgeadd.o $(DIR_EXT)/test_dgeadd.o $(DIR_EXT)/test_cgeadd.o $(DIR_EXT)/test_zgeadd.o
++OBJS_EXT+=$(DIR_EXT)/test_s1xypa.o $(DIR_EXT)/test_d1xypa.o $(DIR_EXT)/test_c1xypa.o $(DIR_EXT)/test_z1xypa.o
+ OBJS_EXT+=$(DIR_EXT)/test_cgemv_t.o $(DIR_EXT)/test_zgemv_t.o $(DIR_EXT)/test_cgemv_n.o $(DIR_EXT)/test_zgemv_n.o
+ OBJS_EXT+=$(DIR_EXT)/test_sgemmt.o $(DIR_EXT)/test_dgemmt.o $(DIR_EXT)/test_cgemmt.o $(DIR_EXT)/test_zgemmt.o
+ OBJS_EXT+=$(DIR_EXT)/test_ztrmv.o $(DIR_EXT)/test_ctrmv.o $(DIR_EXT)/test_ztrsv.o $(DIR_EXT)/test_ctrsv.o
+diff --git a/utest/test_1xypa.c b/utest/test_1xypa.c
+new file mode 100644
+index 0000000..88f9537
+--- /dev/null
++++ b/utest/test_1xypa.c
+@@ -0,0 +1,204 @@
++/*****************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++
++   1. Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++
++   2. Redistributions in source code must reproduce the above copyright
++      notice, this list of conditions and the following disclaimer in
++      the documentation and/or other materials provided with the
++      distribution.
++   3. Neither the name of the OpenBLAS project nor the names of
++      its contributors may be used to endorse or promote products
++      derived from this software without specific prior written
++      permission.
++
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++**********************************************************************************/
++
++#include "openblas_utest.h"
++
++#ifdef BUILD_SINGLE
++CTEST(1xypa,s1xypa_inc_1)
++{
++	blasint i;
++	blasint N=8,incQ=1,incT=1,incR=1;
++	float a=0.25f;
++	float q1[]={1.0f,2.0f,3.0f,4.0f,5.0f,6.0f,7.0f,8.0f};
++	float t1[]={8.0f,7.0f,6.0f,5.0f,4.0f,3.0f,2.0f,1.0f};
++	float r1[]={0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f};
++	float r2[]={8.25f,14.25f,18.25f,20.25f,20.25f,18.25f,14.25f,8.25f};
++
++	//OpenBLAS
++	BLASFUNC(s1xypa)(&N,&a,q1,&incQ,t1,&incT,r1,&incR);
++
++	for(i=0; i<N; i++){
++		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], SINGLE_EPS);
++	}
++}
++
++CTEST(1xypa,s1xypa_inc_2)
++{
++	blasint i;
++	blasint N=4,incQ=2,incT=2,incR=1;
++	float a=1.0f;
++	float q1[]={1.0f,0.0f,2.0f,0.0f,3.0f,0.0f,4.0f,0.0f};
++	float t1[]={2.0f,0.0f,4.0f,0.0f,6.0f,0.0f,8.0f,0.0f};
++	float r1[]={0.0f,9.0f,0.0f,9.0f,0.0f,9.0f,0.0f};
++	float r2[]={3.0f,9.0f,19.0f,33.0f,9.0f,9.0f,0.0f};
++
++	//OpenBLAS
++	BLASFUNC(s1xypa)(&N,&a,q1,&incQ,t1,&incT,r1,&incR);
++
++	for(i=0; i<N; i++){
++		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], SINGLE_EPS);
++	}
++}
++
++CTEST(1xypa,s1xypa_incr_0)
++{
++	blasint i;
++	blasint N=8,incQ=1,incT=1,incR=0;
++	float a=0.5f;
++	float q1[]={1.0f,2.0f,3.0f,4.0f,5.0f,6.0f,7.0f,8.0f};
++	float t1[]={8.0f,7.0f,6.0f,5.0f,4.0f,3.0f,2.0f,1.0f};
++	float r1[]={0.0f,1.0f,2.0f,3.0f,4.0f,5.0f,6.0f,7.0f};
++	float r2[]={8.5f,1.0f,2.0f,3.0f,4.0f,5.0f,6.0f,7.0f};
++
++	//OpenBLAS
++	BLASFUNC(s1xypa)(&N,&a,q1,&incQ,t1,&incT,r1,&incR);
++
++	for(i=0; i<N; i++){
++		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], SINGLE_EPS);
++	}
++}
++
++CTEST(1xypa,s1xypa_incq_0)
++{
++	blasint i;
++	blasint N=4,incQ=0,incT=1,incR=1;
++	float a=0.0f;
++	float q1[]={3.0f,0.0f,0.0f,0.0f};
++	float t1[]={2.0f,4.0f,6.0f,8.0f};
++	float r1[]={0.0f,0.0f,0.0f,0.0f};
++	float r2[]={6.0f,12.0f,18.0f,24.0f};
++
++	//OpenBLAS
++	BLASFUNC(s1xypa)(&N,&a,q1,&incQ,t1,&incT,r1,&incR);
++
++	for(i=0; i<N; i++){
++		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], SINGLE_EPS);
++	}
++}
++#endif
++
++#ifdef BUILD_DOUBLE
++CTEST(1xypa,d1xypa_inc_1)
++{
++	blasint i;
++	blasint N=8,incQ=1,incT=1,incR=1;
++	double a=0.25;
++	double q1[]={1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0};
++	double t1[]={8.0,7.0,6.0,5.0,4.0,3.0,2.0,1.0};
++	double r1[]={0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0};
++	double r2[]={8.25,14.25,18.25,20.25,20.25,18.25,14.25,8.25};
++
++	//OpenBLAS
++	BLASFUNC(d1xypa)(&N,&a,q1,&incQ,t1,&incT,r1,&incR);
++
++	for(i=0; i<N; i++){
++		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], DOUBLE_EPS);
++	}
++}
++
++CTEST(1xypa,d1xypa_inc_2)
++{
++	blasint i;
++	blasint N=4,incQ=2,incT=2,incR=1;
++	double a=1.0;
++	double q1[]={1.0,0.0,2.0,0.0,3.0,0.0,4.0,0.0};
++	double t1[]={2.0,0.0,4.0,0.0,6.0,0.0,8.0,0.0};
++	double r1[]={0.0,9.0,0.0,9.0,0.0,9.0,0.0};
++	double r2[]={3.0,9.0,19.0,33.0,9.0,9.0,0.0};
++
++	//OpenBLAS
++	BLASFUNC(d1xypa)(&N,&a,q1,&incQ,t1,&incT,r1,&incR);
++
++	for(i=0; i<N; i++){
++		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], DOUBLE_EPS);
++	}
++}
++#endif
++
++#ifdef BUILD_COMPLEX
++CTEST(1xypa,c1xypa_inc_1)
++{
++	blasint i;
++	blasint N=4,incQ=1,incT=1,incR=1;
++	float a[2]={0.5f,0.25f};
++	float q1[]={1.0f,2.0f,3.0f,4.0f,5.0f,6.0f,7.0f,8.0f};
++	float t1[]={8.0f,7.0f,6.0f,5.0f,4.0f,3.0f,2.0f,1.0f};
++	float r1[]={0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f,0.0f};
++	float r2[]={-5.5f,23.25f,-1.5f,39.25f,2.5f,39.25f,6.5f,23.25f};
++
++	//OpenBLAS
++	BLASFUNC(c1xypa)(&N,a,q1,&incQ,t1,&incT,r1,&incR);
++
++	for(i=0; i<2*N; i++){
++		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], SINGLE_EPS);
++	}
++}
++#endif
++
++#ifdef BUILD_COMPLEX16
++CTEST(1xypa,z1xypa_inc_1)
++{
++	blasint i;
++	blasint N=4,incQ=1,incT=1,incR=1;
++	double a[2]={0.5,0.25};
++	double q1[]={1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0};
++	double t1[]={8.0,7.0,6.0,5.0,4.0,3.0,2.0,1.0};
++	double r1[]={0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0};
++	double r2[]={-5.5,23.25,-1.5,39.25,2.5,39.25,6.5,23.25};
++
++	//OpenBLAS
++	BLASFUNC(z1xypa)(&N,a,q1,&incQ,t1,&incT,r1,&incR);
++
++	for(i=0; i<2*N; i++){
++		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], DOUBLE_EPS);
++	}
++}
++
++CTEST(1xypa,z1xypa_incr_0)
++{
++	blasint i;
++	blasint N=4,incQ=1,incT=1,incR=0;
++	double a[2]={0.5,0.25};
++	double q1[]={1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0};
++	double t1[]={8.0,7.0,6.0,5.0,4.0,3.0,2.0,1.0};
++	double r1[]={0.0,0.0,1.0,1.0,2.0,2.0,3.0,3.0};
++	double r2[]={-5.5,23.25,1.0,1.0,2.0,2.0,3.0,3.0};
++
++	//OpenBLAS
++	BLASFUNC(z1xypa)(&N,a,q1,&incQ,t1,&incT,r1,&incR);
++
++	for(i=0; i<2*N; i++){
++		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], DOUBLE_EPS);
++	}
++}
++#endif
+diff --git a/utest/test_extensions/test_c1xypa.c b/utest/test_extensions/test_c1xypa.c
+new file mode 100644
+index 0000000..65b7176
+--- /dev/null
++++ b/utest/test_extensions/test_c1xypa.c
+@@ -0,0 +1,164 @@
++/*****************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++
++   1. Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++
++   2. Redistributions in source code must reproduce the above copyright
++      notice, this list of conditions and the following disclaimer in
++      the documentation and/or other materials provided with the
++      distribution.
++   3. Neither the name of the OpenBLAS project nor the names of
++      its contributors may be used to endorse or promote products
++      derived from this software without specific prior written
++      permission.
++
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++**********************************************************************************/
++
++#include "utest/openblas_utest.h"
++#include "common.h"
++
++#define DATASIZE 100
++#define INCREMENT 2
++#define BUFFER (DATASIZE * INCREMENT * 2)
++
++#ifdef BUILD_COMPLEX
++static float q_buf[BUFFER];
++static float t_buf[BUFFER];
++static float r_buf[BUFFER];
++static float r_ref[BUFFER];
++
++static float check_1xypa(blasint n, float *a, blasint incq, blasint inct, blasint incr)
++{
++    blasint i;
++    float maxdiff = 0.0f;
++
++    srand_generate(q_buf, n * labs(incq) * 2);
++    srand_generate(t_buf, n * labs(inct) * 2);
++    for (i = 0; i < n * labs(incr) * 2; i++) {
++        r_buf[i] = 0.0f;
++        r_ref[i] = 0.0f;
++    }
++
++    for (i = 0; i < n; i++) {
++        blasint oq = (incq >= 0) ? i * incq : (n - 1 - i) * (-incq);
++        blasint ot = (inct >= 0) ? i * inct : (n - 1 - i) * (-inct);
++        blasint orr = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
++        float qr = q_buf[2 * oq];
++        float qi = q_buf[2 * oq + 1];
++        float tr = t_buf[2 * ot];
++        float ti = t_buf[2 * ot + 1];
++        r_ref[2 * orr]     = qr * tr - qi * ti + a[0];
++        r_ref[2 * orr + 1] = qr * ti + qi * tr + a[1];
++    }
++
++    BLASFUNC(c1xypa)(&n, a, q_buf, &incq, t_buf, &inct, r_buf, &incr);
++
++    for (i = 0; i < n * labs(incr) * 2; i++) {
++        float d = fabsf(r_buf[i] - r_ref[i]);
++        if (d > maxdiff) maxdiff = d;
++    }
++    return maxdiff;
++}
++
++#ifndef NO_CBLAS
++static float c_api_check_1xypa(blasint n, float *a, blasint incq, blasint inct, blasint incr)
++{
++    blasint i;
++    float maxdiff = 0.0f;
++
++    for (i = 0; i < n * labs(incr) * 2; i++)
++        r_buf[i] = 0.0f;
++
++    cblas_c1xypa(n, a, q_buf, incq, t_buf, inct, r_buf, incr);
++
++    for (i = 0; i < n * labs(incr) * 2; i++) {
++        float d = fabsf(r_buf[i] - r_ref[i]);
++        if (d > maxdiff) maxdiff = d;
++    }
++    return maxdiff;
++}
++#endif
++
++static float a1[2] = {1.0f, 0.5f};
++
++CTEST(c1xypa, inc_q_1_inc_t_1_inc_r_1_N_100)
++{
++    float diff = check_1xypa(DATASIZE, a1, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++CTEST(c1xypa, inc_q_2_inc_t_1_inc_r_1_N_100)
++{
++    float diff = check_1xypa(DATASIZE, a1, 2, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++CTEST(c1xypa, inc_q_2_inc_t_2_inc_r_2_N_100)
++{
++    float diff = check_1xypa(DATASIZE, a1, 2, 2, 2);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++CTEST(c1xypa, inc_q_neg_2_inc_t_neg_2_inc_r_neg_1_N_100)
++{
++    float diff = check_1xypa(DATASIZE, a1, -2, -2, -1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++CTEST(c1xypa, check_n_zero)
++{
++    float diff = check_1xypa(0, a1, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++#ifndef NO_CBLAS
++CTEST(c1xypa, c_api_inc_q_1_inc_t_1_inc_r_1_N_100)
++{
++    float diff = check_1xypa(DATASIZE, a1, 1, 1, 1);
++    float cdiff = c_api_check_1xypa(DATASIZE, a1, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0f, cdiff, SINGLE_EPS);
++}
++
++CTEST(c1xypa, c_api_inc_q_2_inc_t_2_inc_r_2_N_100)
++{
++    float diff = check_1xypa(DATASIZE, a1, 2, 2, 2);
++    float cdiff = c_api_check_1xypa(DATASIZE, a1, 2, 2, 2);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0f, cdiff, SINGLE_EPS);
++}
++
++CTEST(c1xypa, c_api_inc_q_neg_2_inc_t_neg_2_inc_r_neg_1_N_100)
++{
++    float diff = check_1xypa(DATASIZE, a1, -2, -2, -1);
++    float cdiff = c_api_check_1xypa(DATASIZE, a1, -2, -2, -1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0f, cdiff, SINGLE_EPS);
++}
++
++CTEST(c1xypa, c_api_check_n_zero)
++{
++    float diff = check_1xypa(0, a1, 1, 1, 1);
++    float cdiff = c_api_check_1xypa(0, a1, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0f, cdiff, SINGLE_EPS);
++}
++#endif
++#endif
+diff --git a/utest/test_extensions/test_d1xypa.c b/utest/test_extensions/test_d1xypa.c
+new file mode 100644
+index 0000000..27471c4
+--- /dev/null
++++ b/utest/test_extensions/test_d1xypa.c
+@@ -0,0 +1,181 @@
++/*****************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++
++   1. Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++
++   2. Redistributions in source code must reproduce the above copyright
++      notice, this list of conditions and the following disclaimer in
++      the documentation and/or other materials provided with the
++      distribution.
++   3. Neither the name of the OpenBLAS project nor the names of
++      its contributors may be used to endorse or promote products
++      derived from this software without specific prior written
++      permission.
++
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++**********************************************************************************/
++
++#include "utest/openblas_utest.h"
++#include "common.h"
++
++#define DATASIZE 100
++#define INCREMENT 2
++#define BUFFER (DATASIZE * INCREMENT)
++
++#ifdef BUILD_DOUBLE
++static double q_buf[BUFFER];
++static double t_buf[BUFFER];
++static double r_buf[BUFFER];
++static double r_ref[BUFFER];
++
++static double check_1xypa(blasint n, double a, blasint incq, blasint inct, blasint incr)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    drand_generate(q_buf, n * labs(incq));
++    drand_generate(t_buf, n * labs(inct));
++    for (i = 0; i < n * labs(incr); i++) {
++        r_buf[i] = 0.0;
++        r_ref[i] = 0.0;
++    }
++
++    for (i = 0; i < n; i++) {
++        blasint oq = (incq >= 0) ? i * incq : (n - 1 - i) * (-incq);
++        blasint ot = (inct >= 0) ? i * inct : (n - 1 - i) * (-inct);
++        blasint orr = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
++        r_ref[orr] = q_buf[oq] * t_buf[ot] + a;
++    }
++
++    BLASFUNC(d1xypa)(&n, &a, q_buf, &incq, t_buf, &inct, r_buf, &incr);
++
++    for (i = 0; i < n * labs(incr); i++) {
++        double d = fabs(r_buf[i] - r_ref[i]);
++        if (d > maxdiff) maxdiff = d;
++    }
++    return maxdiff;
++}
++
++#ifndef NO_CBLAS
++static double c_api_check_1xypa(blasint n, double a, blasint incq, blasint inct, blasint incr)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    for (i = 0; i < n * labs(incr); i++)
++        r_buf[i] = 0.0;
++
++    cblas_d1xypa(n, a, q_buf, incq, t_buf, inct, r_buf, incr);
++
++    for (i = 0; i < n * labs(incr); i++) {
++        double d = fabs(r_buf[i] - r_ref[i]);
++        if (d > maxdiff) maxdiff = d;
++    }
++    return maxdiff;
++}
++#endif
++
++CTEST(d1xypa, inc_q_1_inc_t_1_inc_r_1_N_100)
++{
++    double diff = check_1xypa(DATASIZE, 1.0, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++CTEST(d1xypa, inc_q_2_inc_t_1_inc_r_1_N_100)
++{
++    double diff = check_1xypa(DATASIZE, 2.0, 2, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++CTEST(d1xypa, inc_q_1_inc_t_2_inc_r_1_N_100)
++{
++    double diff = check_1xypa(DATASIZE, 1.0, 1, 2, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++CTEST(d1xypa, inc_q_2_inc_t_2_inc_r_2_N_100)
++{
++    double diff = check_1xypa(DATASIZE, 3.0, 2, 2, 2);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++CTEST(d1xypa, inc_q_neg_1_inc_t_2_inc_r_1_N_100)
++{
++    double diff = check_1xypa(DATASIZE, 5.0, -1, 2, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++CTEST(d1xypa, inc_q_2_inc_t_neg_1_inc_r_1_N_100)
++{
++    double diff = check_1xypa(DATASIZE, 1.0, 2, -1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++CTEST(d1xypa, inc_q_neg_2_inc_t_neg_2_inc_r_neg_1_N_100)
++{
++    double diff = check_1xypa(DATASIZE, 7.0, -2, -2, -1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++CTEST(d1xypa, inc_q_1_inc_t_1_inc_r_1_N_100_a_zero)
++{
++    double diff = check_1xypa(DATASIZE, 0.0, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++CTEST(d1xypa, check_n_zero)
++{
++    double diff = check_1xypa(0, 1.0, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++#ifndef NO_CBLAS
++CTEST(d1xypa, c_api_inc_q_1_inc_t_1_inc_r_1_N_100)
++{
++    double diff = check_1xypa(DATASIZE, 1.0, 1, 1, 1);
++    double cdiff = c_api_check_1xypa(DATASIZE, 1.0, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0, cdiff, DOUBLE_EPS);
++}
++
++CTEST(d1xypa, c_api_inc_q_2_inc_t_2_inc_r_2_N_100)
++{
++    double diff = check_1xypa(DATASIZE, 3.0, 2, 2, 2);
++    double cdiff = c_api_check_1xypa(DATASIZE, 3.0, 2, 2, 2);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0, cdiff, DOUBLE_EPS);
++}
++
++CTEST(d1xypa, c_api_inc_q_neg_2_inc_t_neg_2_inc_r_neg_1_N_100)
++{
++    double diff = check_1xypa(DATASIZE, 7.0, -2, -2, -1);
++    double cdiff = c_api_check_1xypa(DATASIZE, 7.0, -2, -2, -1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0, cdiff, DOUBLE_EPS);
++}
++
++CTEST(d1xypa, c_api_check_n_zero)
++{
++    double diff = check_1xypa(0, 1.0, 1, 1, 1);
++    double cdiff = c_api_check_1xypa(0, 1.0, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0, cdiff, DOUBLE_EPS);
++}
++#endif
++#endif
+diff --git a/utest/test_extensions/test_s1xypa.c b/utest/test_extensions/test_s1xypa.c
+new file mode 100644
+index 0000000..4e978a1
+--- /dev/null
++++ b/utest/test_extensions/test_s1xypa.c
+@@ -0,0 +1,181 @@
++/*****************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++
++   1. Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++
++   2. Redistributions in source code must reproduce the above copyright
++      notice, this list of conditions and the following disclaimer in
++      the documentation and/or other materials provided with the
++      distribution.
++   3. Neither the name of the OpenBLAS project nor the names of
++      its contributors may be used to endorse or promote products
++      derived from this software without specific prior written
++      permission.
++
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++**********************************************************************************/
++
++#include "utest/openblas_utest.h"
++#include "common.h"
++
++#define DATASIZE 100
++#define INCREMENT 2
++#define BUFFER (DATASIZE * INCREMENT)
++
++#ifdef BUILD_SINGLE
++static float q_buf[BUFFER];
++static float t_buf[BUFFER];
++static float r_buf[BUFFER];
++static float r_ref[BUFFER];
++
++static float check_1xypa(blasint n, float a, blasint incq, blasint inct, blasint incr)
++{
++    blasint i;
++    float maxdiff = 0.0f;
++
++    srand_generate(q_buf, n * labs(incq));
++    srand_generate(t_buf, n * labs(inct));
++    for (i = 0; i < n * labs(incr); i++) {
++        r_buf[i] = 0.0f;
++        r_ref[i] = 0.0f;
++    }
++
++    for (i = 0; i < n; i++) {
++        blasint oq = (incq >= 0) ? i * incq : (n - 1 - i) * (-incq);
++        blasint ot = (inct >= 0) ? i * inct : (n - 1 - i) * (-inct);
++        blasint orr = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
++        r_ref[orr] = q_buf[oq] * t_buf[ot] + a;
++    }
++
++    BLASFUNC(s1xypa)(&n, &a, q_buf, &incq, t_buf, &inct, r_buf, &incr);
++
++    for (i = 0; i < n * labs(incr); i++) {
++        float d = fabsf(r_buf[i] - r_ref[i]);
++        if (d > maxdiff) maxdiff = d;
++    }
++    return maxdiff;
++}
++
++#ifndef NO_CBLAS
++static float c_api_check_1xypa(blasint n, float a, blasint incq, blasint inct, blasint incr)
++{
++    blasint i;
++    float maxdiff = 0.0f;
++
++    for (i = 0; i < n * labs(incr); i++)
++        r_buf[i] = 0.0f;
++
++    cblas_s1xypa(n, a, q_buf, incq, t_buf, inct, r_buf, incr);
++
++    for (i = 0; i < n * labs(incr); i++) {
++        float d = fabsf(r_buf[i] - r_ref[i]);
++        if (d > maxdiff) maxdiff = d;
++    }
++    return maxdiff;
++}
++#endif
++
++CTEST(s1xypa, inc_q_1_inc_t_1_inc_r_1_N_100)
++{
++    float diff = check_1xypa(DATASIZE, 1.0f, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++CTEST(s1xypa, inc_q_2_inc_t_1_inc_r_1_N_100)
++{
++    float diff = check_1xypa(DATASIZE, 2.0f, 2, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++CTEST(s1xypa, inc_q_1_inc_t_2_inc_r_1_N_100)
++{
++    float diff = check_1xypa(DATASIZE, 1.0f, 1, 2, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++CTEST(s1xypa, inc_q_2_inc_t_2_inc_r_2_N_100)
++{
++    float diff = check_1xypa(DATASIZE, 3.0f, 2, 2, 2);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++CTEST(s1xypa, inc_q_neg_1_inc_t_2_inc_r_1_N_100)
++{
++    float diff = check_1xypa(DATASIZE, 5.0f, -1, 2, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++CTEST(s1xypa, inc_q_2_inc_t_neg_1_inc_r_1_N_100)
++{
++    float diff = check_1xypa(DATASIZE, 1.0f, 2, -1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++CTEST(s1xypa, inc_q_neg_2_inc_t_neg_2_inc_r_neg_1_N_100)
++{
++    float diff = check_1xypa(DATASIZE, 7.0f, -2, -2, -1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++CTEST(s1xypa, inc_q_1_inc_t_1_inc_r_1_N_100_a_zero)
++{
++    float diff = check_1xypa(DATASIZE, 0.0f, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++CTEST(s1xypa, check_n_zero)
++{
++    float diff = check_1xypa(0, 1.0f, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++#ifndef NO_CBLAS
++CTEST(s1xypa, c_api_inc_q_1_inc_t_1_inc_r_1_N_100)
++{
++    float diff = check_1xypa(DATASIZE, 1.0f, 1, 1, 1);
++    float cdiff = c_api_check_1xypa(DATASIZE, 1.0f, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0f, cdiff, SINGLE_EPS);
++}
++
++CTEST(s1xypa, c_api_inc_q_2_inc_t_2_inc_r_2_N_100)
++{
++    float diff = check_1xypa(DATASIZE, 3.0f, 2, 2, 2);
++    float cdiff = c_api_check_1xypa(DATASIZE, 3.0f, 2, 2, 2);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0f, cdiff, SINGLE_EPS);
++}
++
++CTEST(s1xypa, c_api_inc_q_neg_2_inc_t_neg_2_inc_r_neg_1_N_100)
++{
++    float diff = check_1xypa(DATASIZE, 7.0f, -2, -2, -1);
++    float cdiff = c_api_check_1xypa(DATASIZE, 7.0f, -2, -2, -1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0f, cdiff, SINGLE_EPS);
++}
++
++CTEST(s1xypa, c_api_check_n_zero)
++{
++    float diff = check_1xypa(0, 1.0f, 1, 1, 1);
++    float cdiff = c_api_check_1xypa(0, 1.0f, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0f, cdiff, SINGLE_EPS);
++}
++#endif
++#endif
+diff --git a/utest/test_extensions/test_z1xypa.c b/utest/test_extensions/test_z1xypa.c
+new file mode 100644
+index 0000000..095b38e
+--- /dev/null
++++ b/utest/test_extensions/test_z1xypa.c
+@@ -0,0 +1,164 @@
++/*****************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++
++   1. Redistributions of source code must retain the above copyright
++      notice, this list of conditions and the following disclaimer.
++
++   2. Redistributions in source code must reproduce the above copyright
++      notice, this list of conditions and the following disclaimer in
++      the documentation and/or other materials provided with the
++      distribution.
++   3. Neither the name of the OpenBLAS project nor the names of
++      its contributors may be used to endorse or promote products
++      derived from this software without specific prior written
++      permission.
++
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++**********************************************************************************/
++
++#include "utest/openblas_utest.h"
++#include "common.h"
++
++#define DATASIZE 100
++#define INCREMENT 2
++#define BUFFER (DATASIZE * INCREMENT * 2)
++
++#ifdef BUILD_COMPLEX16
++static double q_buf[BUFFER];
++static double t_buf[BUFFER];
++static double r_buf[BUFFER];
++static double r_ref[BUFFER];
++
++static double check_1xypa(blasint n, double *a, blasint incq, blasint inct, blasint incr)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    drand_generate(q_buf, n * labs(incq) * 2);
++    drand_generate(t_buf, n * labs(inct) * 2);
++    for (i = 0; i < n * labs(incr) * 2; i++) {
++        r_buf[i] = 0.0;
++        r_ref[i] = 0.0;
++    }
++
++    for (i = 0; i < n; i++) {
++        blasint oq = (incq >= 0) ? i * incq : (n - 1 - i) * (-incq);
++        blasint ot = (inct >= 0) ? i * inct : (n - 1 - i) * (-inct);
++        blasint orr = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
++        double qr = q_buf[2 * oq];
++        double qi = q_buf[2 * oq + 1];
++        double tr = t_buf[2 * ot];
++        double ti = t_buf[2 * ot + 1];
++        r_ref[2 * orr]     = qr * tr - qi * ti + a[0];
++        r_ref[2 * orr + 1] = qr * ti + qi * tr + a[1];
++    }
++
++    BLASFUNC(z1xypa)(&n, a, q_buf, &incq, t_buf, &inct, r_buf, &incr);
++
++    for (i = 0; i < n * labs(incr) * 2; i++) {
++        double d = fabs(r_buf[i] - r_ref[i]);
++        if (d > maxdiff) maxdiff = d;
++    }
++    return maxdiff;
++}
++
++#ifndef NO_CBLAS
++static double c_api_check_1xypa(blasint n, double *a, blasint incq, blasint inct, blasint incr)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    for (i = 0; i < n * labs(incr) * 2; i++)
++        r_buf[i] = 0.0;
++
++    cblas_z1xypa(n, a, q_buf, incq, t_buf, inct, r_buf, incr);
++
++    for (i = 0; i < n * labs(incr) * 2; i++) {
++        double d = fabs(r_buf[i] - r_ref[i]);
++        if (d > maxdiff) maxdiff = d;
++    }
++    return maxdiff;
++}
++#endif
++
++static double a1[2] = {1.0, 0.5};
++
++CTEST(z1xypa, inc_q_1_inc_t_1_inc_r_1_N_100)
++{
++    double diff = check_1xypa(DATASIZE, a1, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++CTEST(z1xypa, inc_q_2_inc_t_1_inc_r_1_N_100)
++{
++    double diff = check_1xypa(DATASIZE, a1, 2, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++CTEST(z1xypa, inc_q_2_inc_t_2_inc_r_2_N_100)
++{
++    double diff = check_1xypa(DATASIZE, a1, 2, 2, 2);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++CTEST(z1xypa, inc_q_neg_2_inc_t_neg_2_inc_r_neg_1_N_100)
++{
++    double diff = check_1xypa(DATASIZE, a1, -2, -2, -1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++CTEST(z1xypa, check_n_zero)
++{
++    double diff = check_1xypa(0, a1, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++}
++
++#ifndef NO_CBLAS
++CTEST(z1xypa, c_api_inc_q_1_inc_t_1_inc_r_1_N_100)
++{
++    double diff = check_1xypa(DATASIZE, a1, 1, 1, 1);
++    double cdiff = c_api_check_1xypa(DATASIZE, a1, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0, cdiff, DOUBLE_EPS);
++}
++
++CTEST(z1xypa, c_api_inc_q_2_inc_t_2_inc_r_2_N_100)
++{
++    double diff = check_1xypa(DATASIZE, a1, 2, 2, 2);
++    double cdiff = c_api_check_1xypa(DATASIZE, a1, 2, 2, 2);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0, cdiff, DOUBLE_EPS);
++}
++
++CTEST(z1xypa, c_api_inc_q_neg_2_inc_t_neg_2_inc_r_neg_1_N_100)
++{
++    double diff = check_1xypa(DATASIZE, a1, -2, -2, -1);
++    double cdiff = c_api_check_1xypa(DATASIZE, a1, -2, -2, -1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0, cdiff, DOUBLE_EPS);
++}
++
++CTEST(z1xypa, c_api_check_n_zero)
++{
++    double diff = check_1xypa(0, a1, 1, 1, 1);
++    double cdiff = c_api_check_1xypa(0, a1, 1, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, diff, DOUBLE_EPS);
++    ASSERT_DBL_NEAR_TOL(0.0, cdiff, DOUBLE_EPS);
++}
++#endif
++#endif
