@@ -8,17 +8,17 @@ All work lives in `/home/sac/blpp/openblas`.
 | # | symbol | math | status |
 |---|---|---|---|
 | 1 | `<p>1xypa` | `r = q.*t + a` | done 2026-07-20 — 9 unit + 44 cblas tests pass |
-| 2 | `<p>3dot` | `r = x·y` | todo |
-| 3 | `<p>3had` | `w = x.*y` | todo |
-| 4 | `<p>3cross` | `w = x∧y` | todo |
-| 5 | `<p>3crossscal` | `w = a·(x∧y)` | todo |
-| 6 | `<p>3sqr` | `r = x·x` | todo |
-| 7 | `<p>3crossdot` | `r = (x∧y)·w` | todo |
-| 8 | `<p>3crosssqr` | `r = (x∧y)·(x∧y)` | todo |
-| 9 | `<p>3crossxy_crossxz` | `u = x∧y`, `v = x∧w` | todo |
-| 10 | `<p>3crossxy_dotxz` | `u = x∧y`, `r = x·w` | todo |
-| 11 | `<p>3dotxy_dotxz` | `r = x·y`, `q = x·w` | todo |
-| 12 | `<p>1norm` | `r = √(q·q)` | todo |
+| 2 | `<p>3dot` | `r = x·y` | done 2026-10-06 — unit + cblas tests pass, bench 0.095 ms/run @ n=1000 |
+| 3 | `<p>3had` | `w = x.*y` | stub wired (−42), body todo |
+| 4 | `<p>3cross` | `w = x∧y` | stub wired (−42), body todo |
+| 5 | `<p>3crossscal` | `w = a·(x∧y)` | stub wired (−42), body todo |
+| 6 | `<p>3sqr` | `r = x·x` | stub wired (−42), body todo |
+| 7 | `<p>3crossdot` | `r = (x∧y)·w` | stub wired (−42), body todo |
+| 8 | `<p>3crosssqr` | `r = (x∧y)·(x∧y)` | stub wired (−42), body todo |
+| 9 | `<p>3crossxy_crossxz` | `u = x∧y`, `v = x∧w` | stub wired (−42), body todo |
+| 10 | `<p>3crossxy_dotxz` | `u = x∧y`, `r = x·w` | stub wired (−42), body todo |
+| 11 | `<p>3dotxy_dotxz` | `r = x·y`, `q = x·w` | stub wired (−42), body todo |
+| 12 | `<p>1norm` | `r = √(q·q)` | stub wired (−42), body todo |
 
 ## Conventions settled while doing #1
 
