@@ -4,6 +4,9 @@
 //
 // Each kernel is first checked against a known result (independently
 // computed reference in long double), then timed over repeated runs.
+// In a non-NDEBUG build (CMake debug mode) each kernel is run once and
+// the first element of its expression is printed for hand verification;
+// no timing is done. With NDEBUG the performance table is printed.
 // Add new kernels as new bench_*() functions and list them in main().
 //
 // Links against a pre-built OpenBLAS; this project does not build OpenBLAS.
@@ -75,6 +78,13 @@ Result bench_axpy(int n)
         ref[i] = (long double)alpha * x[i] + y0[i];
 
     std::memcpy(y.data(), y0.data(), n * sizeof(double));
+#ifndef NDEBUG
+    cblas_daxpy(n, alpha, x.data(), 1, y.data(), 1);
+    double err = max_rel_err(y.data(), ref.data(), n);
+    std::printf("daxpy[0]: a*x[0] + y[0] = %.6f*%.6f + %.6f = %.6f\n",
+                alpha, x[0], y0[0], y[0]);
+    return {"daxpy", 2.0, 0.0, 0.0, 0.0, err, 0, err <= kEps};
+#else
     cblas_daxpy(n, alpha, x.data(), 1, y.data(), 1); // warmup
 
     double t_run = 0.0;
@@ -92,6 +102,7 @@ Result bench_axpy(int n)
     }
     double err = max_rel_err(y.data(), ref.data(), n);
     return make_result("daxpy (y = a*x + y)", 2.0, t_run / iters, n, iters, err);
+#endif
 }
 
 // r = q.*t + a  (q and t are read-only, r is fully rewritten each run)
@@ -105,6 +116,13 @@ Result bench_xypa(int n)
     for (int i = 0; i < n; ++i)
         ref[i] = (long double)q[i] * t[i] + a;
 
+#ifndef NDEBUG
+    cblas_d1xypa(n, a, q.data(), 1, t.data(), 1, r.data(), 1);
+    double err = max_rel_err(r.data(), ref.data(), n);
+    std::printf("d1xypa[0]: q[0] .* t[0] + a = %.6f .* %.6f + %.6f = %.6f\n",
+                q[0], t[0], a, r[0]);
+    return {"d1xypa", 2.0, 0.0, 0.0, 0.0, err, 0, err <= kEps};
+#else
     cblas_d1xypa(n, a, q.data(), 1, t.data(), 1, r.data(), 1); // warmup
 
     double t_run = 0.0;
@@ -121,6 +139,7 @@ Result bench_xypa(int n)
     }
     double err = max_rel_err(r.data(), ref.data(), n);
     return make_result("d1xypa (r = q.*t + a)", 2.0, t_run / iters, n, iters, err);
+#endif
 }
 
 // r = x1.*y1 + x2.*y2 + x3.*y3  (inputs read-only, r fully rewritten each run)
@@ -138,6 +157,15 @@ Result bench_3dot(int n)
         ref[i] = (long double)x1[i] * y1[i] + (long double)x2[i] * y2[i]
                + (long double)x3[i] * y3[i];
 
+#ifndef NDEBUG
+    cblas_d3dot(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                y1.data(), 1, y2.data(), 1, y3.data(), 1, r.data(), 1);
+    double err = max_rel_err(r.data(), ref.data(), n);
+    std::printf("d3dot[0]: (x1[0] x2[0] x3[0]) cdot (y1[0] y2[0] y3[0]) = r[0]\n"
+                "(%f %f %f) cdot (%f %f %f) = %f\n",
+                x1[0], x2[0], x3[0], y1[0], y2[0], y3[0], r[0]);
+    return {"d3dot", 5.0, 0.0, 0.0, 0.0, err, 0, err <= kEps};
+#else
     cblas_d3dot(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
                 y1.data(), 1, y2.data(), 1, y3.data(), 1, r.data(), 1); // warmup
 
@@ -156,6 +184,7 @@ Result bench_3dot(int n)
     }
     double err = max_rel_err(r.data(), ref.data(), n);
     return make_result("d3dot (r = x1y1+x2y2+x3y3)", 5.0, t_run / iters, n, iters, err);
+#endif
 }
 
 } // namespace
@@ -177,6 +206,12 @@ int main(int argc, char **argv)
     results.push_back(bench_3dot(n));
 
     bool ok = true;
+#ifndef NDEBUG
+    // debug mode: the vector prints above are the only output
+    for (const Result &res : results)
+        ok = ok && res.ok;
+    return ok ? 0 : 1;
+#else
     std::printf("n = %d\n\n", n);
     std::printf("%-22s %10s %12s %12s %13s %7s  %s\n",
                 "kernel", "ms/run", "GFLOP/s", "Melem/s", "max_rel_err",
@@ -188,4 +223,5 @@ int main(int argc, char **argv)
                     res.max_rel_err, res.iters, res.ok ? "OK" : "FAIL");
     }
     return ok ? 0 : 1;
+#endif
 }
