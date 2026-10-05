@@ -123,6 +123,41 @@ Result bench_xypa(int n)
     return make_result("d1xypa (r = q.*t + a)", 2.0, t_run / iters, n, iters, err);
 }
 
+// r = x1.*y1 + x2.*y2 + x3.*y3  (inputs read-only, r fully rewritten each run)
+Result bench_3dot(int n)
+{
+    std::vector<double> x1(n), x2(n), x3(n), y1(n), y2(n), y3(n), r(n);
+    std::vector<long double> ref(n);
+    fill(x1, 11);
+    fill(x2, 12);
+    fill(x3, 13);
+    fill(y1, 14);
+    fill(y2, 15);
+    fill(y3, 16);
+    for (int i = 0; i < n; ++i)
+        ref[i] = (long double)x1[i] * y1[i] + (long double)x2[i] * y2[i]
+               + (long double)x3[i] * y3[i];
+
+    cblas_d3dot(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                y1.data(), 1, y2.data(), 1, y3.data(), 1, r.data(), 1); // warmup
+
+    double t_run = 0.0;
+    int iters = 0;
+    auto t_start = Clock::now();
+    for (;;) {
+        auto b = Clock::now();
+        cblas_d3dot(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                    y1.data(), 1, y2.data(), 1, y3.data(), 1, r.data(), 1);
+        t_run += std::chrono::duration<double>(Clock::now() - b).count();
+        ++iters;
+        double elapsed = std::chrono::duration<double>(Clock::now() - t_start).count();
+        if ((iters >= kMinIters && elapsed >= kMinTime) || elapsed >= kMaxTime)
+            break;
+    }
+    double err = max_rel_err(r.data(), ref.data(), n);
+    return make_result("d3dot (r = x1y1+x2y2+x3y3)", 5.0, t_run / iters, n, iters, err);
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -139,6 +174,7 @@ int main(int argc, char **argv)
     std::vector<Result> results;
     results.push_back(bench_axpy(n));
     results.push_back(bench_xypa(n));
+    results.push_back(bench_3dot(n));
 
     bool ok = true;
     std::printf("n = %d\n\n", n);

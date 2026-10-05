@@ -56,3 +56,7 @@ All work lives in `/home/sac/blpp/openblas`.
 ## Side experiments (parked)
 
 - Oversubscription: run the benchmark with 2 OpenBLAS threads on this 1-core machine and see whether a second thread overlaps the in-order core's load stalls (memory-level parallelism). Blocked on the current build: `MAX_CPU_NUMBER=1` is compiled in (CMake `CORE_COUNT`), which clamps `OPENBLAS_NUM_THREADS` to 1 (verified: `openblas_get_num_threads()` returns 1 regardless of the env var). Unblock = reconfigure with `-DCORE_COUNT=2` + full rebuild (~1.5–2 h); note this also changes blocking parameters for all kernels, so results wouldn't isolate the oversubscription effect.
+
+## Oddjobs
+
+- fix the 1xypa kernel template so that scalar argument a comes after vector argument x and y (6 arguments each)
