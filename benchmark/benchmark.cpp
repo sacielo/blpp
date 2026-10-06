@@ -242,6 +242,45 @@ Result bench_3had(int n)
 #endif
 }
 
+// r = x1.^2 + x2.^2 + x3.^2  (inputs read-only, r fully rewritten each run)
+Result bench_3sqr(int n)
+{
+    std::vector<double> x1(n), x2(n), x3(n), r(n);
+    std::vector<long double> ref(n);
+    seeded(x1, 31);
+    seeded(x2, 32);
+    seeded(x3, 33);
+    for (int i = 0; i < n; ++i)
+        ref[i] = (long double)x1[i] * x1[i] + (long double)x2[i] * x2[i]
+               + (long double)x3[i] * x3[i];
+
+#ifndef NDEBUG
+    cblas_d3sqr(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, r.data(), 1);
+    double err = max_rel_err(r.data(), ref.data(), n);
+    std::printf("d3sqr[0]: x1[0]^2 + x2[0]^2 + x3[0]^2 = r[0]\n"
+                "(%.6f^2 + %.6f^2 + %.6f^2 = %.6f)\n",
+                x1[0], x2[0], x3[0], r[0]);
+    return {"d3sqr", 5.0, 0.0, 0.0, 0.0, err, 0, err <= kEps};
+#else
+    cblas_d3sqr(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, r.data(), 1); // warmup
+
+    double t_run = 0.0;
+    int iters = 0;
+    auto t_start = Clock::now();
+    for (;;) {
+        auto b = Clock::now();
+        cblas_d3sqr(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, r.data(), 1);
+        t_run += std::chrono::duration<double>(Clock::now() - b).count();
+        ++iters;
+        double elapsed = std::chrono::duration<double>(Clock::now() - t_start).count();
+        if ((iters >= kMinIters && elapsed >= kMinTime) || elapsed >= kMaxTime)
+            break;
+    }
+    double err = max_rel_err(r.data(), ref.data(), n);
+    return make_result("d3sqr (r = x1^2+x2^2+x3^2)", 5.0, t_run / iters, n, iters, err);
+#endif
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -260,6 +299,7 @@ int main(int argc, char **argv)
     results.push_back(bench_xypa(n));
     results.push_back(bench_3dot(n));
     results.push_back(bench_3had(n));
+    results.push_back(bench_3sqr(n));
 
     bool ok = true;
 #ifndef NDEBUG
@@ -269,12 +309,12 @@ int main(int argc, char **argv)
     return ok ? 0 : 1;
 #else
     std::printf("n = %d\n\n", n);
-    std::printf("%-22s %10s %12s %12s %13s %7s  %s\n",
+    std::printf("%-26s %10s %12s %12s %13s %7s  %s\n",
                 "kernel", "ms/run", "GFLOP/s", "Melem/s", "max_rel_err",
                 "iters", "status");
     for (const Result &res : results) {
         ok = ok && res.ok;
-        std::printf("%-22s %10.3f %12.2e %12.2e %13.3e %7d  %s\n",
+        std::printf("%-26s %10.3f %12.2e %12.2e %13.3e %7d  %s\n",
                     res.name.c_str(), res.ms_per_run, res.gflops, res.meps,
                     res.max_rel_err, res.iters, res.ok ? "OK" : "FAIL");
     }

@@ -12,7 +12,7 @@ All work lives in `/home/sac/blpp/openblas`.
 | 3 | `<p>3had` | `w = x.*y` | done 2026-10-06 — unit + cblas tests pass, bench 0.236 ms/run @ n=1000 |
 | 4 | `<p>3cross` | `w = x∧y` | stub wired (−42), body todo |
 | 5 | `<p>3crossscal` | `w = a·(x∧y)` | stub wired (−42), body todo |
-| 6 | `<p>3sqr` | `r = x·x` | stub wired (−42), body todo |
+| 6 | `<p>3sqr` | `r = x·x` | done 2026-10-06 — unit + cblas tests pass, bench 0.084 ms/run @ n=1000 |
 | 7 | `<p>3crossdot` | `r = (x∧y)·w` | stub wired (−42), body todo |
 | 8 | `<p>3crosssqr` | `r = (x∧y)·(x∧y)` | stub wired (−42), body todo |
 | 9 | `<p>3crossxy_crossxz` | `u = x∧y`, `v = x∧w` | stub wired (−42), body todo |
