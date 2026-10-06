@@ -60,7 +60,7 @@ double max_rel_err(const double *v, const long double *ref, int n)
     return m;
 }
 
-void fill(std::vector<double> &v, int seed)
+void seeded(std::vector<double> &v, int seed)
 {
     for (int i = 0; i < (int)v.size(); ++i)
         v[i] = 1e-3 * ((i + seed) % 997 - 498);
@@ -72,8 +72,8 @@ Result bench_axpy(int n)
     const double alpha = 1.5;
     std::vector<double> x(n), y0(n), y(n);
     std::vector<long double> ref(n);
-    fill(x, 1);
-    fill(y0, 2);
+    seeded(x, 1);
+    seeded(y0, 2);
     for (int i = 0; i < n; ++i)
         ref[i] = (long double)alpha * x[i] + y0[i];
 
@@ -111,8 +111,8 @@ Result bench_xypa(int n)
     const double a = 0.25;
     std::vector<double> q(n), t(n), r(n);
     std::vector<long double> ref(n);
-    fill(q, 3);
-    fill(t, 4);
+    seeded(q, 3);
+    seeded(t, 4);
     for (int i = 0; i < n; ++i)
         ref[i] = (long double)q[i] * t[i] + a;
 
@@ -147,12 +147,12 @@ Result bench_3dot(int n)
 {
     std::vector<double> x1(n), x2(n), x3(n), y1(n), y2(n), y3(n), r(n);
     std::vector<long double> ref(n);
-    fill(x1, 11);
-    fill(x2, 12);
-    fill(x3, 13);
-    fill(y1, 14);
-    fill(y2, 15);
-    fill(y3, 16);
+    seeded(x1, 11);
+    seeded(x2, 12);
+    seeded(x3, 13);
+    seeded(y1, 14);
+    seeded(y2, 15);
+    seeded(y3, 16);
     for (int i = 0; i < n; ++i)
         ref[i] = (long double)x1[i] * y1[i] + (long double)x2[i] * y2[i]
                + (long double)x3[i] * y3[i];
