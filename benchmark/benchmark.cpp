@@ -187,6 +187,61 @@ Result bench_3dot(int n)
 #endif
 }
 
+// w1 = x1.*y1, w2 = x2.*y2, w3 = x3.*y3  (inputs read-only, w fully rewritten each run)
+Result bench_3had(int n)
+{
+    std::vector<double> x1(n), x2(n), x3(n), y1(n), y2(n), y3(n);
+    std::vector<double> w1(n), w2(n), w3(n);
+    std::vector<long double> ref(n), w2_ref(n), w3_ref(n);
+    seeded(x1, 21);
+    seeded(x2, 22);
+    seeded(x3, 23);
+    seeded(y1, 24);
+    seeded(y2, 25);
+    seeded(y3, 26);
+    for (int i = 0; i < n; ++i) {
+        ref[i] = (long double)x1[i] * y1[i];
+        w2_ref[i] = (long double)x2[i] * y2[i];
+        w3_ref[i] = (long double)x3[i] * y3[i];
+    }
+
+#ifndef NDEBUG
+    cblas_d3had(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                w1.data(), 1, w2.data(), 1, w3.data(), 1);
+    double err = std::fmax(max_rel_err(w1.data(), ref.data(), n),
+                   std::fmax(max_rel_err(w2.data(), w2_ref.data(), n),
+                             max_rel_err(w3.data(), w3_ref.data(), n)));
+    std::printf("d3had[0]: x1[0] .* y1[0] = w1[0]  etc.\n"
+                "(%.6f .* %.6f = %.6f)  (%.6f .* %.6f = %.6f)  (%.6f .* %.6f = %.6f)\n",
+                x1[0], y1[0], w1[0], x2[0], y2[0], w2[0], x3[0], y3[0], w3[0]);
+    return {"d3had", 3.0, 0.0, 0.0, 0.0, err, 0, err <= kEps};
+#else
+    cblas_d3had(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                w1.data(), 1, w2.data(), 1, w3.data(), 1); // warmup
+
+    double t_run = 0.0;
+    int iters = 0;
+    auto t_start = Clock::now();
+    for (;;) {
+        auto b = Clock::now();
+        cblas_d3had(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                    y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                    w1.data(), 1, w2.data(), 1, w3.data(), 1);
+        t_run += std::chrono::duration<double>(Clock::now() - b).count();
+        ++iters;
+        double elapsed = std::chrono::duration<double>(Clock::now() - t_start).count();
+        if ((iters >= kMinIters && elapsed >= kMinTime) || elapsed >= kMaxTime)
+            break;
+    }
+    double err = std::fmax(max_rel_err(w1.data(), ref.data(), n),
+                   std::fmax(max_rel_err(w2.data(), w2_ref.data(), n),
+                             max_rel_err(w3.data(), w3_ref.data(), n)));
+    return make_result("d3had (w = x.*y)", 3.0, t_run / iters, n, iters, err);
+#endif
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -204,6 +259,7 @@ int main(int argc, char **argv)
     results.push_back(bench_axpy(n));
     results.push_back(bench_xypa(n));
     results.push_back(bench_3dot(n));
+    results.push_back(bench_3had(n));
 
     bool ok = true;
 #ifndef NDEBUG

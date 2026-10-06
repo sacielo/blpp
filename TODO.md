@@ -9,7 +9,7 @@ All work lives in `/home/sac/blpp/openblas`.
 |---|---|---|---|
 | 1 | `<p>1xypa` | `r = q.*t + a` | done 2026-07-20 — 9 unit + 44 cblas tests pass |
 | 2 | `<p>3dot` | `r = x·y` | done 2026-10-06 — unit + cblas tests pass, bench 0.095 ms/run @ n=1000 |
-| 3 | `<p>3had` | `w = x.*y` | stub wired (−42), body todo |
+| 3 | `<p>3had` | `w = x.*y` | done 2026-10-06 — unit + cblas tests pass, bench 0.236 ms/run @ n=1000 |
 | 4 | `<p>3cross` | `w = x∧y` | stub wired (−42), body todo |
 | 5 | `<p>3crossscal` | `w = a·(x∧y)` | stub wired (−42), body todo |
 | 6 | `<p>3sqr` | `r = x·x` | stub wired (−42), body todo |

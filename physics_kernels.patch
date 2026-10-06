@@ -4635,10 +4635,10 @@ index 0000000..60d7cc5
 +}
 diff --git a/kernel/generic/3had.c b/kernel/generic/3had.c
 new file mode 100644
-index 0000000..aaf1f25
+index 0000000..96bb342
 --- /dev/null
 +++ b/kernel/generic/3had.c
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,90 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4647,7 +4647,7 @@ index 0000000..aaf1f25
 +met:
 +1. Redistributions of source code must retain the above copyright
 +notice, this list of conditions and the following disclaimer.
-+2. Redistributions in source code must reproduce the above copyright
++2. Redistributions of source code must reproduce the above copyright
 +notice, this list of conditions and the following disclaimer in
 +the documentation and/or other materials provided with the
 +distribution.
@@ -4674,18 +4674,58 @@ index 0000000..aaf1f25
 +          FLOAT *w1, BLASLONG incw1, FLOAT *w2, BLASLONG incw2, FLOAT *w3, BLASLONG incw3)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG ow1, ow2, ow3;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG ow1 = 0, ow2 = 0, ow3 = 0;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		ow1 = (incw1 >= 0) ? i * incw1 : (n - 1 - i) * (-incw1);
-+		ow2 = (incw2 >= 0) ? i * incw2 : (n - 1 - i) * (-incw2);
-+		ow3 = (incw3 >= 0) ? i * incw3 : (n - 1 - i) * (-incw3);
-+		w1[ow1] = -42;
-+		w2[ow2] = -42;
-+		w3[ow3] = -42;
-+		i++;
++	if ( n > 0 ) {
++		if (incw1 == 0) w1[0] = x1[0] * y1[0];
++		if (incw2 == 0) w2[0] = x2[0] * y2[0];
++		if (incw3 == 0) w3[0] = x3[0] * y3[0];
++	}
++
++	if ((incx1 == 1) && (incx2 == 1) && (incx3 == 1) &&
++	    (incy1 == 1) && (incy2 == 1) && (incy3 == 1) &&
++	    (incw1 == 1) && (incw2 == 1) && (incw3 == 1)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			w1[i]     = x1[i]     * y1[i];
++			w2[i]     = x2[i]     * y2[i];
++			w3[i]     = x3[i]     * y3[i];
++			w1[i + 1] = x1[i + 1] * y1[i + 1];
++			w2[i + 1] = x2[i + 1] * y2[i + 1];
++			w3[i + 1] = x3[i + 1] * y3[i + 1];
++			w1[i + 2] = x1[i + 2] * y1[i + 2];
++			w2[i + 2] = x2[i + 2] * y2[i + 2];
++			w3[i + 2] = x3[i + 2] * y3[i + 2];
++			w1[i + 3] = x1[i + 3] * y1[i + 3];
++			w2[i + 3] = x2[i + 3] * y2[i + 3];
++			w3[i + 3] = x3[i + 3] * y3[i + 3];
++		}
++		while (i < n) {
++			w1[i] = x1[i] * y1[i];
++			w2[i] = x2[i] * y2[i];
++			w3[i] = x3[i] * y3[i];
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			if (incw1 != 0) w1[ow1] = x1[ix1] * y1[iy1];
++			if (incw2 != 0) w2[ow2] = x2[ix2] * y2[iy2];
++			if (incw3 != 0) w3[ow3] = x3[ix3] * y3[iy3];
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			ow1 += incw1;
++			ow2 += incw2;
++			ow3 += incw3;
++			i++;
++		}
 +	}
 +	return(0);
 +}
@@ -5448,10 +5488,10 @@ index 0000000..46c567b
 +}
 diff --git a/kernel/generic/z3had.c b/kernel/generic/z3had.c
 new file mode 100644
-index 0000000..3ce9a4c
+index 0000000..185d67e
 --- /dev/null
 +++ b/kernel/generic/z3had.c
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,155 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5460,7 +5500,7 @@ index 0000000..3ce9a4c
 +met:
 +1. Redistributions of source code must retain the above copyright
 +notice, this list of conditions and the following disclaimer.
-+2. Redistributions in source code must reproduce the above copyright
++2. Redistributions of source code must reproduce the above copyright
 +notice, this list of conditions and the following disclaimer in
 +the documentation and/or other materials provided with the
 +distribution.
@@ -5487,21 +5527,123 @@ index 0000000..3ce9a4c
 +          FLOAT *w1, BLASLONG incw1, FLOAT *w2, BLASLONG incw2, FLOAT *w3, BLASLONG incw3)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG ow1, ow2, ow3;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG ow1 = 0, ow2 = 0, ow3 = 0;
++	FLOAT p0, p1;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		ow1 = (incw1 >= 0) ? i * incw1 : (n - 1 - i) * (-incw1);
-+		ow2 = (incw2 >= 0) ? i * incw2 : (n - 1 - i) * (-incw2);
-+		ow3 = (incw3 >= 0) ? i * incw3 : (n - 1 - i) * (-incw3);
-+		w1[2*ow1] = -42;
-+		w1[2*ow1+1] = -42;
-+		w2[2*ow2] = -42;
-+		w2[2*ow2+1] = -42;
-+		w3[2*ow3] = -42;
-+		w3[2*ow3+1] = -42;
-+		i++;
++	if ( n > 0 ) {
++		if (incw1 == 0) {
++			p0 = x1[0] * y1[0] - x1[1] * y1[1];
++			p1 = x1[0] * y1[1] + x1[1] * y1[0];
++			w1[0] = p0; w1[1] = p1;
++		}
++		if (incw2 == 0) {
++			p0 = x2[0] * y2[0] - x2[1] * y2[1];
++			p1 = x2[0] * y2[1] + x2[1] * y2[0];
++			w2[0] = p0; w2[1] = p1;
++		}
++		if (incw3 == 0) {
++			p0 = x3[0] * y3[0] - x3[1] * y3[1];
++			p1 = x3[0] * y3[1] + x3[1] * y3[0];
++			w3[0] = p0; w3[1] = p1;
++		}
++	}
++
++	incx1 *= 2;
++	incx2 *= 2;
++	incx3 *= 2;
++	incy1 *= 2;
++	incy2 *= 2;
++	incy3 *= 2;
++	incw1 *= 2;
++	incw2 *= 2;
++	incw3 *= 2;
++
++	if ((incx1 == 2) && (incx2 == 2) && (incx3 == 2) &&
++	    (incy1 == 2) && (incy2 == 2) && (incy3 == 2) &&
++	    (incw1 == 2) && (incw2 == 2) && (incw3 == 2)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			p0 = x1[2*i]     * y1[2*i]     - x1[2*i+1]     * y1[2*i+1];
++			p1 = x1[2*i]     * y1[2*i+1]   + x1[2*i+1]     * y1[2*i];
++			w1[2*i]     = p0; w1[2*i+1]     = p1;
++			p0 = x2[2*i]     * y2[2*i]     - x2[2*i+1]     * y2[2*i+1];
++			p1 = x2[2*i]     * y2[2*i+1]   + x2[2*i+1]     * y2[2*i];
++			w2[2*i]     = p0; w2[2*i+1]     = p1;
++			p0 = x3[2*i]     * y3[2*i]     - x3[2*i+1]     * y3[2*i+1];
++			p1 = x3[2*i]     * y3[2*i+1]   + x3[2*i+1]     * y3[2*i];
++			w3[2*i]     = p0; w3[2*i+1]     = p1;
++			p0 = x1[2*(i+1)] * y1[2*(i+1)] - x1[2*(i+1)+1] * y1[2*(i+1)+1];
++			p1 = x1[2*(i+1)] * y1[2*(i+1)+1] + x1[2*(i+1)+1] * y1[2*(i+1)];
++			w1[2*(i+1)] = p0; w1[2*(i+1)+1] = p1;
++			p0 = x2[2*(i+1)] * y2[2*(i+1)] - x2[2*(i+1)+1] * y2[2*(i+1)+1];
++			p1 = x2[2*(i+1)] * y2[2*(i+1)+1] + x2[2*(i+1)+1] * y2[2*(i+1)];
++			w2[2*(i+1)] = p0; w2[2*(i+1)+1] = p1;
++			p0 = x3[2*(i+1)] * y3[2*(i+1)] - x3[2*(i+1)+1] * y3[2*(i+1)+1];
++			p1 = x3[2*(i+1)] * y3[2*(i+1)+1] + x3[2*(i+1)+1] * y3[2*(i+1)];
++			w3[2*(i+1)] = p0; w3[2*(i+1)+1] = p1;
++			p0 = x1[2*(i+2)] * y1[2*(i+2)] - x1[2*(i+2)+1] * y1[2*(i+2)+1];
++			p1 = x1[2*(i+2)] * y1[2*(i+2)+1] + x1[2*(i+2)+1] * y1[2*(i+2)];
++			w1[2*(i+2)] = p0; w1[2*(i+2)+1] = p1;
++			p0 = x2[2*(i+2)] * y2[2*(i+2)] - x2[2*(i+2)+1] * y2[2*(i+2)+1];
++			p1 = x2[2*(i+2)] * y2[2*(i+2)+1] + x2[2*(i+2)+1] * y2[2*(i+2)];
++			w2[2*(i+2)] = p0; w2[2*(i+2)+1] = p1;
++			p0 = x3[2*(i+2)] * y3[2*(i+2)] - x3[2*(i+2)+1] * y3[2*(i+2)+1];
++			p1 = x3[2*(i+2)] * y3[2*(i+2)+1] + x3[2*(i+2)+1] * y3[2*(i+2)];
++			w3[2*(i+2)] = p0; w3[2*(i+2)+1] = p1;
++			p0 = x1[2*(i+3)] * y1[2*(i+3)] - x1[2*(i+3)+1] * y1[2*(i+3)+1];
++			p1 = x1[2*(i+3)] * y1[2*(i+3)+1] + x1[2*(i+3)+1] * y1[2*(i+3)];
++			w1[2*(i+3)] = p0; w1[2*(i+3)+1] = p1;
++			p0 = x2[2*(i+3)] * y2[2*(i+3)] - x2[2*(i+3)+1] * y2[2*(i+3)+1];
++			p1 = x2[2*(i+3)] * y2[2*(i+3)+1] + x2[2*(i+3)+1] * y2[2*(i+3)];
++			w2[2*(i+3)] = p0; w2[2*(i+3)+1] = p1;
++			p0 = x3[2*(i+3)] * y3[2*(i+3)] - x3[2*(i+3)+1] * y3[2*(i+3)+1];
++			p1 = x3[2*(i+3)] * y3[2*(i+3)+1] + x3[2*(i+3)+1] * y3[2*(i+3)];
++			w3[2*(i+3)] = p0; w3[2*(i+3)+1] = p1;
++		}
++		while (i < n) {
++			p0 = x1[2*i] * y1[2*i] - x1[2*i+1] * y1[2*i+1];
++			p1 = x1[2*i] * y1[2*i+1] + x1[2*i+1] * y1[2*i];
++			w1[2*i] = p0; w1[2*i+1] = p1;
++			p0 = x2[2*i] * y2[2*i] - x2[2*i+1] * y2[2*i+1];
++			p1 = x2[2*i] * y2[2*i+1] + x2[2*i+1] * y2[2*i];
++			w2[2*i] = p0; w2[2*i+1] = p1;
++			p0 = x3[2*i] * y3[2*i] - x3[2*i+1] * y3[2*i+1];
++			p1 = x3[2*i] * y3[2*i+1] + x3[2*i+1] * y3[2*i];
++			w3[2*i] = p0; w3[2*i+1] = p1;
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			if (incw1 != 0) {
++				p0 = x1[ix1] * y1[iy1] - x1[ix1+1] * y1[iy1+1];
++				p1 = x1[ix1] * y1[iy1+1] + x1[ix1+1] * y1[iy1];
++				w1[ow1] = p0; w1[ow1+1] = p1;
++			}
++			if (incw2 != 0) {
++				p0 = x2[ix2] * y2[iy2] - x2[ix2+1] * y2[iy2+1];
++				p1 = x2[ix2] * y2[iy2+1] + x2[ix2+1] * y2[iy2];
++				w2[ow2] = p0; w2[ow2+1] = p1;
++			}
++			if (incw3 != 0) {
++				p0 = x3[ix3] * y3[iy3] - x3[ix3+1] * y3[iy3+1];
++				p1 = x3[ix3] * y3[iy3+1] + x3[ix3+1] * y3[iy3];
++				w3[ow3] = p0; w3[ow3+1] = p1;
++			}
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			ow1 += incw1;
++			ow2 += incw2;
++			ow3 += incw3;
++			i++;
++		}
 +	}
 +	return(0);
 +}
@@ -10030,10 +10172,10 @@ index 0000000..8617df3
 +#endif
 diff --git a/utest/test_extensions/test_c3had.c b/utest/test_extensions/test_c3had.c
 new file mode 100644
-index 0000000..e1b011e
+index 0000000..8d16700
 --- /dev/null
 +++ b/utest/test_extensions/test_c3had.c
-@@ -0,0 +1,238 @@
+@@ -0,0 +1,243 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  c3had kernel unit tests                                                      */
@@ -10066,10 +10208,9 @@ index 0000000..e1b011e
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3had(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++static void setup_3had(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
 +
 +    srand_generate(x1_buf, n * labs(incx1) * 2);
 +    srand_generate(x2_buf, n * labs(incx2) * 2);
@@ -10115,6 +10256,14 @@ index 0000000..e1b011e
 +        w3_ref[2*ow3] = t0; w3_ref[2*ow3+1] = t1;
 +        }
 +    }
++}
++
++static float check_3had(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3had(n, incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    BLASFUNC(c3had)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3);
 +
@@ -10140,9 +10289,7 @@ index 0000000..e1b011e
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incw1) * 2; i++) w1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw2) * 2; i++) w2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw3) * 2; i++) w3_buf[i] = 0.0;
++    setup_3had(n, incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    cblas_c3had(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3);
 +
@@ -12689,10 +12836,10 @@ index 0000000..8f6bc2e
 +#endif
 diff --git a/utest/test_extensions/test_d3had.c b/utest/test_extensions/test_d3had.c
 new file mode 100644
-index 0000000..c5de399
+index 0000000..2ba8b6e
 --- /dev/null
 +++ b/utest/test_extensions/test_d3had.c
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,232 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  d3had kernel unit tests                                                      */
@@ -12720,10 +12867,9 @@ index 0000000..c5de399
 +static double w2_ref[BUFFER];
 +static double w3_ref[BUFFER];
 +
-+static float check_3had(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++static void setup_3had(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
 +
 +    drand_generate(x1_buf, n * labs(incx1) * 1);
 +    drand_generate(x2_buf, n * labs(incx2) * 1);
@@ -12763,6 +12909,14 @@ index 0000000..c5de399
 +        w2_ref[ow2] = x2_buf[ox2] * y2_buf[oy2];
 +        w3_ref[ow3] = x3_buf[ox3] * y3_buf[oy3];
 +    }
++}
++
++static float check_3had(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3had(n, incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    BLASFUNC(d3had)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3);
 +
@@ -12788,9 +12942,7 @@ index 0000000..c5de399
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incw1) * 1; i++) w1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw2) * 1; i++) w2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw3) * 1; i++) w3_buf[i] = 0.0;
++    setup_3had(n, incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    cblas_d3had(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3);
 +
@@ -15335,10 +15487,10 @@ index 0000000..7e12b11
 +#endif
 diff --git a/utest/test_extensions/test_s3had.c b/utest/test_extensions/test_s3had.c
 new file mode 100644
-index 0000000..08767bb
+index 0000000..6c12d19
 --- /dev/null
 +++ b/utest/test_extensions/test_s3had.c
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,232 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  s3had kernel unit tests                                                      */
@@ -15366,10 +15518,9 @@ index 0000000..08767bb
 +static float w2_ref[BUFFER];
 +static float w3_ref[BUFFER];
 +
-+static float check_3had(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++static void setup_3had(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
 +
 +    srand_generate(x1_buf, n * labs(incx1) * 1);
 +    srand_generate(x2_buf, n * labs(incx2) * 1);
@@ -15409,6 +15560,14 @@ index 0000000..08767bb
 +        w2_ref[ow2] = x2_buf[ox2] * y2_buf[oy2];
 +        w3_ref[ow3] = x3_buf[ox3] * y3_buf[oy3];
 +    }
++}
++
++static float check_3had(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3had(n, incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    BLASFUNC(s3had)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3);
 +
@@ -15434,9 +15593,7 @@ index 0000000..08767bb
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incw1) * 1; i++) w1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw2) * 1; i++) w2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw3) * 1; i++) w3_buf[i] = 0.0;
++    setup_3had(n, incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    cblas_s3had(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3);
 +
@@ -18083,10 +18240,10 @@ index 0000000..8cff4d8
 +#endif
 diff --git a/utest/test_extensions/test_z3had.c b/utest/test_extensions/test_z3had.c
 new file mode 100644
-index 0000000..a2c0428
+index 0000000..82e868f
 --- /dev/null
 +++ b/utest/test_extensions/test_z3had.c
-@@ -0,0 +1,238 @@
+@@ -0,0 +1,243 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  z3had kernel unit tests                                                      */
@@ -18119,10 +18276,9 @@ index 0000000..a2c0428
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3had(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++static void setup_3had(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
 +
 +    drand_generate(x1_buf, n * labs(incx1) * 2);
 +    drand_generate(x2_buf, n * labs(incx2) * 2);
@@ -18168,6 +18324,14 @@ index 0000000..a2c0428
 +        w3_ref[2*ow3] = t0; w3_ref[2*ow3+1] = t1;
 +        }
 +    }
++}
++
++static float check_3had(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3had(n, incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    BLASFUNC(z3had)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3);
 +
@@ -18193,9 +18357,7 @@ index 0000000..a2c0428
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incw1) * 2; i++) w1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw2) * 2; i++) w2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw3) * 2; i++) w3_buf[i] = 0.0;
++    setup_3had(n, incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    cblas_z3had(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3);
 +
