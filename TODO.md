@@ -10,15 +10,15 @@ All work lives in `/home/sac/blpp/openblas`.
 | 1 | `<p>1xypa` | `r = q.*t + a` | done 2026-07-20 — 9 unit + 44 cblas tests pass |
 | 2 | `<p>3dot` | `r = x·y` | done 2026-10-06 — unit + cblas tests pass, bench 0.095 ms/run @ n=1000 |
 | 3 | `<p>3had` | `w = x.*y` | done 2026-10-06 — unit + cblas tests pass, bench 0.236 ms/run @ n=1000 |
-| 4 | `<p>3cross` | `w = x∧y` | stub wired (−42), body todo |
-| 5 | `<p>3crossscal` | `w = a·(x∧y)` | stub wired (−42), body todo |
+| 4 | `<p>3cross` | `w = x∧y` | done 2026-10-07 — unit + cblas tests pass, bench 0.201 ms/run @ n=1000 |
+| 5 | `<p>3crossscal` | `w = a·(x∧y)` | done 2026-10-07 — unit + cblas tests pass, bench 0.260 ms/run @ n=1000 |
 | 6 | `<p>3sqr` | `r = x·x` | done 2026-10-06 — unit + cblas tests pass, bench 0.084 ms/run @ n=1000 |
-| 7 | `<p>3crossdot` | `r = (x∧y)·w` | stub wired (−42), body todo |
-| 8 | `<p>3crosssqr` | `r = (x∧y)·(x∧y)` | stub wired (−42), body todo |
-| 9 | `<p>3crossxy_crossxz` | `u = x∧y`, `v = x∧w` | stub wired (−42), body todo |
-| 10 | `<p>3crossxy_dotxz` | `u = x∧y`, `r = x·w` | stub wired (−42), body todo |
-| 11 | `<p>3dotxy_dotxz` | `r = x·y`, `q = x·w` | stub wired (−42), body todo |
-| 12 | `<p>1norm` | `r = √(q·q)` | stub wired (−42), body todo |
+| 7 | `<p>3crossdot` | `r = (x∧y)·w` | done 2026-10-07 — unit + cblas tests pass, bench 0.237 ms/run @ n=1000 |
+| 8 | `<p>3crosssqr` | `r = (x∧y)·(x∧y)` | done 2026-10-07 — unit + cblas tests pass, bench 0.154 ms/run @ n=1000 |
+| 9 | `<p>3crossxy_crossxz` | `u = x∧y`, `v = x∧w` | done 2026-10-07 — unit + cblas tests pass, bench 0.653 ms/run @ n=1000 |
+| 10 | `<p>3crossxy_dotxz` | `u = x∧y`, `r = x·w` | done 2026-10-07 — unit + cblas tests pass, bench 0.485 ms/run @ n=1000 |
+| 11 | `<p>3dotxy_dotxz` | `r = x·y`, `q = x·w` | done 2026-10-07 — unit + cblas tests pass, bench 0.379 ms/run @ n=1000 |
+| 12 | `<p>1norm` | `r = √(q·q)` | done 2026-10-07 — unit + cblas tests pass, bench 0.084 ms/run @ n=1000 |
 
 ## Conventions settled while doing #1
 

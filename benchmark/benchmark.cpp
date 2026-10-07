@@ -281,6 +281,459 @@ Result bench_3sqr(int n)
 #endif
 }
 
+
+// r = sqrt(q.*q)  (inputs read-only, r fully rewritten each run)
+Result bench_1norm(int n)
+{
+    std::vector<double> q(n), r(n);
+    std::vector<long double> ref(n);
+    seeded(q, 41);
+    for (int i = 0; i < n; ++i)
+        ref[i] = sqrtl((long double)q[i] * q[i]);
+
+#ifndef NDEBUG
+    cblas_d1norm(n, q.data(), 1, r.data(), 1);
+    double err = max_rel_err(r.data(), ref.data(), n);
+    std::printf("d1norm[0]: sqrt(q[0] * q[0]) = sqrt(%.6f * %.6f) = %.6f\n",
+                q[0], q[0], r[0]);
+    return {"d1norm", 2.0, 0.0, 0.0, 0.0, err, 0, err <= kEps};
+#else
+    cblas_d1norm(n, q.data(), 1, r.data(), 1); // warmup
+
+    double t_run = 0.0;
+    int iters = 0;
+    auto t_start = Clock::now();
+    for (;;) {
+        auto b = Clock::now();
+        cblas_d1norm(n, q.data(), 1, r.data(), 1);
+        t_run += std::chrono::duration<double>(Clock::now() - b).count();
+        ++iters;
+        double elapsed = std::chrono::duration<double>(Clock::now() - t_start).count();
+        if ((iters >= kMinIters && elapsed >= kMinTime) || elapsed >= kMaxTime)
+            break;
+    }
+    double err = max_rel_err(r.data(), ref.data(), n);
+    return make_result("d1norm (r = sqrt(q.q))", 2.0, t_run / iters, n, iters, err);
+#endif
+}
+
+// w = x^y  (inputs read-only, w fully rewritten each run)
+Result bench_3cross(int n)
+{
+    std::vector<double> x1(n), x2(n), x3(n), y1(n), y2(n), y3(n);
+    std::vector<double> w1(n), w2(n), w3(n);
+    std::vector<long double> w1_ref(n), w2_ref(n), w3_ref(n);
+    seeded(x1, 51);
+    seeded(x2, 52);
+    seeded(x3, 53);
+    seeded(y1, 54);
+    seeded(y2, 55);
+    seeded(y3, 56);
+    for (int i = 0; i < n; ++i) {
+        w1_ref[i] = (long double)x2[i] * y3[i] - (long double)x3[i] * y2[i];
+        w2_ref[i] = (long double)x3[i] * y1[i] - (long double)x1[i] * y3[i];
+        w3_ref[i] = (long double)x1[i] * y2[i] - (long double)x2[i] * y1[i];
+    }
+
+#ifndef NDEBUG
+    cblas_d3cross(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                  y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                  w1.data(), 1, w2.data(), 1, w3.data(), 1);
+    double err = std::fmax(max_rel_err(w1.data(), w1_ref.data(), n),
+                   std::fmax(max_rel_err(w2.data(), w2_ref.data(), n),
+                             max_rel_err(w3.data(), w3_ref.data(), n)));
+    std::printf("d3cross[0]: x^y = w\n"
+                "(%f %f %f)^(%f %f %f) = (%f %f %f)\n",
+                x1[0], x2[0], x3[0], y1[0], y2[0], y3[0], w1[0], w2[0], w3[0]);
+    return {"d3cross", 9.0, 0.0, 0.0, 0.0, err, 0, err <= kEps};
+#else
+    cblas_d3cross(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                  y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                  w1.data(), 1, w2.data(), 1, w3.data(), 1); // warmup
+
+    double t_run = 0.0;
+    int iters = 0;
+    auto t_start = Clock::now();
+    for (;;) {
+        auto b = Clock::now();
+        cblas_d3cross(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                      y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                      w1.data(), 1, w2.data(), 1, w3.data(), 1);
+        t_run += std::chrono::duration<double>(Clock::now() - b).count();
+        ++iters;
+        double elapsed = std::chrono::duration<double>(Clock::now() - t_start).count();
+        if ((iters >= kMinIters && elapsed >= kMinTime) || elapsed >= kMaxTime)
+            break;
+    }
+    double err = std::fmax(max_rel_err(w1.data(), w1_ref.data(), n),
+                   std::fmax(max_rel_err(w2.data(), w2_ref.data(), n),
+                             max_rel_err(w3.data(), w3_ref.data(), n)));
+    return make_result("d3cross (w = x^y)", 9.0, t_run / iters, n, iters, err);
+#endif
+}
+
+// w = a*(x^y)  (inputs read-only, w fully rewritten each run)
+Result bench_3crossscal(int n)
+{
+    const double a = 1.5;
+    std::vector<double> x1(n), x2(n), x3(n), y1(n), y2(n), y3(n);
+    std::vector<double> w1(n), w2(n), w3(n);
+    std::vector<long double> w1_ref(n), w2_ref(n), w3_ref(n);
+    seeded(x1, 61);
+    seeded(x2, 62);
+    seeded(x3, 63);
+    seeded(y1, 64);
+    seeded(y2, 65);
+    seeded(y3, 66);
+    for (int i = 0; i < n; ++i) {
+        w1_ref[i] = (long double)a * ((long double)x2[i] * y3[i] - (long double)x3[i] * y2[i]);
+        w2_ref[i] = (long double)a * ((long double)x3[i] * y1[i] - (long double)x1[i] * y3[i]);
+        w3_ref[i] = (long double)a * ((long double)x1[i] * y2[i] - (long double)x2[i] * y1[i]);
+    }
+
+#ifndef NDEBUG
+    cblas_d3crossscal(n, a, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                      y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                      w1.data(), 1, w2.data(), 1, w3.data(), 1);
+    double err = std::fmax(max_rel_err(w1.data(), w1_ref.data(), n),
+                   std::fmax(max_rel_err(w2.data(), w2_ref.data(), n),
+                             max_rel_err(w3.data(), w3_ref.data(), n)));
+    std::printf("d3crossscal[0]: a*(x^y) = w  (a = %f)\n"
+                "(%f %f %f)^(%f %f %f) = (%f %f %f)\n",
+                a, x1[0], x2[0], x3[0], y1[0], y2[0], y3[0], w1[0], w2[0], w3[0]);
+    return {"d3crossscal", 12.0, 0.0, 0.0, 0.0, err, 0, err <= kEps};
+#else
+    cblas_d3crossscal(n, a, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                      y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                      w1.data(), 1, w2.data(), 1, w3.data(), 1); // warmup
+
+    double t_run = 0.0;
+    int iters = 0;
+    auto t_start = Clock::now();
+    for (;;) {
+        auto b = Clock::now();
+        cblas_d3crossscal(n, a, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                          y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                          w1.data(), 1, w2.data(), 1, w3.data(), 1);
+        t_run += std::chrono::duration<double>(Clock::now() - b).count();
+        ++iters;
+        double elapsed = std::chrono::duration<double>(Clock::now() - t_start).count();
+        if ((iters >= kMinIters && elapsed >= kMinTime) || elapsed >= kMaxTime)
+            break;
+    }
+    double err = std::fmax(max_rel_err(w1.data(), w1_ref.data(), n),
+                   std::fmax(max_rel_err(w2.data(), w2_ref.data(), n),
+                             max_rel_err(w3.data(), w3_ref.data(), n)));
+    return make_result("d3crossscal (w = a*(x^y))", 12.0, t_run / iters, n, iters, err);
+#endif
+}
+
+// r = (x^y).w  (inputs read-only, r fully rewritten each run)
+Result bench_3crossdot(int n)
+{
+    std::vector<double> x1(n), x2(n), x3(n), y1(n), y2(n), y3(n);
+    std::vector<double> w1(n), w2(n), w3(n), r(n);
+    std::vector<long double> ref(n);
+    seeded(x1, 71);
+    seeded(x2, 72);
+    seeded(x3, 73);
+    seeded(y1, 74);
+    seeded(y2, 75);
+    seeded(y3, 76);
+    seeded(w1, 77);
+    seeded(w2, 78);
+    seeded(w3, 79);
+    for (int i = 0; i < n; ++i) {
+        long double c1 = (long double)x2[i] * y3[i] - (long double)x3[i] * y2[i];
+        long double c2 = (long double)x3[i] * y1[i] - (long double)x1[i] * y3[i];
+        long double c3 = (long double)x1[i] * y2[i] - (long double)x2[i] * y1[i];
+        ref[i] = c1 * w1[i] + c2 * w2[i] + c3 * w3[i];
+    }
+
+#ifndef NDEBUG
+    cblas_d3crossdot(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                     y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                     w1.data(), 1, w2.data(), 1, w3.data(), 1, r.data(), 1);
+    double err = max_rel_err(r.data(), ref.data(), n);
+    std::printf("d3crossdot[0]: (x^y).w = r\n"
+                "((%f %f %f)^(%f %f %f)).(%f %f %f) = %f\n",
+                x1[0], x2[0], x3[0], y1[0], y2[0], y3[0], w1[0], w2[0], w3[0], r[0]);
+    return {"d3crossdot", 14.0, 0.0, 0.0, 0.0, err, 0, err <= kEps};
+#else
+    cblas_d3crossdot(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                     y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                     w1.data(), 1, w2.data(), 1, w3.data(), 1, r.data(), 1); // warmup
+
+    double t_run = 0.0;
+    int iters = 0;
+    auto t_start = Clock::now();
+    for (;;) {
+        auto b = Clock::now();
+        cblas_d3crossdot(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                         y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                         w1.data(), 1, w2.data(), 1, w3.data(), 1, r.data(), 1);
+        t_run += std::chrono::duration<double>(Clock::now() - b).count();
+        ++iters;
+        double elapsed = std::chrono::duration<double>(Clock::now() - t_start).count();
+        if ((iters >= kMinIters && elapsed >= kMinTime) || elapsed >= kMaxTime)
+            break;
+    }
+    double err = max_rel_err(r.data(), ref.data(), n);
+    return make_result("d3crossdot (r = (x^y).w)", 14.0, t_run / iters, n, iters, err);
+#endif
+}
+
+// r = (x^y).(x^y)  (inputs read-only, r fully rewritten each run)
+Result bench_3crosssqr(int n)
+{
+    std::vector<double> x1(n), x2(n), x3(n), y1(n), y2(n), y3(n), r(n);
+    std::vector<long double> ref(n);
+    seeded(x1, 81);
+    seeded(x2, 82);
+    seeded(x3, 83);
+    seeded(y1, 84);
+    seeded(y2, 85);
+    seeded(y3, 86);
+    for (int i = 0; i < n; ++i) {
+        long double c1 = (long double)x2[i] * y3[i] - (long double)x3[i] * y2[i];
+        long double c2 = (long double)x3[i] * y1[i] - (long double)x1[i] * y3[i];
+        long double c3 = (long double)x1[i] * y2[i] - (long double)x2[i] * y1[i];
+        ref[i] = c1 * c1 + c2 * c2 + c3 * c3;
+    }
+
+#ifndef NDEBUG
+    cblas_d3crosssqr(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                     y1.data(), 1, y2.data(), 1, y3.data(), 1, r.data(), 1);
+    double err = max_rel_err(r.data(), ref.data(), n);
+    std::printf("d3crosssqr[0]: (x^y).(x^y) = r\n"
+                "((%f %f %f)^(%f %f %f)).(same) = %f\n",
+                x1[0], x2[0], x3[0], y1[0], y2[0], y3[0], r[0]);
+    return {"d3crosssqr", 14.0, 0.0, 0.0, 0.0, err, 0, err <= kEps};
+#else
+    cblas_d3crosssqr(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                     y1.data(), 1, y2.data(), 1, y3.data(), 1, r.data(), 1); // warmup
+
+    double t_run = 0.0;
+    int iters = 0;
+    auto t_start = Clock::now();
+    for (;;) {
+        auto b = Clock::now();
+        cblas_d3crosssqr(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                         y1.data(), 1, y2.data(), 1, y3.data(), 1, r.data(), 1);
+        t_run += std::chrono::duration<double>(Clock::now() - b).count();
+        ++iters;
+        double elapsed = std::chrono::duration<double>(Clock::now() - t_start).count();
+        if ((iters >= kMinIters && elapsed >= kMinTime) || elapsed >= kMaxTime)
+            break;
+    }
+    double err = max_rel_err(r.data(), ref.data(), n);
+    return make_result("d3crosssqr (r = (x^y).(x^y))", 14.0, t_run / iters, n, iters, err);
+#endif
+}
+
+// u = x^y, v = x^w  (inputs read-only, u and v fully rewritten each run)
+Result bench_3crossxy_crossxz(int n)
+{
+    std::vector<double> x1(n), x2(n), x3(n), y1(n), y2(n), y3(n);
+    std::vector<double> w1(n), w2(n), w3(n);
+    std::vector<double> u1(n), u2(n), u3(n), v1(n), v2(n), v3(n);
+    std::vector<long double> u1_ref(n), u2_ref(n), u3_ref(n);
+    std::vector<long double> v1_ref(n), v2_ref(n), v3_ref(n);
+    seeded(x1, 91);
+    seeded(x2, 92);
+    seeded(x3, 93);
+    seeded(y1, 94);
+    seeded(y2, 95);
+    seeded(y3, 96);
+    seeded(w1, 97);
+    seeded(w2, 98);
+    seeded(w3, 99);
+    for (int i = 0; i < n; ++i) {
+        u1_ref[i] = (long double)x2[i] * y3[i] - (long double)x3[i] * y2[i];
+        u2_ref[i] = (long double)x3[i] * y1[i] - (long double)x1[i] * y3[i];
+        u3_ref[i] = (long double)x1[i] * y2[i] - (long double)x2[i] * y1[i];
+        v1_ref[i] = (long double)x2[i] * w3[i] - (long double)x3[i] * w2[i];
+        v2_ref[i] = (long double)x3[i] * w1[i] - (long double)x1[i] * w3[i];
+        v3_ref[i] = (long double)x1[i] * w2[i] - (long double)x2[i] * w1[i];
+    }
+
+    double err;
+#ifndef NDEBUG
+    cblas_d3crossxy_crossxz(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                            y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                            w1.data(), 1, w2.data(), 1, w3.data(), 1,
+                            u1.data(), 1, u2.data(), 1, u3.data(), 1,
+                            v1.data(), 1, v2.data(), 1, v3.data(), 1);
+    err = std::fmax(max_rel_err(u1.data(), u1_ref.data(), n),
+              std::fmax(max_rel_err(u2.data(), u2_ref.data(), n),
+                        std::fmax(max_rel_err(u3.data(), u3_ref.data(), n),
+                                  std::fmax(max_rel_err(v1.data(), v1_ref.data(), n),
+                                            std::fmax(max_rel_err(v2.data(), v2_ref.data(), n),
+                                                      max_rel_err(v3.data(), v3_ref.data(), n))))));
+    std::printf("d3crossxy_crossxz[0]: x^y = u, x^w = v\n"
+                "u = (%f %f %f)  v = (%f %f %f)\n",
+                u1[0], u2[0], u3[0], v1[0], v2[0], v3[0]);
+    return {"d3crossxy_crossxz", 18.0, 0.0, 0.0, 0.0, err, 0, err <= kEps};
+#else
+    cblas_d3crossxy_crossxz(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                            y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                            w1.data(), 1, w2.data(), 1, w3.data(), 1,
+                            u1.data(), 1, u2.data(), 1, u3.data(), 1,
+                            v1.data(), 1, v2.data(), 1, v3.data(), 1); // warmup
+
+    double t_run = 0.0;
+    int iters = 0;
+    auto t_start = Clock::now();
+    for (;;) {
+        auto b = Clock::now();
+        cblas_d3crossxy_crossxz(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                                y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                                w1.data(), 1, w2.data(), 1, w3.data(), 1,
+                                u1.data(), 1, u2.data(), 1, u3.data(), 1,
+                                v1.data(), 1, v2.data(), 1, v3.data(), 1);
+        t_run += std::chrono::duration<double>(Clock::now() - b).count();
+        ++iters;
+        double elapsed = std::chrono::duration<double>(Clock::now() - t_start).count();
+        if ((iters >= kMinIters && elapsed >= kMinTime) || elapsed >= kMaxTime)
+            break;
+    }
+    err = std::fmax(max_rel_err(u1.data(), u1_ref.data(), n),
+              std::fmax(max_rel_err(u2.data(), u2_ref.data(), n),
+                        std::fmax(max_rel_err(u3.data(), u3_ref.data(), n),
+                                  std::fmax(max_rel_err(v1.data(), v1_ref.data(), n),
+                                            std::fmax(max_rel_err(v2.data(), v2_ref.data(), n),
+                                                      max_rel_err(v3.data(), v3_ref.data(), n))))));
+    return make_result("d3crossxy_crossxz (u = x^y, v = x^w)", 18.0, t_run / iters, n, iters, err);
+#endif
+}
+
+// u = x^y, r = x.w  (inputs read-only, u and r fully rewritten each run)
+Result bench_3crossxy_dotxz(int n)
+{
+    std::vector<double> x1(n), x2(n), x3(n), y1(n), y2(n), y3(n);
+    std::vector<double> w1(n), w2(n), w3(n);
+    std::vector<double> u1(n), u2(n), u3(n), r(n);
+    std::vector<long double> u1_ref(n), u2_ref(n), u3_ref(n), ref(n);
+    seeded(x1, 101);
+    seeded(x2, 102);
+    seeded(x3, 103);
+    seeded(y1, 104);
+    seeded(y2, 105);
+    seeded(y3, 106);
+    seeded(w1, 107);
+    seeded(w2, 108);
+    seeded(w3, 109);
+    for (int i = 0; i < n; ++i) {
+        u1_ref[i] = (long double)x2[i] * y3[i] - (long double)x3[i] * y2[i];
+        u2_ref[i] = (long double)x3[i] * y1[i] - (long double)x1[i] * y3[i];
+        u3_ref[i] = (long double)x1[i] * y2[i] - (long double)x2[i] * y1[i];
+        ref[i] = (long double)x1[i] * w1[i] + (long double)x2[i] * w2[i]
+               + (long double)x3[i] * w3[i];
+    }
+
+    double err;
+#ifndef NDEBUG
+    cblas_d3crossxy_dotxz(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                          y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                          w1.data(), 1, w2.data(), 1, w3.data(), 1,
+                          u1.data(), 1, u2.data(), 1, u3.data(), 1, r.data(), 1);
+    err = std::fmax(max_rel_err(u1.data(), u1_ref.data(), n),
+              std::fmax(max_rel_err(u2.data(), u2_ref.data(), n),
+                        std::fmax(max_rel_err(u3.data(), u3_ref.data(), n),
+                                  max_rel_err(r.data(), ref.data(), n))));
+    std::printf("d3crossxy_dotxz[0]: x^y = u, x.w = r\n"
+                "u = (%f %f %f)  r = %f\n", u1[0], u2[0], u3[0], r[0]);
+    return {"d3crossxy_dotxz", 14.0, 0.0, 0.0, 0.0, err, 0, err <= kEps};
+#else
+    cblas_d3crossxy_dotxz(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                          y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                          w1.data(), 1, w2.data(), 1, w3.data(), 1,
+                          u1.data(), 1, u2.data(), 1, u3.data(), 1, r.data(), 1); // warmup
+
+    double t_run = 0.0;
+    int iters = 0;
+    auto t_start = Clock::now();
+    for (;;) {
+        auto b = Clock::now();
+        cblas_d3crossxy_dotxz(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                              y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                              w1.data(), 1, w2.data(), 1, w3.data(), 1,
+                              u1.data(), 1, u2.data(), 1, u3.data(), 1, r.data(), 1);
+        t_run += std::chrono::duration<double>(Clock::now() - b).count();
+        ++iters;
+        double elapsed = std::chrono::duration<double>(Clock::now() - t_start).count();
+        if ((iters >= kMinIters && elapsed >= kMinTime) || elapsed >= kMaxTime)
+            break;
+    }
+    err = std::fmax(max_rel_err(u1.data(), u1_ref.data(), n),
+              std::fmax(max_rel_err(u2.data(), u2_ref.data(), n),
+                        std::fmax(max_rel_err(u3.data(), u3_ref.data(), n),
+                                  max_rel_err(r.data(), ref.data(), n))));
+    return make_result("d3crossxy_dotxz (u = x^y, r = x.w)", 14.0, t_run / iters, n, iters, err);
+#endif
+}
+
+// r = x.y, q = x.w  (inputs read-only, r and q fully rewritten each run)
+Result bench_3dotxy_dotxz(int n)
+{
+    std::vector<double> x1(n), x2(n), x3(n), y1(n), y2(n), y3(n);
+    std::vector<double> w1(n), w2(n), w3(n);
+    std::vector<double> r(n), q(n);
+    std::vector<long double> r_ref(n), q_ref(n);
+    seeded(x1, 111);
+    seeded(x2, 112);
+    seeded(x3, 113);
+    seeded(y1, 114);
+    seeded(y2, 115);
+    seeded(y3, 116);
+    seeded(w1, 117);
+    seeded(w2, 118);
+    seeded(w3, 119);
+    for (int i = 0; i < n; ++i) {
+        r_ref[i] = (long double)x1[i] * y1[i] + (long double)x2[i] * y2[i]
+                 + (long double)x3[i] * y3[i];
+        q_ref[i] = (long double)x1[i] * w1[i] + (long double)x2[i] * w2[i]
+                 + (long double)x3[i] * w3[i];
+    }
+
+    double err;
+#ifndef NDEBUG
+    cblas_d3dotxy_dotxz(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                        y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                        w1.data(), 1, w2.data(), 1, w3.data(), 1,
+                        r.data(), 1, q.data(), 1);
+    err = std::fmax(max_rel_err(r.data(), r_ref.data(), n),
+              max_rel_err(q.data(), q_ref.data(), n));
+    std::printf("d3dotxy_dotxz[0]: x.y = r, x.w = q\n"
+                "r = %f  q = %f\n", r[0], q[0]);
+    return {"d3dotxy_dotxz", 10.0, 0.0, 0.0, 0.0, err, 0, err <= kEps};
+#else
+    cblas_d3dotxy_dotxz(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                        y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                        w1.data(), 1, w2.data(), 1, w3.data(), 1,
+                        r.data(), 1, q.data(), 1); // warmup
+
+    double t_run = 0.0;
+    int iters = 0;
+    auto t_start = Clock::now();
+    for (;;) {
+        auto b = Clock::now();
+        cblas_d3dotxy_dotxz(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
+                            y1.data(), 1, y2.data(), 1, y3.data(), 1,
+                            w1.data(), 1, w2.data(), 1, w3.data(), 1,
+                            r.data(), 1, q.data(), 1);
+        t_run += std::chrono::duration<double>(Clock::now() - b).count();
+        ++iters;
+        double elapsed = std::chrono::duration<double>(Clock::now() - t_start).count();
+        if ((iters >= kMinIters && elapsed >= kMinTime) || elapsed >= kMaxTime)
+            break;
+    }
+    err = std::fmax(max_rel_err(r.data(), r_ref.data(), n),
+              max_rel_err(q.data(), q_ref.data(), n));
+    return make_result("d3dotxy_dotxz (r = x.y, q = x.w)", 10.0, t_run / iters, n, iters, err);
+#endif
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -300,6 +753,14 @@ int main(int argc, char **argv)
     results.push_back(bench_3dot(n));
     results.push_back(bench_3had(n));
     results.push_back(bench_3sqr(n));
+    results.push_back(bench_1norm(n));
+    results.push_back(bench_3cross(n));
+    results.push_back(bench_3crossscal(n));
+    results.push_back(bench_3crossdot(n));
+    results.push_back(bench_3crosssqr(n));
+    results.push_back(bench_3crossxy_crossxz(n));
+    results.push_back(bench_3crossxy_dotxz(n));
+    results.push_back(bench_3dotxy_dotxz(n));
 
     bool ok = true;
 #ifndef NDEBUG

@@ -4032,10 +4032,10 @@ index 221cc51..2c21356 100644
 +	$(CC) -c $(CFLAGS) -DCOMPLEX -DDOUBLE $< -o $@
 diff --git a/kernel/generic/1norm.c b/kernel/generic/1norm.c
 new file mode 100644
-index 0000000..0b5f036
+index 0000000..517ff7e
 --- /dev/null
 +++ b/kernel/generic/1norm.c
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,66 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4069,14 +4069,36 @@ index 0000000..0b5f036
 +          FLOAT *q, BLASLONG incq, FLOAT *r, BLASLONG incr)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG or;
++	BLASLONG iq = 0;
++	BLASLONG ir = 0;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		or = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
-+		r[or] = -42;
-+		i++;
++	if (incr == 0) {
++		if ( n > 0 )
++			r[0] = sqrt(q[0] * q[0]);
++		return(0);
++	}
++
++	if ((incq == 1) && (incr == 1)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			r[i]     = sqrt(q[i]     * q[i]);
++			r[i + 1] = sqrt(q[i + 1] * q[i + 1]);
++			r[i + 2] = sqrt(q[i + 2] * q[i + 2]);
++			r[i + 3] = sqrt(q[i + 3] * q[i + 3]);
++		}
++		while (i < n) {
++			r[i] = sqrt(q[i] * q[i]);
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			r[ir] = sqrt(q[iq] * q[iq]);
++			iq += incq;
++			ir += incr;
++			i++;
++		}
 +	}
 +	return(0);
 +}
@@ -4158,10 +4180,10 @@ index 0000000..03146ec
 +}
 diff --git a/kernel/generic/3cross.c b/kernel/generic/3cross.c
 new file mode 100644
-index 0000000..aaf1f25
+index 0000000..a359bef
 --- /dev/null
 +++ b/kernel/generic/3cross.c
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,90 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4197,27 +4219,67 @@ index 0000000..aaf1f25
 +          FLOAT *w1, BLASLONG incw1, FLOAT *w2, BLASLONG incw2, FLOAT *w3, BLASLONG incw3)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG ow1, ow2, ow3;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG ow1 = 0, ow2 = 0, ow3 = 0;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		ow1 = (incw1 >= 0) ? i * incw1 : (n - 1 - i) * (-incw1);
-+		ow2 = (incw2 >= 0) ? i * incw2 : (n - 1 - i) * (-incw2);
-+		ow3 = (incw3 >= 0) ? i * incw3 : (n - 1 - i) * (-incw3);
-+		w1[ow1] = -42;
-+		w2[ow2] = -42;
-+		w3[ow3] = -42;
-+		i++;
++	if ( n > 0 ) {
++		if (incw1 == 0) w1[0] = x2[0] * y3[0] - x3[0] * y2[0];
++		if (incw2 == 0) w2[0] = x3[0] * y1[0] - x1[0] * y3[0];
++		if (incw3 == 0) w3[0] = x1[0] * y2[0] - x2[0] * y1[0];
++	}
++
++	if ((incx1 == 1) && (incx2 == 1) && (incx3 == 1) &&
++	    (incy1 == 1) && (incy2 == 1) && (incy3 == 1) &&
++	    (incw1 == 1) && (incw2 == 1) && (incw3 == 1)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			w1[i]     = x2[i]     * y3[i]     - x3[i]     * y2[i];
++			w2[i]     = x3[i]     * y1[i]     - x1[i]     * y3[i];
++			w3[i]     = x1[i]     * y2[i]     - x2[i]     * y1[i];
++			w1[i + 1] = x2[i + 1] * y3[i + 1] - x3[i + 1] * y2[i + 1];
++			w2[i + 1] = x3[i + 1] * y1[i + 1] - x1[i + 1] * y3[i + 1];
++			w3[i + 1] = x1[i + 1] * y2[i + 1] - x2[i + 1] * y1[i + 1];
++			w1[i + 2] = x2[i + 2] * y3[i + 2] - x3[i + 2] * y2[i + 2];
++			w2[i + 2] = x3[i + 2] * y1[i + 2] - x1[i + 2] * y3[i + 2];
++			w3[i + 2] = x1[i + 2] * y2[i + 2] - x2[i + 2] * y1[i + 2];
++			w1[i + 3] = x2[i + 3] * y3[i + 3] - x3[i + 3] * y2[i + 3];
++			w2[i + 3] = x3[i + 3] * y1[i + 3] - x1[i + 3] * y3[i + 3];
++			w3[i + 3] = x1[i + 3] * y2[i + 3] - x2[i + 3] * y1[i + 3];
++		}
++		while (i < n) {
++			w1[i] = x2[i] * y3[i] - x3[i] * y2[i];
++			w2[i] = x3[i] * y1[i] - x1[i] * y3[i];
++			w3[i] = x1[i] * y2[i] - x2[i] * y1[i];
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			if (incw1 != 0) w1[ow1] = x2[ix2] * y3[iy3] - x3[ix3] * y2[iy2];
++			if (incw2 != 0) w2[ow2] = x3[ix3] * y1[iy1] - x1[ix1] * y3[iy3];
++			if (incw3 != 0) w3[ow3] = x1[ix1] * y2[iy2] - x2[ix2] * y1[iy1];
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			ow1 += incw1;
++			ow2 += incw2;
++			ow3 += incw3;
++			i++;
++		}
 +	}
 +	return(0);
 +}
 diff --git a/kernel/generic/3crossdot.c b/kernel/generic/3crossdot.c
 new file mode 100644
-index 0000000..57b4dc0
+index 0000000..e9ff9c1
 --- /dev/null
 +++ b/kernel/generic/3crossdot.c
-@@ -0,0 +1,47 @@
+@@ -0,0 +1,104 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4254,23 +4316,80 @@ index 0000000..57b4dc0
 +          FLOAT *r, BLASLONG incr)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG or;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG iw1 = 0, iw2 = 0, iw3 = 0;
++	BLASLONG ir = 0;
++	FLOAT c, d, e;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		or = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
-+		r[or] = -42;
-+		i++;
++	if (incr == 0) {
++		if ( n > 0 ) {
++			c = x2[0] * y3[0] - x3[0] * y2[0];
++			d = x3[0] * y1[0] - x1[0] * y3[0];
++			e = x1[0] * y2[0] - x2[0] * y1[0];
++			r[0] = c * w1[0] + d * w2[0] + e * w3[0];
++		}
++		return(0);
++	}
++
++	if ((incx1 == 1) && (incx2 == 1) && (incx3 == 1) &&
++	    (incy1 == 1) && (incy2 == 1) && (incy3 == 1) &&
++	    (incw1 == 1) && (incw2 == 1) && (incw3 == 1) && (incr == 1)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			c = x2[i]     * y3[i]     - x3[i]     * y2[i];
++			d = x3[i]     * y1[i]     - x1[i]     * y3[i];
++			e = x1[i]     * y2[i]     - x2[i]     * y1[i];
++			r[i]     = c * w1[i]     + d * w2[i]     + e * w3[i];
++			c = x2[i + 1] * y3[i + 1] - x3[i + 1] * y2[i + 1];
++			d = x3[i + 1] * y1[i + 1] - x1[i + 1] * y3[i + 1];
++			e = x1[i + 1] * y2[i + 1] - x2[i + 1] * y1[i + 1];
++			r[i + 1] = c * w1[i + 1] + d * w2[i + 1] + e * w3[i + 1];
++			c = x2[i + 2] * y3[i + 2] - x3[i + 2] * y2[i + 2];
++			d = x3[i + 2] * y1[i + 2] - x1[i + 2] * y3[i + 2];
++			e = x1[i + 2] * y2[i + 2] - x2[i + 2] * y1[i + 2];
++			r[i + 2] = c * w1[i + 2] + d * w2[i + 2] + e * w3[i + 2];
++			c = x2[i + 3] * y3[i + 3] - x3[i + 3] * y2[i + 3];
++			d = x3[i + 3] * y1[i + 3] - x1[i + 3] * y3[i + 3];
++			e = x1[i + 3] * y2[i + 3] - x2[i + 3] * y1[i + 3];
++			r[i + 3] = c * w1[i + 3] + d * w2[i + 3] + e * w3[i + 3];
++		}
++		while (i < n) {
++			c = x2[i] * y3[i] - x3[i] * y2[i];
++			d = x3[i] * y1[i] - x1[i] * y3[i];
++			e = x1[i] * y2[i] - x2[i] * y1[i];
++			r[i] = c * w1[i] + d * w2[i] + e * w3[i];
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			c = x2[ix2] * y3[iy3] - x3[ix3] * y2[iy2];
++			d = x3[ix3] * y1[iy1] - x1[ix1] * y3[iy3];
++			e = x1[ix1] * y2[iy2] - x2[ix2] * y1[iy1];
++			r[ir] = c * w1[iw1] + d * w2[iw2] + e * w3[iw3];
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			iw1 += incw1;
++			iw2 += incw2;
++			iw3 += incw3;
++			ir += incr;
++			i++;
++		}
 +	}
 +	return(0);
 +}
 diff --git a/kernel/generic/3crossscal.c b/kernel/generic/3crossscal.c
 new file mode 100644
-index 0000000..d2f0d40
+index 0000000..4f57179
 --- /dev/null
 +++ b/kernel/generic/3crossscal.c
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,90 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4306,27 +4425,67 @@ index 0000000..d2f0d40
 +          FLOAT *w1, BLASLONG incw1, FLOAT *w2, BLASLONG incw2, FLOAT *w3, BLASLONG incw3)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG ow1, ow2, ow3;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG ow1 = 0, ow2 = 0, ow3 = 0;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		ow1 = (incw1 >= 0) ? i * incw1 : (n - 1 - i) * (-incw1);
-+		ow2 = (incw2 >= 0) ? i * incw2 : (n - 1 - i) * (-incw2);
-+		ow3 = (incw3 >= 0) ? i * incw3 : (n - 1 - i) * (-incw3);
-+		w1[ow1] = -42;
-+		w2[ow2] = -42;
-+		w3[ow3] = -42;
-+		i++;
++	if ( n > 0 ) {
++		if (incw1 == 0) w1[0] = a * (x2[0] * y3[0] - x3[0] * y2[0]);
++		if (incw2 == 0) w2[0] = a * (x3[0] * y1[0] - x1[0] * y3[0]);
++		if (incw3 == 0) w3[0] = a * (x1[0] * y2[0] - x2[0] * y1[0]);
++	}
++
++	if ((incx1 == 1) && (incx2 == 1) && (incx3 == 1) &&
++	    (incy1 == 1) && (incy2 == 1) && (incy3 == 1) &&
++	    (incw1 == 1) && (incw2 == 1) && (incw3 == 1)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			w1[i]     = a * (x2[i]     * y3[i]     - x3[i]     * y2[i]);
++			w2[i]     = a * (x3[i]     * y1[i]     - x1[i]     * y3[i]);
++			w3[i]     = a * (x1[i]     * y2[i]     - x2[i]     * y1[i]);
++			w1[i + 1] = a * (x2[i + 1] * y3[i + 1] - x3[i + 1] * y2[i + 1]);
++			w2[i + 1] = a * (x3[i + 1] * y1[i + 1] - x1[i + 1] * y3[i + 1]);
++			w3[i + 1] = a * (x1[i + 1] * y2[i + 1] - x2[i + 1] * y1[i + 1]);
++			w1[i + 2] = a * (x2[i + 2] * y3[i + 2] - x3[i + 2] * y2[i + 2]);
++			w2[i + 2] = a * (x3[i + 2] * y1[i + 2] - x1[i + 2] * y3[i + 2]);
++			w3[i + 2] = a * (x1[i + 2] * y2[i + 2] - x2[i + 2] * y1[i + 2]);
++			w1[i + 3] = a * (x2[i + 3] * y3[i + 3] - x3[i + 3] * y2[i + 3]);
++			w2[i + 3] = a * (x3[i + 3] * y1[i + 3] - x1[i + 3] * y3[i + 3]);
++			w3[i + 3] = a * (x1[i + 3] * y2[i + 3] - x2[i + 3] * y1[i + 3]);
++		}
++		while (i < n) {
++			w1[i] = a * (x2[i] * y3[i] - x3[i] * y2[i]);
++			w2[i] = a * (x3[i] * y1[i] - x1[i] * y3[i]);
++			w3[i] = a * (x1[i] * y2[i] - x2[i] * y1[i]);
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			if (incw1 != 0) w1[ow1] = a * (x2[ix2] * y3[iy3] - x3[ix3] * y2[iy2]);
++			if (incw2 != 0) w2[ow2] = a * (x3[ix3] * y1[iy1] - x1[ix1] * y3[iy3]);
++			if (incw3 != 0) w3[ow3] = a * (x1[ix1] * y2[iy2] - x2[ix2] * y1[iy1]);
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			ow1 += incw1;
++			ow2 += incw2;
++			ow3 += incw3;
++			i++;
++		}
 +	}
 +	return(0);
 +}
 diff --git a/kernel/generic/3crosssqr.c b/kernel/generic/3crosssqr.c
 new file mode 100644
-index 0000000..db60dc9
+index 0000000..c8d0f9b
 --- /dev/null
 +++ b/kernel/generic/3crosssqr.c
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,98 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4362,23 +4521,75 @@ index 0000000..db60dc9
 +          FLOAT *r, BLASLONG incr)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG or;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG ir = 0;
++	FLOAT c, d, e;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		or = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
-+		r[or] = -42;
-+		i++;
++	if (incr == 0) {
++		if ( n > 0 ) {
++			c = x2[0] * y3[0] - x3[0] * y2[0];
++			d = x3[0] * y1[0] - x1[0] * y3[0];
++			e = x1[0] * y2[0] - x2[0] * y1[0];
++			r[0] = c * c + d * d + e * e;
++		}
++		return(0);
++	}
++
++	if ((incx1 == 1) && (incx2 == 1) && (incx3 == 1) &&
++	    (incy1 == 1) && (incy2 == 1) && (incy3 == 1) && (incr == 1)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			c = x2[i]     * y3[i]     - x3[i]     * y2[i];
++			d = x3[i]     * y1[i]     - x1[i]     * y3[i];
++			e = x1[i]     * y2[i]     - x2[i]     * y1[i];
++			r[i]     = c * c + d * d + e * e;
++			c = x2[i + 1] * y3[i + 1] - x3[i + 1] * y2[i + 1];
++			d = x3[i + 1] * y1[i + 1] - x1[i + 1] * y3[i + 1];
++			e = x1[i + 1] * y2[i + 1] - x2[i + 1] * y1[i + 1];
++			r[i + 1] = c * c + d * d + e * e;
++			c = x2[i + 2] * y3[i + 2] - x3[i + 2] * y2[i + 2];
++			d = x3[i + 2] * y1[i + 2] - x1[i + 2] * y3[i + 2];
++			e = x1[i + 2] * y2[i + 2] - x2[i + 2] * y1[i + 2];
++			r[i + 2] = c * c + d * d + e * e;
++			c = x2[i + 3] * y3[i + 3] - x3[i + 3] * y2[i + 3];
++			d = x3[i + 3] * y1[i + 3] - x1[i + 3] * y3[i + 3];
++			e = x1[i + 3] * y2[i + 3] - x2[i + 3] * y1[i + 3];
++			r[i + 3] = c * c + d * d + e * e;
++		}
++		while (i < n) {
++			c = x2[i] * y3[i] - x3[i] * y2[i];
++			d = x3[i] * y1[i] - x1[i] * y3[i];
++			e = x1[i] * y2[i] - x2[i] * y1[i];
++			r[i] = c * c + d * d + e * e;
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			c = x2[ix2] * y3[iy3] - x3[ix3] * y2[iy2];
++			d = x3[ix3] * y1[iy1] - x1[ix1] * y3[iy3];
++			e = x1[ix1] * y2[iy2] - x2[ix2] * y1[iy1];
++			r[ir] = c * c + d * d + e * e;
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			ir += incr;
++			i++;
++		}
 +	}
 +	return(0);
 +}
 diff --git a/kernel/generic/3crossxy_crossxz.c b/kernel/generic/3crossxy_crossxz.c
 new file mode 100644
-index 0000000..5d31020
+index 0000000..6c5039a
 --- /dev/null
 +++ b/kernel/generic/3crossxy_crossxz.c
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,123 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4416,33 +4627,98 @@ index 0000000..5d31020
 +          FLOAT *v1, BLASLONG incv1, FLOAT *v2, BLASLONG incv2, FLOAT *v3, BLASLONG incv3)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG ou1, ou2, ou3, ov1, ov2, ov3;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG iw1 = 0, iw2 = 0, iw3 = 0;
++	BLASLONG ou1 = 0, ou2 = 0, ou3 = 0;
++	BLASLONG ov1 = 0, ov2 = 0, ov3 = 0;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		ou1 = (incu1 >= 0) ? i * incu1 : (n - 1 - i) * (-incu1);
-+		ou2 = (incu2 >= 0) ? i * incu2 : (n - 1 - i) * (-incu2);
-+		ou3 = (incu3 >= 0) ? i * incu3 : (n - 1 - i) * (-incu3);
-+		ov1 = (incv1 >= 0) ? i * incv1 : (n - 1 - i) * (-incv1);
-+		ov2 = (incv2 >= 0) ? i * incv2 : (n - 1 - i) * (-incv2);
-+		ov3 = (incv3 >= 0) ? i * incv3 : (n - 1 - i) * (-incv3);
-+		u1[ou1] = -42;
-+		u2[ou2] = -42;
-+		u3[ou3] = -42;
-+		v1[ov1] = -42;
-+		v2[ov2] = -42;
-+		v3[ov3] = -42;
-+		i++;
++	if ( n > 0 ) {
++		if (incu1 == 0) u1[0] = x2[0] * y3[0] - x3[0] * y2[0];
++		if (incu2 == 0) u2[0] = x3[0] * y1[0] - x1[0] * y3[0];
++		if (incu3 == 0) u3[0] = x1[0] * y2[0] - x2[0] * y1[0];
++		if (incv1 == 0) v1[0] = x2[0] * w3[0] - x3[0] * w2[0];
++		if (incv2 == 0) v2[0] = x3[0] * w1[0] - x1[0] * w3[0];
++		if (incv3 == 0) v3[0] = x1[0] * w2[0] - x2[0] * w1[0];
++	}
++
++	if ((incx1 == 1) && (incx2 == 1) && (incx3 == 1) &&
++	    (incy1 == 1) && (incy2 == 1) && (incy3 == 1) &&
++	    (incw1 == 1) && (incw2 == 1) && (incw3 == 1) &&
++	    (incu1 == 1) && (incu2 == 1) && (incu3 == 1) &&
++	    (incv1 == 1) && (incv2 == 1) && (incv3 == 1)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			u1[i]     = x2[i]     * y3[i]     - x3[i]     * y2[i];
++			u2[i]     = x3[i]     * y1[i]     - x1[i]     * y3[i];
++			u3[i]     = x1[i]     * y2[i]     - x2[i]     * y1[i];
++			v1[i]     = x2[i]     * w3[i]     - x3[i]     * w2[i];
++			v2[i]     = x3[i]     * w1[i]     - x1[i]     * w3[i];
++			v3[i]     = x1[i]     * w2[i]     - x2[i]     * w1[i];
++			u1[i + 1] = x2[i + 1] * y3[i + 1] - x3[i + 1] * y2[i + 1];
++			u2[i + 1] = x3[i + 1] * y1[i + 1] - x1[i + 1] * y3[i + 1];
++			u3[i + 1] = x1[i + 1] * y2[i + 1] - x2[i + 1] * y1[i + 1];
++			v1[i + 1] = x2[i + 1] * w3[i + 1] - x3[i + 1] * w2[i + 1];
++			v2[i + 1] = x3[i + 1] * w1[i + 1] - x1[i + 1] * w3[i + 1];
++			v3[i + 1] = x1[i + 1] * w2[i + 1] - x2[i + 1] * w1[i + 1];
++			u1[i + 2] = x2[i + 2] * y3[i + 2] - x3[i + 2] * y2[i + 2];
++			u2[i + 2] = x3[i + 2] * y1[i + 2] - x1[i + 2] * y3[i + 2];
++			u3[i + 2] = x1[i + 2] * y2[i + 2] - x2[i + 2] * y1[i + 2];
++			v1[i + 2] = x2[i + 2] * w3[i + 2] - x3[i + 2] * w2[i + 2];
++			v2[i + 2] = x3[i + 2] * w1[i + 2] - x1[i + 2] * w3[i + 2];
++			v3[i + 2] = x1[i + 2] * w2[i + 2] - x2[i + 2] * w1[i + 2];
++			u1[i + 3] = x2[i + 3] * y3[i + 3] - x3[i + 3] * y2[i + 3];
++			u2[i + 3] = x3[i + 3] * y1[i + 3] - x1[i + 3] * y3[i + 3];
++			u3[i + 3] = x1[i + 3] * y2[i + 3] - x2[i + 3] * y1[i + 3];
++			v1[i + 3] = x2[i + 3] * w3[i + 3] - x3[i + 3] * w2[i + 3];
++			v2[i + 3] = x3[i + 3] * w1[i + 3] - x1[i + 3] * w3[i + 3];
++			v3[i + 3] = x1[i + 3] * w2[i + 3] - x2[i + 3] * w1[i + 3];
++		}
++		while (i < n) {
++			u1[i] = x2[i] * y3[i] - x3[i] * y2[i];
++			u2[i] = x3[i] * y1[i] - x1[i] * y3[i];
++			u3[i] = x1[i] * y2[i] - x2[i] * y1[i];
++			v1[i] = x2[i] * w3[i] - x3[i] * w2[i];
++			v2[i] = x3[i] * w1[i] - x1[i] * w3[i];
++			v3[i] = x1[i] * w2[i] - x2[i] * w1[i];
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			if (incu1 != 0) u1[ou1] = x2[ix2] * y3[iy3] - x3[ix3] * y2[iy2];
++			if (incu2 != 0) u2[ou2] = x3[ix3] * y1[iy1] - x1[ix1] * y3[iy3];
++			if (incu3 != 0) u3[ou3] = x1[ix1] * y2[iy2] - x2[ix2] * y1[iy1];
++			if (incv1 != 0) v1[ov1] = x2[ix2] * w3[iw3] - x3[ix3] * w2[iw2];
++			if (incv2 != 0) v2[ov2] = x3[ix3] * w1[iw1] - x1[ix1] * w3[iw3];
++			if (incv3 != 0) v3[ov3] = x1[ix1] * w2[iw2] - x2[ix2] * w1[iw1];
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			iw1 += incw1;
++			iw2 += incw2;
++			iw3 += incw3;
++			ou1 += incu1;
++			ou2 += incu2;
++			ou3 += incu3;
++			ov1 += incv1;
++			ov2 += incv2;
++			ov3 += incv3;
++			i++;
++		}
 +	}
 +	return(0);
 +}
 diff --git a/kernel/generic/3crossxy_dotxz.c b/kernel/generic/3crossxy_dotxz.c
 new file mode 100644
-index 0000000..a473cae
+index 0000000..ea20047
 --- /dev/null
 +++ b/kernel/generic/3crossxy_dotxz.c
-@@ -0,0 +1,54 @@
+@@ -0,0 +1,106 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4480,20 +4756,72 @@ index 0000000..a473cae
 +          FLOAT *r, BLASLONG incr)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG ou1, ou2, ou3, or;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG iw1 = 0, iw2 = 0, iw3 = 0;
++	BLASLONG ou1 = 0, ou2 = 0, ou3 = 0;
++	BLASLONG ir = 0;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		ou1 = (incu1 >= 0) ? i * incu1 : (n - 1 - i) * (-incu1);
-+		ou2 = (incu2 >= 0) ? i * incu2 : (n - 1 - i) * (-incu2);
-+		ou3 = (incu3 >= 0) ? i * incu3 : (n - 1 - i) * (-incu3);
-+		or = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
-+		u1[ou1] = -42;
-+		u2[ou2] = -42;
-+		u3[ou3] = -42;
-+		r[or] = -42;
-+		i++;
++	if ( n > 0 ) {
++		if (incu1 == 0) u1[0] = x2[0] * y3[0] - x3[0] * y2[0];
++		if (incu2 == 0) u2[0] = x3[0] * y1[0] - x1[0] * y3[0];
++		if (incu3 == 0) u3[0] = x1[0] * y2[0] - x2[0] * y1[0];
++		if (incr == 0)  r[0] = x1[0] * w1[0] + x2[0] * w2[0] + x3[0] * w3[0];
++	}
++
++	if ((incx1 == 1) && (incx2 == 1) && (incx3 == 1) &&
++	    (incy1 == 1) && (incy2 == 1) && (incy3 == 1) &&
++	    (incw1 == 1) && (incw2 == 1) && (incw3 == 1) &&
++	    (incu1 == 1) && (incu2 == 1) && (incu3 == 1) && (incr == 1)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			u1[i]     = x2[i]     * y3[i]     - x3[i]     * y2[i];
++			u2[i]     = x3[i]     * y1[i]     - x1[i]     * y3[i];
++			u3[i]     = x1[i]     * y2[i]     - x2[i]     * y1[i];
++			r[i]     = x1[i]     * w1[i]     + x2[i]     * w2[i]     + x3[i]     * w3[i];
++			u1[i + 1] = x2[i + 1] * y3[i + 1] - x3[i + 1] * y2[i + 1];
++			u2[i + 1] = x3[i + 1] * y1[i + 1] - x1[i + 1] * y3[i + 1];
++			u3[i + 1] = x1[i + 1] * y2[i + 1] - x2[i + 1] * y1[i + 1];
++			r[i + 1] = x1[i + 1] * w1[i + 1] + x2[i + 1] * w2[i + 1] + x3[i + 1] * w3[i + 1];
++			u1[i + 2] = x2[i + 2] * y3[i + 2] - x3[i + 2] * y2[i + 2];
++			u2[i + 2] = x3[i + 2] * y1[i + 2] - x1[i + 2] * y3[i + 2];
++			u3[i + 2] = x1[i + 2] * y2[i + 2] - x2[i + 2] * y1[i + 2];
++			r[i + 2] = x1[i + 2] * w1[i + 2] + x2[i + 2] * w2[i + 2] + x3[i + 2] * w3[i + 2];
++			u1[i + 3] = x2[i + 3] * y3[i + 3] - x3[i + 3] * y2[i + 3];
++			u2[i + 3] = x3[i + 3] * y1[i + 3] - x1[i + 3] * y3[i + 3];
++			u3[i + 3] = x1[i + 3] * y2[i + 3] - x2[i + 3] * y1[i + 3];
++			r[i + 3] = x1[i + 3] * w1[i + 3] + x2[i + 3] * w2[i + 3] + x3[i + 3] * w3[i + 3];
++		}
++		while (i < n) {
++			u1[i] = x2[i] * y3[i] - x3[i] * y2[i];
++			u2[i] = x3[i] * y1[i] - x1[i] * y3[i];
++			u3[i] = x1[i] * y2[i] - x2[i] * y1[i];
++			r[i] = x1[i] * w1[i] + x2[i] * w2[i] + x3[i] * w3[i];
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			if (incu1 != 0) u1[ou1] = x2[ix2] * y3[iy3] - x3[ix3] * y2[iy2];
++			if (incu2 != 0) u2[ou2] = x3[ix3] * y1[iy1] - x1[ix1] * y3[iy3];
++			if (incu3 != 0) u3[ou3] = x1[ix1] * y2[iy2] - x2[ix2] * y1[iy1];
++			if (incr != 0)  r[ir] = x1[ix1] * w1[iw1] + x2[ix2] * w2[iw2] + x3[ix3] * w3[iw3];
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			iw1 += incw1;
++			iw2 += incw2;
++			iw3 += incw3;
++			ou1 += incu1;
++			ou2 += incu2;
++			ou3 += incu3;
++			ir += incr;
++			i++;
++		}
 +	}
 +	return(0);
 +}
@@ -4580,10 +4908,10 @@ index 0000000..c88bd59
 +}
 diff --git a/kernel/generic/3dotxy_dotxz.c b/kernel/generic/3dotxy_dotxz.c
 new file mode 100644
-index 0000000..60d7cc5
+index 0000000..4d9c546
 --- /dev/null
 +++ b/kernel/generic/3dotxy_dotxz.c
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,89 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4620,16 +4948,56 @@ index 0000000..60d7cc5
 +          FLOAT *r, BLASLONG incr, FLOAT *q, BLASLONG incq)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG or, oq;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG iw1 = 0, iw2 = 0, iw3 = 0;
++	BLASLONG ir = 0;
++	BLASLONG iq = 0;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		or = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
-+		oq = (incq >= 0) ? i * incq : (n - 1 - i) * (-incq);
-+		r[or] = -42;
-+		q[oq] = -42;
-+		i++;
++	if ( n > 0 ) {
++		if (incr == 0) r[0] = x1[0] * y1[0] + x2[0] * y2[0] + x3[0] * y3[0];
++		if (incq == 0) q[0] = x1[0] * w1[0] + x2[0] * w2[0] + x3[0] * w3[0];
++	}
++
++	if ((incx1 == 1) && (incx2 == 1) && (incx3 == 1) &&
++	    (incy1 == 1) && (incy2 == 1) && (incy3 == 1) &&
++	    (incw1 == 1) && (incw2 == 1) && (incw3 == 1) &&
++	    (incr == 1) && (incq == 1)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			r[i]     = x1[i]     * y1[i]     + x2[i]     * y2[i]     + x3[i]     * y3[i];
++			q[i]     = x1[i]     * w1[i]     + x2[i]     * w2[i]     + x3[i]     * w3[i];
++			r[i + 1] = x1[i + 1] * y1[i + 1] + x2[i + 1] * y2[i + 1] + x3[i + 1] * y3[i + 1];
++			q[i + 1] = x1[i + 1] * w1[i + 1] + x2[i + 1] * w2[i + 1] + x3[i + 1] * w3[i + 1];
++			r[i + 2] = x1[i + 2] * y1[i + 2] + x2[i + 2] * y2[i + 2] + x3[i + 2] * y3[i + 2];
++			q[i + 2] = x1[i + 2] * w1[i + 2] + x2[i + 2] * w2[i + 2] + x3[i + 2] * w3[i + 2];
++			r[i + 3] = x1[i + 3] * y1[i + 3] + x2[i + 3] * y2[i + 3] + x3[i + 3] * y3[i + 3];
++			q[i + 3] = x1[i + 3] * w1[i + 3] + x2[i + 3] * w2[i + 3] + x3[i + 3] * w3[i + 3];
++		}
++		while (i < n) {
++			r[i] = x1[i] * y1[i] + x2[i] * y2[i] + x3[i] * y3[i];
++			q[i] = x1[i] * w1[i] + x2[i] * w2[i] + x3[i] * w3[i];
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			if (incr != 0) r[ir] = x1[ix1] * y1[iy1] + x2[ix2] * y2[iy2] + x3[ix3] * y3[iy3];
++			if (incq != 0) q[iq] = x1[ix1] * w1[iw1] + x2[ix2] * w2[iw2] + x3[ix3] * w3[iw3];
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			iw1 += incw1;
++			iw2 += incw2;
++			iw3 += incw3;
++			ir += incr;
++			iq += incq;
++			i++;
++		}
 +	}
 +	return(0);
 +}
@@ -4806,10 +5174,10 @@ index 0000000..a2a66ca
 +}
 diff --git a/kernel/generic/z1norm.c b/kernel/generic/z1norm.c
 new file mode 100644
-index 0000000..1349386
+index 0000000..d5ea968
 --- /dev/null
 +++ b/kernel/generic/z1norm.c
-@@ -0,0 +1,45 @@
+@@ -0,0 +1,100 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4843,15 +5211,70 @@ index 0000000..1349386
 +          FLOAT *q, BLASLONG incq, FLOAT *r, BLASLONG incr)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG or;
++	BLASLONG iq = 0;
++	BLASLONG ir = 0;
++	FLOAT p0, p1, m;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		or = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
-+		r[2*or] = -42;
-+		r[2*or+1] = -42;
-+		i++;
++	if (incr == 0) {
++		if ( n > 0 ) {
++			p0 = q[0] * q[0] - q[1] * q[1];
++			p1 = q[0] * q[1] + q[1] * q[0];
++			m = sqrt(p0 * p0 + p1 * p1);
++			r[0] = sqrt((m + p0) / 2);
++			if (p1 >= 0) r[1] = sqrt((m - p0) / 2);
++			else         r[1] = -sqrt((m - p0) / 2);
++		}
++		return(0);
++	}
++
++	incq *= 2;
++	incr *= 2;
++
++	if ((incq == 2) && (incr == 2)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			p0 = q[2*i]     * q[2*i]     - q[2*i+1]     * q[2*i+1];
++			p1 = q[2*i]     * q[2*i+1]   + q[2*i+1]     * q[2*i];
++			m = sqrt(p0 * p0 + p1 * p1);
++			r[2*i]     = sqrt((m + p0) / 2);
++			r[2*i+1]   = (p1 >= 0) ? sqrt((m - p0) / 2) : -sqrt((m - p0) / 2);
++			p0 = q[2*(i+1)]   * q[2*(i+1)]   - q[2*(i+1)+1]   * q[2*(i+1)+1];
++			p1 = q[2*(i+1)]   * q[2*(i+1)+1] + q[2*(i+1)+1]   * q[2*(i+1)];
++			m = sqrt(p0 * p0 + p1 * p1);
++			r[2*(i+1)]   = sqrt((m + p0) / 2);
++			r[2*(i+1)+1] = (p1 >= 0) ? sqrt((m - p0) / 2) : -sqrt((m - p0) / 2);
++			p0 = q[2*(i+2)]   * q[2*(i+2)]   - q[2*(i+2)+1]   * q[2*(i+2)+1];
++			p1 = q[2*(i+2)]   * q[2*(i+2)+1] + q[2*(i+2)+1]   * q[2*(i+2)];
++			m = sqrt(p0 * p0 + p1 * p1);
++			r[2*(i+2)]   = sqrt((m + p0) / 2);
++			r[2*(i+2)+1] = (p1 >= 0) ? sqrt((m - p0) / 2) : -sqrt((m - p0) / 2);
++			p0 = q[2*(i+3)]   * q[2*(i+3)]   - q[2*(i+3)+1]   * q[2*(i+3)+1];
++			p1 = q[2*(i+3)]   * q[2*(i+3)+1] + q[2*(i+3)+1]   * q[2*(i+3)];
++			m = sqrt(p0 * p0 + p1 * p1);
++			r[2*(i+3)]   = sqrt((m + p0) / 2);
++			r[2*(i+3)+1] = (p1 >= 0) ? sqrt((m - p0) / 2) : -sqrt((m - p0) / 2);
++		}
++		while (i < n) {
++			p0 = q[2*i] * q[2*i] - q[2*i+1] * q[2*i+1];
++			p1 = q[2*i] * q[2*i+1] + q[2*i+1] * q[2*i];
++			m = sqrt(p0 * p0 + p1 * p1);
++			r[2*i] = sqrt((m + p0) / 2);
++			r[2*i+1] = (p1 >= 0) ? sqrt((m - p0) / 2) : -sqrt((m - p0) / 2);
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			p0 = q[iq] * q[iq] - q[iq+1] * q[iq+1];
++			p1 = q[iq] * q[iq+1] + q[iq+1] * q[iq];
++			m = sqrt(p0 * p0 + p1 * p1);
++			r[ir] = sqrt((m + p0) / 2);
++			r[ir+1] = (p1 >= 0) ? sqrt((m - p0) / 2) : -sqrt((m - p0) / 2);
++			iq += incq;
++			ir += incr;
++			i++;
++		}
 +	}
 +	return(0);
 +}
@@ -4956,10 +5379,10 @@ index 0000000..62b4129
 +}
 diff --git a/kernel/generic/z3cross.c b/kernel/generic/z3cross.c
 new file mode 100644
-index 0000000..3ce9a4c
+index 0000000..0981071
 --- /dev/null
 +++ b/kernel/generic/z3cross.c
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,187 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4995,30 +5418,164 @@ index 0000000..3ce9a4c
 +          FLOAT *w1, BLASLONG incw1, FLOAT *w2, BLASLONG incw2, FLOAT *w3, BLASLONG incw3)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG ow1, ow2, ow3;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG ow1 = 0, ow2 = 0, ow3 = 0;
++	FLOAT x1r, x1i, x2r, x2i, x3r, x3i;
++	FLOAT y1r, y1i, y2r, y2i, y3r, y3i;
++	FLOAT cr, ci, dr, di;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		ow1 = (incw1 >= 0) ? i * incw1 : (n - 1 - i) * (-incw1);
-+		ow2 = (incw2 >= 0) ? i * incw2 : (n - 1 - i) * (-incw2);
-+		ow3 = (incw3 >= 0) ? i * incw3 : (n - 1 - i) * (-incw3);
-+		w1[2*ow1] = -42;
-+		w1[2*ow1+1] = -42;
-+		w2[2*ow2] = -42;
-+		w2[2*ow2+1] = -42;
-+		w3[2*ow3] = -42;
-+		w3[2*ow3+1] = -42;
-+		i++;
++	incx1 *= 2;  incx2 *= 2;  incx3 *= 2;
++	incy1 *= 2;  incy2 *= 2;  incy3 *= 2;
++	incw1 *= 2;  incw2 *= 2;  incw3 *= 2;
++
++	if ( n > 0 ) {
++		if (incw1 == 0) {
++			cr = x2[0]*y3[1] - x2[1]*y3[0];  ci = x2[0]*y3[0] + x2[1]*y3[1];
++			dr = x3[0]*y2[1] - x3[1]*y2[0];  di = x3[0]*y2[0] + x3[1]*y2[1];
++			w1[0] = cr - dr;  w1[1] = ci - di;
++		}
++		if (incw2 == 0) {
++			cr = x3[0]*y1[1] - x3[1]*y1[0];  ci = x3[0]*y1[0] + x3[1]*y1[1];
++			dr = x1[0]*y3[1] - x1[1]*y3[0];  di = x1[0]*y3[0] + x1[1]*y3[1];
++			w2[0] = cr - dr;  w2[1] = ci - di;
++		}
++		if (incw3 == 0) {
++			cr = x1[0]*y2[1] - x1[1]*y2[0];  ci = x1[0]*y2[0] + x1[1]*y2[1];
++			dr = x2[0]*y1[1] - x2[1]*y1[0];  di = x2[0]*y1[0] + x2[1]*y1[1];
++			w3[0] = cr - dr;  w3[1] = ci - di;
++		}
++	}
++
++	if ((incx1 == 2) && (incx2 == 2) && (incx3 == 2) &&
++	    (incy1 == 2) && (incy2 == 2) && (incy3 == 2) &&
++	    (incw1 == 2) && (incw2 == 2) && (incw3 == 2)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			w1[2*i] = cr - dr;  w1[2*i+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			w2[2*i] = cr - dr;  w2[2*i+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			w3[2*i] = cr - dr;  w3[2*i+1] = ci - di;
++			x1r = x1[2*(i+1)];   x1i = x1[2*(i+1)+1];
++			x2r = x2[2*(i+1)];   x2i = x2[2*(i+1)+1];
++			x3r = x3[2*(i+1)];   x3i = x3[2*(i+1)+1];
++			y1r = y1[2*(i+1)];   y1i = y1[2*(i+1)+1];
++			y2r = y2[2*(i+1)];   y2i = y2[2*(i+1)+1];
++			y3r = y3[2*(i+1)];   y3i = y3[2*(i+1)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			w1[2*(i+1)] = cr - dr;  w1[2*(i+1)+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			w2[2*(i+1)] = cr - dr;  w2[2*(i+1)+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			w3[2*(i+1)] = cr - dr;  w3[2*(i+1)+1] = ci - di;
++			x1r = x1[2*(i+2)];   x1i = x1[2*(i+2)+1];
++			x2r = x2[2*(i+2)];   x2i = x2[2*(i+2)+1];
++			x3r = x3[2*(i+2)];   x3i = x3[2*(i+2)+1];
++			y1r = y1[2*(i+2)];   y1i = y1[2*(i+2)+1];
++			y2r = y2[2*(i+2)];   y2i = y2[2*(i+2)+1];
++			y3r = y3[2*(i+2)];   y3i = y3[2*(i+2)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			w1[2*(i+2)] = cr - dr;  w1[2*(i+2)+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			w2[2*(i+2)] = cr - dr;  w2[2*(i+2)+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			w3[2*(i+2)] = cr - dr;  w3[2*(i+2)+1] = ci - di;
++			x1r = x1[2*(i+3)];   x1i = x1[2*(i+3)+1];
++			x2r = x2[2*(i+3)];   x2i = x2[2*(i+3)+1];
++			x3r = x3[2*(i+3)];   x3i = x3[2*(i+3)+1];
++			y1r = y1[2*(i+3)];   y1i = y1[2*(i+3)+1];
++			y2r = y2[2*(i+3)];   y2i = y2[2*(i+3)+1];
++			y3r = y3[2*(i+3)];   y3i = y3[2*(i+3)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			w1[2*(i+3)] = cr - dr;  w1[2*(i+3)+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			w2[2*(i+3)] = cr - dr;  w2[2*(i+3)+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			w3[2*(i+3)] = cr - dr;  w3[2*(i+3)+1] = ci - di;
++		}
++		while (i < n) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			w1[2*i] = cr - dr;  w1[2*i+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			w2[2*i] = cr - dr;  w2[2*i+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			w3[2*i] = cr - dr;  w3[2*i+1] = ci - di;
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			x1r = x1[ix1]; x1i = x1[ix1+1];
++			x2r = x2[ix2]; x2i = x2[ix2+1];
++			x3r = x3[ix3]; x3i = x3[ix3+1];
++			y1r = y1[iy1]; y1i = y1[iy1+1];
++			y2r = y2[iy2]; y2i = y2[iy2+1];
++			y3r = y3[iy3]; y3i = y3[iy3+1];
++			if (incw1 != 0) {
++				cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++				dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++				w1[ow1] = cr - dr;  w1[ow1+1] = ci - di;
++			}
++			if (incw2 != 0) {
++				cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++				dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++				w2[ow2] = cr - dr;  w2[ow2+1] = ci - di;
++			}
++			if (incw3 != 0) {
++				cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++				dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++				w3[ow3] = cr - dr;  w3[ow3+1] = ci - di;
++			}
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			ow1 += incw1;
++			ow2 += incw2;
++			ow3 += incw3;
++			i++;
++		}
 +	}
 +	return(0);
 +}
 diff --git a/kernel/generic/z3crossdot.c b/kernel/generic/z3crossdot.c
 new file mode 100644
-index 0000000..ce18a57
+index 0000000..315016a
 --- /dev/null
 +++ b/kernel/generic/z3crossdot.c
-@@ -0,0 +1,48 @@
+@@ -0,0 +1,244 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5055,24 +5612,220 @@ index 0000000..ce18a57
 +          FLOAT *r, BLASLONG incr)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG or;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG iw1 = 0, iw2 = 0, iw3 = 0;
++	BLASLONG ir = 0;
++	FLOAT x1r, x1i, x2r, x2i, x3r, x3i;
++	FLOAT y1r, y1i, y2r, y2i, y3r, y3i;
++	FLOAT w1r, w1i, w2r, w2i, w3r, w3i;
++	FLOAT cr, ci, dr, di;
++	FLOAT p_r, p_i, q_r, q_i, s_r, s_i;
++	FLOAT t_r, t_i, u_r, u_i, v_r, v_i;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		or = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
-+		r[2*or] = -42;
-+		r[2*or+1] = -42;
-+		i++;
++	incx1 *= 2;  incx2 *= 2;  incx3 *= 2;
++	incy1 *= 2;  incy2 *= 2;  incy3 *= 2;
++	incw1 *= 2;  incw2 *= 2;  incw3 *= 2;
++	incr *= 2;
++
++	if (incr == 0) {
++		if ( n > 0 ) {
++			x1r = x1[0]; x1i = x1[1];
++			x2r = x2[0]; x2i = x2[1];
++			x3r = x3[0]; x3i = x3[1];
++			y1r = y1[0]; y1i = y1[1];
++			y2r = y2[0]; y2i = y2[1];
++			y3r = y3[0]; y3i = y3[1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*w1[0] - p_i*w1[1];  t_i = p_r*w1[1] + p_i*w1[0];
++			u_r = q_r*w2[0] - q_i*w2[1];  u_i = q_r*w2[1] + q_i*w2[0];
++			v_r = s_r*w3[0] - s_i*w3[1];  v_i = s_r*w3[1] + s_i*w3[0];
++			r[0] = t_r + u_r + v_r;
++			r[1] = t_i + u_i + v_i;
++		}
++		return(0);
++	}
++
++	if ((incx1 == 2) && (incx2 == 2) && (incx3 == 2) &&
++	    (incy1 == 2) && (incy2 == 2) && (incy3 == 2) &&
++	    (incw1 == 2) && (incw2 == 2) && (incw3 == 2) && (incr == 2)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			w1r = w1[2*i];   w1i = w1[2*i+1];
++			w2r = w2[2*i];   w2i = w2[2*i+1];
++			w3r = w3[2*i];   w3i = w3[2*i+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*w1r - p_i*w1i;  t_i = p_r*w1i + p_i*w1r;
++			u_r = q_r*w2r - q_i*w2i;  u_i = q_r*w2i + q_i*w2r;
++			v_r = s_r*w3r - s_i*w3i;  v_i = s_r*w3i + s_i*w3r;
++			r[2*i] = t_r + u_r + v_r;
++			r[2*i+1] = t_i + u_i + v_i;
++			x1r = x1[2*(i+1)];   x1i = x1[2*(i+1)+1];
++			x2r = x2[2*(i+1)];   x2i = x2[2*(i+1)+1];
++			x3r = x3[2*(i+1)];   x3i = x3[2*(i+1)+1];
++			y1r = y1[2*(i+1)];   y1i = y1[2*(i+1)+1];
++			y2r = y2[2*(i+1)];   y2i = y2[2*(i+1)+1];
++			y3r = y3[2*(i+1)];   y3i = y3[2*(i+1)+1];
++			w1r = w1[2*(i+1)];   w1i = w1[2*(i+1)+1];
++			w2r = w2[2*(i+1)];   w2i = w2[2*(i+1)+1];
++			w3r = w3[2*(i+1)];   w3i = w3[2*(i+1)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*w1r - p_i*w1i;  t_i = p_r*w1i + p_i*w1r;
++			u_r = q_r*w2r - q_i*w2i;  u_i = q_r*w2i + q_i*w2r;
++			v_r = s_r*w3r - s_i*w3i;  v_i = s_r*w3i + s_i*w3r;
++			r[2*(i+1)] = t_r + u_r + v_r;
++			r[2*(i+1)+1] = t_i + u_i + v_i;
++			x1r = x1[2*(i+2)];   x1i = x1[2*(i+2)+1];
++			x2r = x2[2*(i+2)];   x2i = x2[2*(i+2)+1];
++			x3r = x3[2*(i+2)];   x3i = x3[2*(i+2)+1];
++			y1r = y1[2*(i+2)];   y1i = y1[2*(i+2)+1];
++			y2r = y2[2*(i+2)];   y2i = y2[2*(i+2)+1];
++			y3r = y3[2*(i+2)];   y3i = y3[2*(i+2)+1];
++			w1r = w1[2*(i+2)];   w1i = w1[2*(i+2)+1];
++			w2r = w2[2*(i+2)];   w2i = w2[2*(i+2)+1];
++			w3r = w3[2*(i+2)];   w3i = w3[2*(i+2)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*w1r - p_i*w1i;  t_i = p_r*w1i + p_i*w1r;
++			u_r = q_r*w2r - q_i*w2i;  u_i = q_r*w2i + q_i*w2r;
++			v_r = s_r*w3r - s_i*w3i;  v_i = s_r*w3i + s_i*w3r;
++			r[2*(i+2)] = t_r + u_r + v_r;
++			r[2*(i+2)+1] = t_i + u_i + v_i;
++			x1r = x1[2*(i+3)];   x1i = x1[2*(i+3)+1];
++			x2r = x2[2*(i+3)];   x2i = x2[2*(i+3)+1];
++			x3r = x3[2*(i+3)];   x3i = x3[2*(i+3)+1];
++			y1r = y1[2*(i+3)];   y1i = y1[2*(i+3)+1];
++			y2r = y2[2*(i+3)];   y2i = y2[2*(i+3)+1];
++			y3r = y3[2*(i+3)];   y3i = y3[2*(i+3)+1];
++			w1r = w1[2*(i+3)];   w1i = w1[2*(i+3)+1];
++			w2r = w2[2*(i+3)];   w2i = w2[2*(i+3)+1];
++			w3r = w3[2*(i+3)];   w3i = w3[2*(i+3)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*w1r - p_i*w1i;  t_i = p_r*w1i + p_i*w1r;
++			u_r = q_r*w2r - q_i*w2i;  u_i = q_r*w2i + q_i*w2r;
++			v_r = s_r*w3r - s_i*w3i;  v_i = s_r*w3i + s_i*w3r;
++			r[2*(i+3)] = t_r + u_r + v_r;
++			r[2*(i+3)+1] = t_i + u_i + v_i;
++		}
++		while (i < n) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			w1r = w1[2*i];   w1i = w1[2*i+1];
++			w2r = w2[2*i];   w2i = w2[2*i+1];
++			w3r = w3[2*i];   w3i = w3[2*i+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*w1r - p_i*w1i;  t_i = p_r*w1i + p_i*w1r;
++			u_r = q_r*w2r - q_i*w2i;  u_i = q_r*w2i + q_i*w2r;
++			v_r = s_r*w3r - s_i*w3i;  v_i = s_r*w3i + s_i*w3r;
++			r[2*i] = t_r + u_r + v_r;
++			r[2*i+1] = t_i + u_i + v_i;
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			x1r = x1[ix1]; x1i = x1[ix1+1];
++			x2r = x2[ix2]; x2i = x2[ix2+1];
++			x3r = x3[ix3]; x3i = x3[ix3+1];
++			y1r = y1[iy1]; y1i = y1[iy1+1];
++			y2r = y2[iy2]; y2i = y2[iy2+1];
++			y3r = y3[iy3]; y3i = y3[iy3+1];
++			w1r = w1[iw1]; w1i = w1[iw1+1];
++			w2r = w2[iw2]; w2i = w2[iw2+1];
++			w3r = w3[iw3]; w3i = w3[iw3+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*w1r - p_i*w1i;  t_i = p_r*w1i + p_i*w1r;
++			u_r = q_r*w2r - q_i*w2i;  u_i = q_r*w2i + q_i*w2r;
++			v_r = s_r*w3r - s_i*w3i;  v_i = s_r*w3i + s_i*w3r;
++			r[ir] = t_r + u_r + v_r;
++			r[ir+1] = t_i + u_i + v_i;
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			iw1 += incw1;
++			iw2 += incw2;
++			iw3 += incw3;
++			ir += incr;
++			i++;
++		}
 +	}
 +	return(0);
 +}
 diff --git a/kernel/generic/z3crossscal.c b/kernel/generic/z3crossscal.c
 new file mode 100644
-index 0000000..8642f56
+index 0000000..1c370c6
 --- /dev/null
 +++ b/kernel/generic/z3crossscal.c
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,187 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5108,30 +5861,164 @@ index 0000000..8642f56
 +          FLOAT *w1, BLASLONG incw1, FLOAT *w2, BLASLONG incw2, FLOAT *w3, BLASLONG incw3)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG ow1, ow2, ow3;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG ow1 = 0, ow2 = 0, ow3 = 0;
++	FLOAT x1r, x1i, x2r, x2i, x3r, x3i;
++	FLOAT y1r, y1i, y2r, y2i, y3r, y3i;
++	FLOAT cr, ci, dr, di;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		ow1 = (incw1 >= 0) ? i * incw1 : (n - 1 - i) * (-incw1);
-+		ow2 = (incw2 >= 0) ? i * incw2 : (n - 1 - i) * (-incw2);
-+		ow3 = (incw3 >= 0) ? i * incw3 : (n - 1 - i) * (-incw3);
-+		w1[2*ow1] = -42;
-+		w1[2*ow1+1] = -42;
-+		w2[2*ow2] = -42;
-+		w2[2*ow2+1] = -42;
-+		w3[2*ow3] = -42;
-+		w3[2*ow3+1] = -42;
-+		i++;
++	incx1 *= 2;  incx2 *= 2;  incx3 *= 2;
++	incy1 *= 2;  incy2 *= 2;  incy3 *= 2;
++	incw1 *= 2;  incw2 *= 2;  incw3 *= 2;
++
++	if ( n > 0 ) {
++		if (incw1 == 0) {
++			cr = x2[0]*y3[1] - x2[1]*y3[0];  ci = x2[0]*y3[0] + x2[1]*y3[1];
++			dr = x3[0]*y2[1] - x3[1]*y2[0];  di = x3[0]*y2[0] + x3[1]*y2[1];
++			w1[0] = ar*(cr-dr) - ai*(ci-di);  w1[1] = ai*(cr-dr) + ar*(ci-di);
++		}
++		if (incw2 == 0) {
++			cr = x3[0]*y1[1] - x3[1]*y1[0];  ci = x3[0]*y1[0] + x3[1]*y1[1];
++			dr = x1[0]*y3[1] - x1[1]*y3[0];  di = x1[0]*y3[0] + x1[1]*y3[1];
++			w2[0] = ar*(cr-dr) - ai*(ci-di);  w2[1] = ai*(cr-dr) + ar*(ci-di);
++		}
++		if (incw3 == 0) {
++			cr = x1[0]*y2[1] - x1[1]*y2[0];  ci = x1[0]*y2[0] + x1[1]*y2[1];
++			dr = x2[0]*y1[1] - x2[1]*y1[0];  di = x2[0]*y1[0] + x2[1]*y1[1];
++			w3[0] = ar*(cr-dr) - ai*(ci-di);  w3[1] = ai*(cr-dr) + ar*(ci-di);
++		}
++	}
++
++	if ((incx1 == 2) && (incx2 == 2) && (incx3 == 2) &&
++	    (incy1 == 2) && (incy2 == 2) && (incy3 == 2) &&
++	    (incw1 == 2) && (incw2 == 2) && (incw3 == 2)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			w1[2*i] = ar*(cr-dr) - ai*(ci-di);  w1[2*i+1] = ai*(cr-dr) + ar*(ci-di);
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			w2[2*i] = ar*(cr-dr) - ai*(ci-di);  w2[2*i+1] = ai*(cr-dr) + ar*(ci-di);
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			w3[2*i] = ar*(cr-dr) - ai*(ci-di);  w3[2*i+1] = ai*(cr-dr) + ar*(ci-di);
++			x1r = x1[2*(i+1)];   x1i = x1[2*(i+1)+1];
++			x2r = x2[2*(i+1)];   x2i = x2[2*(i+1)+1];
++			x3r = x3[2*(i+1)];   x3i = x3[2*(i+1)+1];
++			y1r = y1[2*(i+1)];   y1i = y1[2*(i+1)+1];
++			y2r = y2[2*(i+1)];   y2i = y2[2*(i+1)+1];
++			y3r = y3[2*(i+1)];   y3i = y3[2*(i+1)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			w1[2*(i+1)] = ar*(cr-dr) - ai*(ci-di);  w1[2*(i+1)+1] = ai*(cr-dr) + ar*(ci-di);
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			w2[2*(i+1)] = ar*(cr-dr) - ai*(ci-di);  w2[2*(i+1)+1] = ai*(cr-dr) + ar*(ci-di);
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			w3[2*(i+1)] = ar*(cr-dr) - ai*(ci-di);  w3[2*(i+1)+1] = ai*(cr-dr) + ar*(ci-di);
++			x1r = x1[2*(i+2)];   x1i = x1[2*(i+2)+1];
++			x2r = x2[2*(i+2)];   x2i = x2[2*(i+2)+1];
++			x3r = x3[2*(i+2)];   x3i = x3[2*(i+2)+1];
++			y1r = y1[2*(i+2)];   y1i = y1[2*(i+2)+1];
++			y2r = y2[2*(i+2)];   y2i = y2[2*(i+2)+1];
++			y3r = y3[2*(i+2)];   y3i = y3[2*(i+2)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			w1[2*(i+2)] = ar*(cr-dr) - ai*(ci-di);  w1[2*(i+2)+1] = ai*(cr-dr) + ar*(ci-di);
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			w2[2*(i+2)] = ar*(cr-dr) - ai*(ci-di);  w2[2*(i+2)+1] = ai*(cr-dr) + ar*(ci-di);
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			w3[2*(i+2)] = ar*(cr-dr) - ai*(ci-di);  w3[2*(i+2)+1] = ai*(cr-dr) + ar*(ci-di);
++			x1r = x1[2*(i+3)];   x1i = x1[2*(i+3)+1];
++			x2r = x2[2*(i+3)];   x2i = x2[2*(i+3)+1];
++			x3r = x3[2*(i+3)];   x3i = x3[2*(i+3)+1];
++			y1r = y1[2*(i+3)];   y1i = y1[2*(i+3)+1];
++			y2r = y2[2*(i+3)];   y2i = y2[2*(i+3)+1];
++			y3r = y3[2*(i+3)];   y3i = y3[2*(i+3)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			w1[2*(i+3)] = ar*(cr-dr) - ai*(ci-di);  w1[2*(i+3)+1] = ai*(cr-dr) + ar*(ci-di);
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			w2[2*(i+3)] = ar*(cr-dr) - ai*(ci-di);  w2[2*(i+3)+1] = ai*(cr-dr) + ar*(ci-di);
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			w3[2*(i+3)] = ar*(cr-dr) - ai*(ci-di);  w3[2*(i+3)+1] = ai*(cr-dr) + ar*(ci-di);
++		}
++		while (i < n) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			w1[2*i] = ar*(cr-dr) - ai*(ci-di);  w1[2*i+1] = ai*(cr-dr) + ar*(ci-di);
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			w2[2*i] = ar*(cr-dr) - ai*(ci-di);  w2[2*i+1] = ai*(cr-dr) + ar*(ci-di);
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			w3[2*i] = ar*(cr-dr) - ai*(ci-di);  w3[2*i+1] = ai*(cr-dr) + ar*(ci-di);
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			x1r = x1[ix1]; x1i = x1[ix1+1];
++			x2r = x2[ix2]; x2i = x2[ix2+1];
++			x3r = x3[ix3]; x3i = x3[ix3+1];
++			y1r = y1[iy1]; y1i = y1[iy1+1];
++			y2r = y2[iy2]; y2i = y2[iy2+1];
++			y3r = y3[iy3]; y3i = y3[iy3+1];
++			if (incw1 != 0) {
++				cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++				dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++				w1[ow1] = ar*(cr-dr) - ai*(ci-di);  w1[ow1+1] = ai*(cr-dr) + ar*(ci-di);
++			}
++			if (incw2 != 0) {
++				cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++				dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++				w2[ow2] = ar*(cr-dr) - ai*(ci-di);  w2[ow2+1] = ai*(cr-dr) + ar*(ci-di);
++			}
++			if (incw3 != 0) {
++				cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++				dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++				w3[ow3] = ar*(cr-dr) - ai*(ci-di);  w3[ow3+1] = ai*(cr-dr) + ar*(ci-di);
++			}
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			ow1 += incw1;
++			ow2 += incw2;
++			ow3 += incw3;
++			i++;
++		}
 +	}
 +	return(0);
 +}
 diff --git a/kernel/generic/z3crosssqr.c b/kernel/generic/z3crosssqr.c
 new file mode 100644
-index 0000000..5d76280
+index 0000000..1ae96e0
 --- /dev/null
 +++ b/kernel/generic/z3crosssqr.c
-@@ -0,0 +1,47 @@
+@@ -0,0 +1,218 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5167,24 +6054,195 @@ index 0000000..5d76280
 +          FLOAT *r, BLASLONG incr)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG or;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG ir = 0;
++	FLOAT x1r, x1i, x2r, x2i, x3r, x3i;
++	FLOAT y1r, y1i, y2r, y2i, y3r, y3i;
++	FLOAT cr, ci, dr, di;
++	FLOAT p_r, p_i, q_r, q_i, s_r, s_i;
++	FLOAT t_r, t_i, u_r, u_i, v_r, v_i;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		or = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
-+		r[2*or] = -42;
-+		r[2*or+1] = -42;
-+		i++;
++	incx1 *= 2;  incx2 *= 2;  incx3 *= 2;
++	incy1 *= 2;  incy2 *= 2;  incy3 *= 2;
++	incr *= 2;
++
++	if (incr == 0) {
++		if ( n > 0 ) {
++			x1r = x1[0]; x1i = x1[1];
++			x2r = x2[0]; x2i = x2[1];
++			x3r = x3[0]; x3i = x3[1];
++			y1r = y1[0]; y1i = y1[1];
++			y2r = y2[0]; y2i = y2[1];
++			y3r = y3[0]; y3i = y3[1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*p_r - p_i*p_i;  t_i = p_r*p_i + p_i*p_r;
++			u_r = q_r*q_r - q_i*q_i;  u_i = q_r*q_i + q_i*q_r;
++			v_r = s_r*s_r - s_i*s_i;  v_i = s_r*s_i + s_i*s_r;
++			r[0] = t_r + u_r + v_r;
++			r[1] = t_i + u_i + v_i;
++		}
++		return(0);
++	}
++
++	if ((incx1 == 2) && (incx2 == 2) && (incx3 == 2) &&
++	    (incy1 == 2) && (incy2 == 2) && (incy3 == 2) && (incr == 2)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*p_r - p_i*p_i;  t_i = p_r*p_i + p_i*p_r;
++			u_r = q_r*q_r - q_i*q_i;  u_i = q_r*q_i + q_i*q_r;
++			v_r = s_r*s_r - s_i*s_i;  v_i = s_r*s_i + s_i*s_r;
++			r[2*i] = t_r + u_r + v_r;
++			r[2*i+1] = t_i + u_i + v_i;
++			x1r = x1[2*(i+1)];   x1i = x1[2*(i+1)+1];
++			x2r = x2[2*(i+1)];   x2i = x2[2*(i+1)+1];
++			x3r = x3[2*(i+1)];   x3i = x3[2*(i+1)+1];
++			y1r = y1[2*(i+1)];   y1i = y1[2*(i+1)+1];
++			y2r = y2[2*(i+1)];   y2i = y2[2*(i+1)+1];
++			y3r = y3[2*(i+1)];   y3i = y3[2*(i+1)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*p_r - p_i*p_i;  t_i = p_r*p_i + p_i*p_r;
++			u_r = q_r*q_r - q_i*q_i;  u_i = q_r*q_i + q_i*q_r;
++			v_r = s_r*s_r - s_i*s_i;  v_i = s_r*s_i + s_i*s_r;
++			r[2*(i+1)] = t_r + u_r + v_r;
++			r[2*(i+1)+1] = t_i + u_i + v_i;
++			x1r = x1[2*(i+2)];   x1i = x1[2*(i+2)+1];
++			x2r = x2[2*(i+2)];   x2i = x2[2*(i+2)+1];
++			x3r = x3[2*(i+2)];   x3i = x3[2*(i+2)+1];
++			y1r = y1[2*(i+2)];   y1i = y1[2*(i+2)+1];
++			y2r = y2[2*(i+2)];   y2i = y2[2*(i+2)+1];
++			y3r = y3[2*(i+2)];   y3i = y3[2*(i+2)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*p_r - p_i*p_i;  t_i = p_r*p_i + p_i*p_r;
++			u_r = q_r*q_r - q_i*q_i;  u_i = q_r*q_i + q_i*q_r;
++			v_r = s_r*s_r - s_i*s_i;  v_i = s_r*s_i + s_i*s_r;
++			r[2*(i+2)] = t_r + u_r + v_r;
++			r[2*(i+2)+1] = t_i + u_i + v_i;
++			x1r = x1[2*(i+3)];   x1i = x1[2*(i+3)+1];
++			x2r = x2[2*(i+3)];   x2i = x2[2*(i+3)+1];
++			x3r = x3[2*(i+3)];   x3i = x3[2*(i+3)+1];
++			y1r = y1[2*(i+3)];   y1i = y1[2*(i+3)+1];
++			y2r = y2[2*(i+3)];   y2i = y2[2*(i+3)+1];
++			y3r = y3[2*(i+3)];   y3i = y3[2*(i+3)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*p_r - p_i*p_i;  t_i = p_r*p_i + p_i*p_r;
++			u_r = q_r*q_r - q_i*q_i;  u_i = q_r*q_i + q_i*q_r;
++			v_r = s_r*s_r - s_i*s_i;  v_i = s_r*s_i + s_i*s_r;
++			r[2*(i+3)] = t_r + u_r + v_r;
++			r[2*(i+3)+1] = t_i + u_i + v_i;
++		}
++		while (i < n) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*p_r - p_i*p_i;  t_i = p_r*p_i + p_i*p_r;
++			u_r = q_r*q_r - q_i*q_i;  u_i = q_r*q_i + q_i*q_r;
++			v_r = s_r*s_r - s_i*s_i;  v_i = s_r*s_i + s_i*s_r;
++			r[2*i] = t_r + u_r + v_r;
++			r[2*i+1] = t_i + u_i + v_i;
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			x1r = x1[ix1]; x1i = x1[ix1+1];
++			x2r = x2[ix2]; x2i = x2[ix2+1];
++			x3r = x3[ix3]; x3i = x3[ix3+1];
++			y1r = y1[iy1]; y1i = y1[iy1+1];
++			y2r = y2[iy2]; y2i = y2[iy2+1];
++			y3r = y3[iy3]; y3i = y3[iy3+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			p_r = cr - dr;  p_i = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			q_r = cr - dr;  q_i = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			s_r = cr - dr;  s_i = ci - di;
++			t_r = p_r*p_r - p_i*p_i;  t_i = p_r*p_i + p_i*p_r;
++			u_r = q_r*q_r - q_i*q_i;  u_i = q_r*q_i + q_i*q_r;
++			v_r = s_r*s_r - s_i*s_i;  v_i = s_r*s_i + s_i*s_r;
++			r[ir] = t_r + u_r + v_r;
++			r[ir+1] = t_i + u_i + v_i;
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			ir += incr;
++			i++;
++		}
 +	}
 +	return(0);
 +}
 diff --git a/kernel/generic/z3crossxy_crossxz.c b/kernel/generic/z3crossxy_crossxz.c
 new file mode 100644
-index 0000000..b642f7d
+index 0000000..86075da
 --- /dev/null
 +++ b/kernel/generic/z3crossxy_crossxz.c
-@@ -0,0 +1,64 @@
+@@ -0,0 +1,295 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5222,39 +6280,270 @@ index 0000000..b642f7d
 +          FLOAT *v1, BLASLONG incv1, FLOAT *v2, BLASLONG incv2, FLOAT *v3, BLASLONG incv3)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG ou1, ou2, ou3, ov1, ov2, ov3;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG iw1 = 0, iw2 = 0, iw3 = 0;
++	BLASLONG ou1 = 0, ou2 = 0, ou3 = 0;
++	BLASLONG ov1 = 0, ov2 = 0, ov3 = 0;
++	FLOAT x1r, x1i, x2r, x2i, x3r, x3i;
++	FLOAT y1r, y1i, y2r, y2i, y3r, y3i;
++	FLOAT w1r, w1i, w2r, w2i, w3r, w3i;
++	FLOAT cr, ci, dr, di;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		ou1 = (incu1 >= 0) ? i * incu1 : (n - 1 - i) * (-incu1);
-+		ou2 = (incu2 >= 0) ? i * incu2 : (n - 1 - i) * (-incu2);
-+		ou3 = (incu3 >= 0) ? i * incu3 : (n - 1 - i) * (-incu3);
-+		ov1 = (incv1 >= 0) ? i * incv1 : (n - 1 - i) * (-incv1);
-+		ov2 = (incv2 >= 0) ? i * incv2 : (n - 1 - i) * (-incv2);
-+		ov3 = (incv3 >= 0) ? i * incv3 : (n - 1 - i) * (-incv3);
-+		u1[2*ou1] = -42;
-+		u1[2*ou1+1] = -42;
-+		u2[2*ou2] = -42;
-+		u2[2*ou2+1] = -42;
-+		u3[2*ou3] = -42;
-+		u3[2*ou3+1] = -42;
-+		v1[2*ov1] = -42;
-+		v1[2*ov1+1] = -42;
-+		v2[2*ov2] = -42;
-+		v2[2*ov2+1] = -42;
-+		v3[2*ov3] = -42;
-+		v3[2*ov3+1] = -42;
-+		i++;
++	incx1 *= 2;  incx2 *= 2;  incx3 *= 2;
++	incy1 *= 2;  incy2 *= 2;  incy3 *= 2;
++	incw1 *= 2;  incw2 *= 2;  incw3 *= 2;
++	incu1 *= 2;  incu2 *= 2;  incu3 *= 2;
++	incv1 *= 2;  incv2 *= 2;  incv3 *= 2;
++
++	if ( n > 0 ) {
++		if (incu1 == 0) {
++			cr = x2[0]*y3[1] - x2[1]*y3[0];  ci = x2[0]*y3[0] + x2[1]*y3[1];
++			dr = x3[0]*y2[1] - x3[1]*y2[0];  di = x3[0]*y2[0] + x3[1]*y2[1];
++			u1[0] = cr - dr;  u1[1] = ci - di;
++		}
++		if (incu2 == 0) {
++			cr = x3[0]*y1[1] - x3[1]*y1[0];  ci = x3[0]*y1[0] + x3[1]*y1[1];
++			dr = x1[0]*y3[1] - x1[1]*y3[0];  di = x1[0]*y3[0] + x1[1]*y3[1];
++			u2[0] = cr - dr;  u2[1] = ci - di;
++		}
++		if (incu3 == 0) {
++			cr = x1[0]*y2[1] - x1[1]*y2[0];  ci = x1[0]*y2[0] + x1[1]*y2[1];
++			dr = x2[0]*y1[1] - x2[1]*y1[0];  di = x2[0]*y1[0] + x2[1]*y1[1];
++			u3[0] = cr - dr;  u3[1] = ci - di;
++		}
++		if (incv1 == 0) {
++			cr = x2[0]*w3[1] - x2[1]*w3[0];  ci = x2[0]*w3[0] + x2[1]*w3[1];
++			dr = x3[0]*w2[1] - x3[1]*w2[0];  di = x3[0]*w2[0] + x3[1]*w2[1];
++			v1[0] = cr - dr;  v1[1] = ci - di;
++		}
++		if (incv2 == 0) {
++			cr = x3[0]*w1[1] - x3[1]*w1[0];  ci = x3[0]*w1[0] + x3[1]*w1[1];
++			dr = x1[0]*w3[1] - x1[1]*w3[0];  di = x1[0]*w3[0] + x1[1]*w3[1];
++			v2[0] = cr - dr;  v2[1] = ci - di;
++		}
++		if (incv3 == 0) {
++			cr = x1[0]*w2[1] - x1[1]*w2[0];  ci = x1[0]*w2[0] + x1[1]*w2[1];
++			dr = x2[0]*w1[1] - x2[1]*w1[0];  di = x2[0]*w1[0] + x2[1]*w1[1];
++			v3[0] = cr - dr;  v3[1] = ci - di;
++		}
++	}
++
++	if ((incx1 == 2) && (incx2 == 2) && (incx3 == 2) &&
++	    (incy1 == 2) && (incy2 == 2) && (incy3 == 2) &&
++	    (incw1 == 2) && (incw2 == 2) && (incw3 == 2) &&
++	    (incu1 == 2) && (incu2 == 2) && (incu3 == 2) &&
++	    (incv1 == 2) && (incv2 == 2) && (incv3 == 2)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			w1r = w1[2*i];   w1i = w1[2*i+1];
++			w2r = w2[2*i];   w2i = w2[2*i+1];
++			w3r = w3[2*i];   w3i = w3[2*i+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			u1[2*i] = cr - dr;  u1[2*i+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			u2[2*i] = cr - dr;  u2[2*i+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			u3[2*i] = cr - dr;  u3[2*i+1] = ci - di;
++			cr = x2r*w3r - x2i*w3i;  ci = x2r*w3i + x2i*w3r;
++			dr = x3r*w2r - x3i*w2i;  di = x3r*w2i + x3i*w2r;
++			v1[2*i] = cr - dr;  v1[2*i+1] = ci - di;
++			cr = x3r*w1r - x3i*w1i;  ci = x3r*w1i + x3i*w1r;
++			dr = x1r*w3r - x1i*w3i;  di = x1r*w3i + x1i*w3r;
++			v2[2*i] = cr - dr;  v2[2*i+1] = ci - di;
++			cr = x1r*w2r - x1i*w2i;  ci = x1r*w2i + x1i*w2r;
++			dr = x2r*w1r - x2i*w1i;  di = x2r*w1i + x2i*w1r;
++			v3[2*i] = cr - dr;  v3[2*i+1] = ci - di;
++			x1r = x1[2*(i+1)];   x1i = x1[2*(i+1)+1];
++			x2r = x2[2*(i+1)];   x2i = x2[2*(i+1)+1];
++			x3r = x3[2*(i+1)];   x3i = x3[2*(i+1)+1];
++			y1r = y1[2*(i+1)];   y1i = y1[2*(i+1)+1];
++			y2r = y2[2*(i+1)];   y2i = y2[2*(i+1)+1];
++			y3r = y3[2*(i+1)];   y3i = y3[2*(i+1)+1];
++			w1r = w1[2*(i+1)];   w1i = w1[2*(i+1)+1];
++			w2r = w2[2*(i+1)];   w2i = w2[2*(i+1)+1];
++			w3r = w3[2*(i+1)];   w3i = w3[2*(i+1)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			u1[2*(i+1)] = cr - dr;  u1[2*(i+1)+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			u2[2*(i+1)] = cr - dr;  u2[2*(i+1)+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			u3[2*(i+1)] = cr - dr;  u3[2*(i+1)+1] = ci - di;
++			cr = x2r*w3r - x2i*w3i;  ci = x2r*w3i + x2i*w3r;
++			dr = x3r*w2r - x3i*w2i;  di = x3r*w2i + x3i*w2r;
++			v1[2*(i+1)] = cr - dr;  v1[2*(i+1)+1] = ci - di;
++			cr = x3r*w1r - x3i*w1i;  ci = x3r*w1i + x3i*w1r;
++			dr = x1r*w3r - x1i*w3i;  di = x1r*w3i + x1i*w3r;
++			v2[2*(i+1)] = cr - dr;  v2[2*(i+1)+1] = ci - di;
++			cr = x1r*w2r - x1i*w2i;  ci = x1r*w2i + x1i*w2r;
++			dr = x2r*w1r - x2i*w1i;  di = x2r*w1i + x2i*w1r;
++			v3[2*(i+1)] = cr - dr;  v3[2*(i+1)+1] = ci - di;
++			x1r = x1[2*(i+2)];   x1i = x1[2*(i+2)+1];
++			x2r = x2[2*(i+2)];   x2i = x2[2*(i+2)+1];
++			x3r = x3[2*(i+2)];   x3i = x3[2*(i+2)+1];
++			y1r = y1[2*(i+2)];   y1i = y1[2*(i+2)+1];
++			y2r = y2[2*(i+2)];   y2i = y2[2*(i+2)+1];
++			y3r = y3[2*(i+2)];   y3i = y3[2*(i+2)+1];
++			w1r = w1[2*(i+2)];   w1i = w1[2*(i+2)+1];
++			w2r = w2[2*(i+2)];   w2i = w2[2*(i+2)+1];
++			w3r = w3[2*(i+2)];   w3i = w3[2*(i+2)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			u1[2*(i+2)] = cr - dr;  u1[2*(i+2)+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			u2[2*(i+2)] = cr - dr;  u2[2*(i+2)+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			u3[2*(i+2)] = cr - dr;  u3[2*(i+2)+1] = ci - di;
++			cr = x2r*w3r - x2i*w3i;  ci = x2r*w3i + x2i*w3r;
++			dr = x3r*w2r - x3i*w2i;  di = x3r*w2i + x3i*w2r;
++			v1[2*(i+2)] = cr - dr;  v1[2*(i+2)+1] = ci - di;
++			cr = x3r*w1r - x3i*w1i;  ci = x3r*w1i + x3i*w1r;
++			dr = x1r*w3r - x1i*w3i;  di = x1r*w3i + x1i*w3r;
++			v2[2*(i+2)] = cr - dr;  v2[2*(i+2)+1] = ci - di;
++			cr = x1r*w2r - x1i*w2i;  ci = x1r*w2i + x1i*w2r;
++			dr = x2r*w1r - x2i*w1i;  di = x2r*w1i + x2i*w1r;
++			v3[2*(i+2)] = cr - dr;  v3[2*(i+2)+1] = ci - di;
++			x1r = x1[2*(i+3)];   x1i = x1[2*(i+3)+1];
++			x2r = x2[2*(i+3)];   x2i = x2[2*(i+3)+1];
++			x3r = x3[2*(i+3)];   x3i = x3[2*(i+3)+1];
++			y1r = y1[2*(i+3)];   y1i = y1[2*(i+3)+1];
++			y2r = y2[2*(i+3)];   y2i = y2[2*(i+3)+1];
++			y3r = y3[2*(i+3)];   y3i = y3[2*(i+3)+1];
++			w1r = w1[2*(i+3)];   w1i = w1[2*(i+3)+1];
++			w2r = w2[2*(i+3)];   w2i = w2[2*(i+3)+1];
++			w3r = w3[2*(i+3)];   w3i = w3[2*(i+3)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			u1[2*(i+3)] = cr - dr;  u1[2*(i+3)+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			u2[2*(i+3)] = cr - dr;  u2[2*(i+3)+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			u3[2*(i+3)] = cr - dr;  u3[2*(i+3)+1] = ci - di;
++			cr = x2r*w3r - x2i*w3i;  ci = x2r*w3i + x2i*w3r;
++			dr = x3r*w2r - x3i*w2i;  di = x3r*w2i + x3i*w2r;
++			v1[2*(i+3)] = cr - dr;  v1[2*(i+3)+1] = ci - di;
++			cr = x3r*w1r - x3i*w1i;  ci = x3r*w1i + x3i*w1r;
++			dr = x1r*w3r - x1i*w3i;  di = x1r*w3i + x1i*w3r;
++			v2[2*(i+3)] = cr - dr;  v2[2*(i+3)+1] = ci - di;
++			cr = x1r*w2r - x1i*w2i;  ci = x1r*w2i + x1i*w2r;
++			dr = x2r*w1r - x2i*w1i;  di = x2r*w1i + x2i*w1r;
++			v3[2*(i+3)] = cr - dr;  v3[2*(i+3)+1] = ci - di;
++		}
++		while (i < n) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			w1r = w1[2*i];   w1i = w1[2*i+1];
++			w2r = w2[2*i];   w2i = w2[2*i+1];
++			w3r = w3[2*i];   w3i = w3[2*i+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			u1[2*i] = cr - dr;  u1[2*i+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			u2[2*i] = cr - dr;  u2[2*i+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			u3[2*i] = cr - dr;  u3[2*i+1] = ci - di;
++			cr = x2r*w3r - x2i*w3i;  ci = x2r*w3i + x2i*w3r;
++			dr = x3r*w2r - x3i*w2i;  di = x3r*w2i + x3i*w2r;
++			v1[2*i] = cr - dr;  v1[2*i+1] = ci - di;
++			cr = x3r*w1r - x3i*w1i;  ci = x3r*w1i + x3i*w1r;
++			dr = x1r*w3r - x1i*w3i;  di = x1r*w3i + x1i*w3r;
++			v2[2*i] = cr - dr;  v2[2*i+1] = ci - di;
++			cr = x1r*w2r - x1i*w2i;  ci = x1r*w2i + x1i*w2r;
++			dr = x2r*w1r - x2i*w1i;  di = x2r*w1i + x2i*w1r;
++			v3[2*i] = cr - dr;  v3[2*i+1] = ci - di;
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			x1r = x1[ix1]; x1i = x1[ix1+1];
++			x2r = x2[ix2]; x2i = x2[ix2+1];
++			x3r = x3[ix3]; x3i = x3[ix3+1];
++			y1r = y1[iy1]; y1i = y1[iy1+1];
++			y2r = y2[iy2]; y2i = y2[iy2+1];
++			y3r = y3[iy3]; y3i = y3[iy3+1];
++			w1r = w1[iw1]; w1i = w1[iw1+1];
++			w2r = w2[iw2]; w2i = w2[iw2+1];
++			w3r = w3[iw3]; w3i = w3[iw3+1];
++			if (incu1 != 0) {
++				cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++				dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++				u1[ou1] = cr - dr;  u1[ou1+1] = ci - di;
++			}
++			if (incu2 != 0) {
++				cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++				dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++				u2[ou2] = cr - dr;  u2[ou2+1] = ci - di;
++			}
++			if (incu3 != 0) {
++				cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++				dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++				u3[ou3] = cr - dr;  u3[ou3+1] = ci - di;
++			}
++			if (incv1 != 0) {
++				cr = x2r*w3r - x2i*w3i;  ci = x2r*w3i + x2i*w3r;
++				dr = x3r*w2r - x3i*w2i;  di = x3r*w2i + x3i*w2r;
++				v1[ov1] = cr - dr;  v1[ov1+1] = ci - di;
++			}
++			if (incv2 != 0) {
++				cr = x3r*w1r - x3i*w1i;  ci = x3r*w1i + x3i*w1r;
++				dr = x1r*w3r - x1i*w3i;  di = x1r*w3i + x1i*w3r;
++				v2[ov2] = cr - dr;  v2[ov2+1] = ci - di;
++			}
++			if (incv3 != 0) {
++				cr = x1r*w2r - x1i*w2i;  ci = x1r*w2i + x1i*w2r;
++				dr = x2r*w1r - x2i*w1i;  di = x2r*w1i + x2i*w1r;
++				v3[ov3] = cr - dr;  v3[ov3+1] = ci - di;
++			}
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			iw1 += incw1;
++			iw2 += incw2;
++			iw3 += incw3;
++			ou1 += incu1;
++			ou2 += incu2;
++			ou3 += incu3;
++			ov1 += incv1;
++			ov2 += incv2;
++			ov3 += incv3;
++			i++;
++		}
 +	}
 +	return(0);
 +}
 diff --git a/kernel/generic/z3crossxy_dotxz.c b/kernel/generic/z3crossxy_dotxz.c
 new file mode 100644
-index 0000000..9836c1a
+index 0000000..31edb6e
 --- /dev/null
 +++ b/kernel/generic/z3crossxy_dotxz.c
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,257 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5292,24 +6581,223 @@ index 0000000..9836c1a
 +          FLOAT *r, BLASLONG incr)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG ou1, ou2, ou3, or;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG iw1 = 0, iw2 = 0, iw3 = 0;
++	BLASLONG ou1 = 0, ou2 = 0, ou3 = 0;
++	BLASLONG ir = 0;
++	FLOAT x1r, x1i, x2r, x2i, x3r, x3i;
++	FLOAT y1r, y1i, y2r, y2i, y3r, y3i;
++	FLOAT w1r, w1i, w2r, w2i, w3r, w3i;
++	FLOAT cr, ci, dr, di;
++	FLOAT t_r, t_i, u_r, u_i, v_r, v_i;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		ou1 = (incu1 >= 0) ? i * incu1 : (n - 1 - i) * (-incu1);
-+		ou2 = (incu2 >= 0) ? i * incu2 : (n - 1 - i) * (-incu2);
-+		ou3 = (incu3 >= 0) ? i * incu3 : (n - 1 - i) * (-incu3);
-+		or = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
-+		u1[2*ou1] = -42;
-+		u1[2*ou1+1] = -42;
-+		u2[2*ou2] = -42;
-+		u2[2*ou2+1] = -42;
-+		u3[2*ou3] = -42;
-+		u3[2*ou3+1] = -42;
-+		r[2*or] = -42;
-+		r[2*or+1] = -42;
-+		i++;
++	incx1 *= 2;  incx2 *= 2;  incx3 *= 2;
++	incy1 *= 2;  incy2 *= 2;  incy3 *= 2;
++	incw1 *= 2;  incw2 *= 2;  incw3 *= 2;
++	incu1 *= 2;  incu2 *= 2;  incu3 *= 2;
++	incr *= 2;
++
++	if ( n > 0 ) {
++		if (incu1 == 0) {
++			cr = x2[0]*y3[1] - x2[1]*y3[0];  ci = x2[0]*y3[0] + x2[1]*y3[1];
++			dr = x3[0]*y2[1] - x3[1]*y2[0];  di = x3[0]*y2[0] + x3[1]*y2[1];
++			u1[0] = cr - dr;  u1[1] = ci - di;
++		}
++		if (incu2 == 0) {
++			cr = x3[0]*y1[1] - x3[1]*y1[0];  ci = x3[0]*y1[0] + x3[1]*y1[1];
++			dr = x1[0]*y3[1] - x1[1]*y3[0];  di = x1[0]*y3[0] + x1[1]*y3[1];
++			u2[0] = cr - dr;  u2[1] = ci - di;
++		}
++		if (incu3 == 0) {
++			cr = x1[0]*y2[1] - x1[1]*y2[0];  ci = x1[0]*y2[0] + x1[1]*y2[1];
++			dr = x2[0]*y1[1] - x2[1]*y1[0];  di = x2[0]*y1[0] + x2[1]*y1[1];
++			u3[0] = cr - dr;  u3[1] = ci - di;
++		}
++		if (incr == 0) {
++			t_r = x1[0]*w1[0] - x1[1]*w1[1];  t_i = x1[0]*w1[1] + x1[1]*w1[0];
++			u_r = x2[0]*w2[0] - x2[1]*w2[1];  u_i = x2[0]*w2[1] + x2[1]*w2[0];
++			v_r = x3[0]*w3[0] - x3[1]*w3[1];  v_i = x3[0]*w3[1] + x3[1]*w3[0];
++			r[0] = t_r + u_r + v_r;
++			r[1] = t_i + u_i + v_i;
++		}
++	}
++
++	if ((incx1 == 2) && (incx2 == 2) && (incx3 == 2) &&
++	    (incy1 == 2) && (incy2 == 2) && (incy3 == 2) &&
++	    (incw1 == 2) && (incw2 == 2) && (incw3 == 2) &&
++	    (incu1 == 2) && (incu2 == 2) && (incu3 == 2) && (incr == 2)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			w1r = w1[2*i];   w1i = w1[2*i+1];
++			w2r = w2[2*i];   w2i = w2[2*i+1];
++			w3r = w3[2*i];   w3i = w3[2*i+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			u1[2*i] = cr - dr;  u1[2*i+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			u2[2*i] = cr - dr;  u2[2*i+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			u3[2*i] = cr - dr;  u3[2*i+1] = ci - di;
++			t_r = x1r*w1r - x1i*w1i;  t_i = x1r*w1i + x1i*w1r;
++			u_r = x2r*w2r - x2i*w2i;  u_i = x2r*w2i + x2i*w2r;
++			v_r = x3r*w3r - x3i*w3i;  v_i = x3r*w3i + x3i*w3r;
++			r[2*i] = t_r + u_r + v_r;
++			r[2*i+1] = t_i + u_i + v_i;
++			x1r = x1[2*(i+1)];   x1i = x1[2*(i+1)+1];
++			x2r = x2[2*(i+1)];   x2i = x2[2*(i+1)+1];
++			x3r = x3[2*(i+1)];   x3i = x3[2*(i+1)+1];
++			y1r = y1[2*(i+1)];   y1i = y1[2*(i+1)+1];
++			y2r = y2[2*(i+1)];   y2i = y2[2*(i+1)+1];
++			y3r = y3[2*(i+1)];   y3i = y3[2*(i+1)+1];
++			w1r = w1[2*(i+1)];   w1i = w1[2*(i+1)+1];
++			w2r = w2[2*(i+1)];   w2i = w2[2*(i+1)+1];
++			w3r = w3[2*(i+1)];   w3i = w3[2*(i+1)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			u1[2*(i+1)] = cr - dr;  u1[2*(i+1)+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			u2[2*(i+1)] = cr - dr;  u2[2*(i+1)+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			u3[2*(i+1)] = cr - dr;  u3[2*(i+1)+1] = ci - di;
++			t_r = x1r*w1r - x1i*w1i;  t_i = x1r*w1i + x1i*w1r;
++			u_r = x2r*w2r - x2i*w2i;  u_i = x2r*w2i + x2i*w2r;
++			v_r = x3r*w3r - x3i*w3i;  v_i = x3r*w3i + x3i*w3r;
++			r[2*(i+1)] = t_r + u_r + v_r;
++			r[2*(i+1)+1] = t_i + u_i + v_i;
++			x1r = x1[2*(i+2)];   x1i = x1[2*(i+2)+1];
++			x2r = x2[2*(i+2)];   x2i = x2[2*(i+2)+1];
++			x3r = x3[2*(i+2)];   x3i = x3[2*(i+2)+1];
++			y1r = y1[2*(i+2)];   y1i = y1[2*(i+2)+1];
++			y2r = y2[2*(i+2)];   y2i = y2[2*(i+2)+1];
++			y3r = y3[2*(i+2)];   y3i = y3[2*(i+2)+1];
++			w1r = w1[2*(i+2)];   w1i = w1[2*(i+2)+1];
++			w2r = w2[2*(i+2)];   w2i = w2[2*(i+2)+1];
++			w3r = w3[2*(i+2)];   w3i = w3[2*(i+2)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			u1[2*(i+2)] = cr - dr;  u1[2*(i+2)+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			u2[2*(i+2)] = cr - dr;  u2[2*(i+2)+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			u3[2*(i+2)] = cr - dr;  u3[2*(i+2)+1] = ci - di;
++			t_r = x1r*w1r - x1i*w1i;  t_i = x1r*w1i + x1i*w1r;
++			u_r = x2r*w2r - x2i*w2i;  u_i = x2r*w2i + x2i*w2r;
++			v_r = x3r*w3r - x3i*w3i;  v_i = x3r*w3i + x3i*w3r;
++			r[2*(i+2)] = t_r + u_r + v_r;
++			r[2*(i+2)+1] = t_i + u_i + v_i;
++			x1r = x1[2*(i+3)];   x1i = x1[2*(i+3)+1];
++			x2r = x2[2*(i+3)];   x2i = x2[2*(i+3)+1];
++			x3r = x3[2*(i+3)];   x3i = x3[2*(i+3)+1];
++			y1r = y1[2*(i+3)];   y1i = y1[2*(i+3)+1];
++			y2r = y2[2*(i+3)];   y2i = y2[2*(i+3)+1];
++			y3r = y3[2*(i+3)];   y3i = y3[2*(i+3)+1];
++			w1r = w1[2*(i+3)];   w1i = w1[2*(i+3)+1];
++			w2r = w2[2*(i+3)];   w2i = w2[2*(i+3)+1];
++			w3r = w3[2*(i+3)];   w3i = w3[2*(i+3)+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			u1[2*(i+3)] = cr - dr;  u1[2*(i+3)+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			u2[2*(i+3)] = cr - dr;  u2[2*(i+3)+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			u3[2*(i+3)] = cr - dr;  u3[2*(i+3)+1] = ci - di;
++			t_r = x1r*w1r - x1i*w1i;  t_i = x1r*w1i + x1i*w1r;
++			u_r = x2r*w2r - x2i*w2i;  u_i = x2r*w2i + x2i*w2r;
++			v_r = x3r*w3r - x3i*w3i;  v_i = x3r*w3i + x3i*w3r;
++			r[2*(i+3)] = t_r + u_r + v_r;
++			r[2*(i+3)+1] = t_i + u_i + v_i;
++		}
++		while (i < n) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			w1r = w1[2*i];   w1i = w1[2*i+1];
++			w2r = w2[2*i];   w2i = w2[2*i+1];
++			w3r = w3[2*i];   w3i = w3[2*i+1];
++			cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++			dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++			u1[2*i] = cr - dr;  u1[2*i+1] = ci - di;
++			cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++			dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++			u2[2*i] = cr - dr;  u2[2*i+1] = ci - di;
++			cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++			dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++			u3[2*i] = cr - dr;  u3[2*i+1] = ci - di;
++			t_r = x1r*w1r - x1i*w1i;  t_i = x1r*w1i + x1i*w1r;
++			u_r = x2r*w2r - x2i*w2i;  u_i = x2r*w2i + x2i*w2r;
++			v_r = x3r*w3r - x3i*w3i;  v_i = x3r*w3i + x3i*w3r;
++			r[2*i] = t_r + u_r + v_r;
++			r[2*i+1] = t_i + u_i + v_i;
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			x1r = x1[ix1]; x1i = x1[ix1+1];
++			x2r = x2[ix2]; x2i = x2[ix2+1];
++			x3r = x3[ix3]; x3i = x3[ix3+1];
++			y1r = y1[iy1]; y1i = y1[iy1+1];
++			y2r = y2[iy2]; y2i = y2[iy2+1];
++			y3r = y3[iy3]; y3i = y3[iy3+1];
++			w1r = w1[iw1]; w1i = w1[iw1+1];
++			w2r = w2[iw2]; w2i = w2[iw2+1];
++			w3r = w3[iw3]; w3i = w3[iw3+1];
++			if (incu1 != 0) {
++				cr = x2r*y3r - x2i*y3i;  ci = x2r*y3i + x2i*y3r;
++				dr = x3r*y2r - x3i*y2i;  di = x3r*y2i + x3i*y2r;
++				u1[ou1] = cr - dr;  u1[ou1+1] = ci - di;
++			}
++			if (incu2 != 0) {
++				cr = x3r*y1r - x3i*y1i;  ci = x3r*y1i + x3i*y1r;
++				dr = x1r*y3r - x1i*y3i;  di = x1r*y3i + x1i*y3r;
++				u2[ou2] = cr - dr;  u2[ou2+1] = ci - di;
++			}
++			if (incu3 != 0) {
++				cr = x1r*y2r - x1i*y2i;  ci = x1r*y2i + x1i*y2r;
++				dr = x2r*y1r - x2i*y1i;  di = x2r*y1i + x2i*y1r;
++				u3[ou3] = cr - dr;  u3[ou3+1] = ci - di;
++			}
++			if (incr != 0) {
++				t_r = x1r*w1r - x1i*w1i;  t_i = x1r*w1i + x1i*w1r;
++				u_r = x2r*w2r - x2i*w2i;  u_i = x2r*w2i + x2i*w2r;
++				v_r = x3r*w3r - x3i*w3i;  v_i = x3r*w3i + x3i*w3r;
++				r[ir] = t_r + u_r + v_r;
++				r[ir+1] = t_i + u_i + v_i;
++			}
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			iw1 += incw1;
++			iw2 += incw2;
++			iw3 += incw3;
++			ou1 += incu1;
++			ou2 += incu2;
++			ou3 += incu3;
++			ir += incr;
++			i++;
++		}
 +	}
 +	return(0);
 +}
@@ -5455,10 +6943,10 @@ index 0000000..7e99acc
 +}
 diff --git a/kernel/generic/z3dotxy_dotxz.c b/kernel/generic/z3dotxy_dotxz.c
 new file mode 100644
-index 0000000..46c567b
+index 0000000..93e1a44
 --- /dev/null
 +++ b/kernel/generic/z3dotxy_dotxz.c
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,217 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5495,18 +6983,184 @@ index 0000000..46c567b
 +          FLOAT *r, BLASLONG incr, FLOAT *q, BLASLONG incq)
 +{
 +	BLASLONG i = 0;
-+	BLASLONG or, oq;
++	BLASLONG ix1 = 0, ix2 = 0, ix3 = 0;
++	BLASLONG iy1 = 0, iy2 = 0, iy3 = 0;
++	BLASLONG iw1 = 0, iw2 = 0, iw3 = 0;
++	BLASLONG ir = 0;
++	BLASLONG iq = 0;
++	FLOAT x1r, x1i, x2r, x2i, x3r, x3i;
++	FLOAT y1r, y1i, y2r, y2i, y3r, y3i;
++	FLOAT w1r, w1i, w2r, w2i, w3r, w3i;
++	FLOAT pr, pi, qr, qi, sr, si;
 +
 +	if ( n < 0 )  return(0);
 +
-+	while (i < n) {
-+		or = (incr >= 0) ? i * incr : (n - 1 - i) * (-incr);
-+		oq = (incq >= 0) ? i * incq : (n - 1 - i) * (-incq);
-+		r[2*or] = -42;
-+		r[2*or+1] = -42;
-+		q[2*oq] = -42;
-+		q[2*oq+1] = -42;
-+		i++;
++	incx1 *= 2;  incx2 *= 2;  incx3 *= 2;
++	incy1 *= 2;  incy2 *= 2;  incy3 *= 2;
++	incw1 *= 2;  incw2 *= 2;  incw3 *= 2;
++	incr *= 2;
++	incq *= 2;
++
++	if ( n > 0 ) {
++		if (incr == 0) {
++			pr = x1[0]*y1[0] - x1[1]*y1[1];  pi = x1[0]*y1[1] + x1[1]*y1[0];
++			qr = x2[0]*y2[0] - x2[1]*y2[1];  qi = x2[0]*y2[1] + x2[1]*y2[0];
++			sr = x3[0]*y3[0] - x3[1]*y3[1];  si = x3[0]*y3[1] + x3[1]*y3[0];
++			r[0] = pr + qr + sr;
++			r[1] = pi + qi + si;
++		}
++		if (incq == 0) {
++			pr = x1[0]*w1[0] - x1[1]*w1[1];  pi = x1[0]*w1[1] + x1[1]*w1[0];
++			qr = x2[0]*w2[0] - x2[1]*w2[1];  qi = x2[0]*w2[1] + x2[1]*w2[0];
++			sr = x3[0]*w3[0] - x3[1]*w3[1];  si = x3[0]*w3[1] + x3[1]*w3[0];
++			q[0] = pr + qr + sr;
++			q[1] = pi + qi + si;
++		}
++	}
++
++	if ((incx1 == 2) && (incx2 == 2) && (incx3 == 2) &&
++	    (incy1 == 2) && (incy2 == 2) && (incy3 == 2) &&
++	    (incw1 == 2) && (incw2 == 2) && (incw3 == 2) &&
++	    (incr == 2) && (incq == 2)) {
++		for (i = 0; i + 3 < n; i += 4) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			w1r = w1[2*i];   w1i = w1[2*i+1];
++			w2r = w2[2*i];   w2i = w2[2*i+1];
++			w3r = w3[2*i];   w3i = w3[2*i+1];
++			pr = x1r*y1r - x1i*y1i;  pi = x1r*y1i + x1i*y1r;
++			qr = x2r*y2r - x2i*y2i;  qi = x2r*y2i + x2i*y2r;
++			sr = x3r*y3r - x3i*y3i;  si = x3r*y3i + x3i*y3r;
++			r[2*i] = pr + qr + sr;
++			r[2*i+1] = pi + qi + si;
++			pr = x1r*w1r - x1i*w1i;  pi = x1r*w1i + x1i*w1r;
++			qr = x2r*w2r - x2i*w2i;  qi = x2r*w2i + x2i*w2r;
++			sr = x3r*w3r - x3i*w3i;  si = x3r*w3i + x3i*w3r;
++			q[2*i] = pr + qr + sr;
++			q[2*i+1] = pi + qi + si;
++			x1r = x1[2*(i+1)];   x1i = x1[2*(i+1)+1];
++			x2r = x2[2*(i+1)];   x2i = x2[2*(i+1)+1];
++			x3r = x3[2*(i+1)];   x3i = x3[2*(i+1)+1];
++			y1r = y1[2*(i+1)];   y1i = y1[2*(i+1)+1];
++			y2r = y2[2*(i+1)];   y2i = y2[2*(i+1)+1];
++			y3r = y3[2*(i+1)];   y3i = y3[2*(i+1)+1];
++			w1r = w1[2*(i+1)];   w1i = w1[2*(i+1)+1];
++			w2r = w2[2*(i+1)];   w2i = w2[2*(i+1)+1];
++			w3r = w3[2*(i+1)];   w3i = w3[2*(i+1)+1];
++			pr = x1r*y1r - x1i*y1i;  pi = x1r*y1i + x1i*y1r;
++			qr = x2r*y2r - x2i*y2i;  qi = x2r*y2i + x2i*y2r;
++			sr = x3r*y3r - x3i*y3i;  si = x3r*y3i + x3i*y3r;
++			r[2*(i+1)] = pr + qr + sr;
++			r[2*(i+1)+1] = pi + qi + si;
++			pr = x1r*w1r - x1i*w1i;  pi = x1r*w1i + x1i*w1r;
++			qr = x2r*w2r - x2i*w2i;  qi = x2r*w2i + x2i*w2r;
++			sr = x3r*w3r - x3i*w3i;  si = x3r*w3i + x3i*w3r;
++			q[2*(i+1)] = pr + qr + sr;
++			q[2*(i+1)+1] = pi + qi + si;
++			x1r = x1[2*(i+2)];   x1i = x1[2*(i+2)+1];
++			x2r = x2[2*(i+2)];   x2i = x2[2*(i+2)+1];
++			x3r = x3[2*(i+2)];   x3i = x3[2*(i+2)+1];
++			y1r = y1[2*(i+2)];   y1i = y1[2*(i+2)+1];
++			y2r = y2[2*(i+2)];   y2i = y2[2*(i+2)+1];
++			y3r = y3[2*(i+2)];   y3i = y3[2*(i+2)+1];
++			w1r = w1[2*(i+2)];   w1i = w1[2*(i+2)+1];
++			w2r = w2[2*(i+2)];   w2i = w2[2*(i+2)+1];
++			w3r = w3[2*(i+2)];   w3i = w3[2*(i+2)+1];
++			pr = x1r*y1r - x1i*y1i;  pi = x1r*y1i + x1i*y1r;
++			qr = x2r*y2r - x2i*y2i;  qi = x2r*y2i + x2i*y2r;
++			sr = x3r*y3r - x3i*y3i;  si = x3r*y3i + x3i*y3r;
++			r[2*(i+2)] = pr + qr + sr;
++			r[2*(i+2)+1] = pi + qi + si;
++			pr = x1r*w1r - x1i*w1i;  pi = x1r*w1i + x1i*w1r;
++			qr = x2r*w2r - x2i*w2i;  qi = x2r*w2i + x2i*w2r;
++			sr = x3r*w3r - x3i*w3i;  si = x3r*w3i + x3i*w3r;
++			q[2*(i+2)] = pr + qr + sr;
++			q[2*(i+2)+1] = pi + qi + si;
++			x1r = x1[2*(i+3)];   x1i = x1[2*(i+3)+1];
++			x2r = x2[2*(i+3)];   x2i = x2[2*(i+3)+1];
++			x3r = x3[2*(i+3)];   x3i = x3[2*(i+3)+1];
++			y1r = y1[2*(i+3)];   y1i = y1[2*(i+3)+1];
++			y2r = y2[2*(i+3)];   y2i = y2[2*(i+3)+1];
++			y3r = y3[2*(i+3)];   y3i = y3[2*(i+3)+1];
++			w1r = w1[2*(i+3)];   w1i = w1[2*(i+3)+1];
++			w2r = w2[2*(i+3)];   w2i = w2[2*(i+3)+1];
++			w3r = w3[2*(i+3)];   w3i = w3[2*(i+3)+1];
++			pr = x1r*y1r - x1i*y1i;  pi = x1r*y1i + x1i*y1r;
++			qr = x2r*y2r - x2i*y2i;  qi = x2r*y2i + x2i*y2r;
++			sr = x3r*y3r - x3i*y3i;  si = x3r*y3i + x3i*y3r;
++			r[2*(i+3)] = pr + qr + sr;
++			r[2*(i+3)+1] = pi + qi + si;
++			pr = x1r*w1r - x1i*w1i;  pi = x1r*w1i + x1i*w1r;
++			qr = x2r*w2r - x2i*w2i;  qi = x2r*w2i + x2i*w2r;
++			sr = x3r*w3r - x3i*w3i;  si = x3r*w3i + x3i*w3r;
++			q[2*(i+3)] = pr + qr + sr;
++			q[2*(i+3)+1] = pi + qi + si;
++		}
++		while (i < n) {
++			x1r = x1[2*i];   x1i = x1[2*i+1];
++			x2r = x2[2*i];   x2i = x2[2*i+1];
++			x3r = x3[2*i];   x3i = x3[2*i+1];
++			y1r = y1[2*i];   y1i = y1[2*i+1];
++			y2r = y2[2*i];   y2i = y2[2*i+1];
++			y3r = y3[2*i];   y3i = y3[2*i+1];
++			w1r = w1[2*i];   w1i = w1[2*i+1];
++			w2r = w2[2*i];   w2i = w2[2*i+1];
++			w3r = w3[2*i];   w3i = w3[2*i+1];
++			pr = x1r*y1r - x1i*y1i;  pi = x1r*y1i + x1i*y1r;
++			qr = x2r*y2r - x2i*y2i;  qi = x2r*y2i + x2i*y2r;
++			sr = x3r*y3r - x3i*y3i;  si = x3r*y3i + x3i*y3r;
++			r[2*i] = pr + qr + sr;
++			r[2*i+1] = pi + qi + si;
++			pr = x1r*w1r - x1i*w1i;  pi = x1r*w1i + x1i*w1r;
++			qr = x2r*w2r - x2i*w2i;  qi = x2r*w2i + x2i*w2r;
++			sr = x3r*w3r - x3i*w3i;  si = x3r*w3i + x3i*w3r;
++			q[2*i] = pr + qr + sr;
++			q[2*i+1] = pi + qi + si;
++			i++;
++		}
++	}
++	else {
++		while (i < n) {
++			x1r = x1[ix1]; x1i = x1[ix1+1];
++			x2r = x2[ix2]; x2i = x2[ix2+1];
++			x3r = x3[ix3]; x3i = x3[ix3+1];
++			y1r = y1[iy1]; y1i = y1[iy1+1];
++			y2r = y2[iy2]; y2i = y2[iy2+1];
++			y3r = y3[iy3]; y3i = y3[iy3+1];
++			w1r = w1[iw1]; w1i = w1[iw1+1];
++			w2r = w2[iw2]; w2i = w2[iw2+1];
++			w3r = w3[iw3]; w3i = w3[iw3+1];
++			if (incr != 0) {
++				pr = x1r*y1r - x1i*y1i;  pi = x1r*y1i + x1i*y1r;
++				qr = x2r*y2r - x2i*y2i;  qi = x2r*y2i + x2i*y2r;
++				sr = x3r*y3r - x3i*y3i;  si = x3r*y3i + x3i*y3r;
++				r[ir] = pr + qr + sr;
++				r[ir+1] = pi + qi + si;
++			}
++			if (incq != 0) {
++				pr = x1r*w1r - x1i*w1i;  pi = x1r*w1i + x1i*w1r;
++				qr = x2r*w2r - x2i*w2i;  qi = x2r*w2i + x2i*w2r;
++				sr = x3r*w3r - x3i*w3i;  si = x3r*w3i + x3i*w3r;
++				q[iq] = pr + qr + sr;
++				q[iq+1] = pi + qi + si;
++			}
++			ix1 += incx1;
++			ix2 += incx2;
++			ix3 += incx3;
++			iy1 += incy1;
++			iy2 += incy2;
++			iy3 += incy3;
++			iw1 += incw1;
++			iw2 += incw2;
++			iw3 += incw3;
++			ir += incr;
++			iq += incq;
++			i++;
++		}
 +	}
 +	return(0);
 +}
@@ -7941,10 +9595,10 @@ index 0000000..5edadd3
 +#endif
 diff --git a/utest/test_extensions/test_c1norm.c b/utest/test_extensions/test_c1norm.c
 new file mode 100644
-index 0000000..912afbf
+index 0000000..d1e4c1c
 --- /dev/null
 +++ b/utest/test_extensions/test_c1norm.c
-@@ -0,0 +1,174 @@
+@@ -0,0 +1,181 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  c1norm kernel unit tests                                                      */
@@ -7968,10 +9622,9 @@ index 0000000..912afbf
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_1norm(blasint n,  blasint incq, blasint incr)
++static void setup_1norm(blasint n,  blasint incq, blasint incr)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
 +
 +    srand_generate(q_buf, n * labs(incq) * 2);
 +
@@ -7992,6 +9645,14 @@ index 0000000..912afbf
 +        r_ref[2*or+1] = copysignf(sqrtf((m - p0) / 2.0), p1);
 +        }
 +    }
++}
++
++static float check_1norm(blasint n,  blasint incq, blasint incr)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_1norm(n, incq, incr);
 +
 +    BLASFUNC(c1norm)(&n, q_buf, &incq, r_buf, &incr);
 +
@@ -8009,7 +9670,7 @@ index 0000000..912afbf
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++    setup_1norm(n, incq, incr);
 +
 +    cblas_c1norm(n, q_buf, incq, r_buf, incr);
 +
@@ -8291,10 +9952,10 @@ index 0000000..65b7176
 +#endif
 diff --git a/utest/test_extensions/test_c3cross.c b/utest/test_extensions/test_c3cross.c
 new file mode 100644
-index 0000000..a6d97ec
+index 0000000..727a4db
 --- /dev/null
 +++ b/utest/test_extensions/test_c3cross.c
-@@ -0,0 +1,244 @@
+@@ -0,0 +1,252 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  c3cross kernel unit tests                                                      */
@@ -8327,10 +9988,10 @@ index 0000000..a6d97ec
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3cross(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++static void setup_3cross(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1) * 2);
 +    srand_generate(x2_buf, n * labs(incx2) * 2);
@@ -8383,6 +10044,15 @@ index 0000000..a6d97ec
 +        }
 +    }
 +
++}
++
++static float check_3cross(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3cross(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
++
 +    BLASFUNC(c3cross)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3);
 +
 +    for (i = 0; i < n * labs(incw1) * 2; i++) {
@@ -8407,9 +10077,8 @@ index 0000000..a6d97ec
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incw1) * 2; i++) w1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw2) * 2; i++) w2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw3) * 2; i++) w3_buf[i] = 0.0;
++
++    setup_3cross(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    cblas_c3cross(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3);
 +
@@ -8541,10 +10210,10 @@ index 0000000..a6d97ec
 +#endif
 diff --git a/utest/test_extensions/test_c3crossdot.c b/utest/test_extensions/test_c3crossdot.c
 new file mode 100644
-index 0000000..9dfffd1
+index 0000000..9b74b1b
 --- /dev/null
 +++ b/utest/test_extensions/test_c3crossdot.c
-@@ -0,0 +1,230 @@
+@@ -0,0 +1,240 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  c3crossdot kernel unit tests                                                      */
@@ -8576,10 +10245,10 @@ index 0000000..9dfffd1
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3crossdot(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr)
++static void setup_3crossdot(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1) * 2);
 +    srand_generate(x2_buf, n * labs(incx2) * 2);
@@ -8637,6 +10306,15 @@ index 0000000..9dfffd1
 +        }
 +    }
 +
++}
++
++static float check_3crossdot(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3crossdot(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr);
++
 +    BLASFUNC(c3crossdot)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incr) * 2; i++) {
@@ -8653,7 +10331,8 @@ index 0000000..9dfffd1
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++
++    setup_3crossdot(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr);
 +
 +    cblas_c3crossdot(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, r_buf, incr);
 +
@@ -8777,10 +10456,10 @@ index 0000000..9dfffd1
 +#endif
 diff --git a/utest/test_extensions/test_c3crossscal.c b/utest/test_extensions/test_c3crossscal.c
 new file mode 100644
-index 0000000..63d06b7
+index 0000000..3bcaac3
 --- /dev/null
 +++ b/utest/test_extensions/test_c3crossscal.c
-@@ -0,0 +1,245 @@
+@@ -0,0 +1,253 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  c3crossscal kernel unit tests                                                      */
@@ -8814,10 +10493,10 @@ index 0000000..63d06b7
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3crossscal(blasint n, float ar, float ai,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++static void setup_3crossscal(blasint n, float ar, float ai,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1) * 2);
 +    srand_generate(x2_buf, n * labs(incx2) * 2);
@@ -8870,6 +10549,15 @@ index 0000000..63d06b7
 +        }
 +    }
 +
++}
++
++static float check_3crossscal(blasint n, float ar, float ai,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3crossscal(n, ar, ai,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
++
 +    BLASFUNC(c3crossscal)(&n, a_val, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3);
 +
 +    for (i = 0; i < n * labs(incw1) * 2; i++) {
@@ -8894,9 +10582,8 @@ index 0000000..63d06b7
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incw1) * 2; i++) w1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw2) * 2; i++) w2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw3) * 2; i++) w3_buf[i] = 0.0;
++
++    setup_3crossscal(n, ar, ai,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    cblas_c3crossscal(n, a_val, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3);
 +
@@ -9028,10 +10715,10 @@ index 0000000..63d06b7
 +#endif
 diff --git a/utest/test_extensions/test_c3crosssqr.c b/utest/test_extensions/test_c3crosssqr.c
 new file mode 100644
-index 0000000..3ebfd3b
+index 0000000..7a4919c
 --- /dev/null
 +++ b/utest/test_extensions/test_c3crosssqr.c
-@@ -0,0 +1,213 @@
+@@ -0,0 +1,223 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  c3crosssqr kernel unit tests                                                      */
@@ -9060,10 +10747,10 @@ index 0000000..3ebfd3b
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3crosssqr(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incr)
++static void setup_3crosssqr(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incr)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1) * 2);
 +    srand_generate(x2_buf, n * labs(incx2) * 2);
@@ -9107,6 +10794,15 @@ index 0000000..3ebfd3b
 +        }
 +    }
 +
++}
++
++static float check_3crosssqr(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incr)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3crosssqr(n,  incx1, incx2, incx3, incy1, incy2, incy3, incr);
++
 +    BLASFUNC(c3crosssqr)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incr) * 2; i++) {
@@ -9123,7 +10819,8 @@ index 0000000..3ebfd3b
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++
++    setup_3crosssqr(n,  incx1, incx2, incx3, incy1, incy2, incy3, incr);
 +
 +    cblas_c3crosssqr(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, r_buf, incr);
 +
@@ -9247,10 +10944,10 @@ index 0000000..3ebfd3b
 +#endif
 diff --git a/utest/test_extensions/test_c3crossxy_crossxz.c b/utest/test_extensions/test_c3crossxy_crossxz.c
 new file mode 100644
-index 0000000..deb15b1
+index 0000000..1bd38d8
 --- /dev/null
 +++ b/utest/test_extensions/test_c3crossxy_crossxz.c
-@@ -0,0 +1,307 @@
+@@ -0,0 +1,312 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  c3crossxy_crossxz kernel unit tests                                                      */
@@ -9292,10 +10989,10 @@ index 0000000..deb15b1
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3crossxy_crossxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incv1, blasint incv2, blasint incv3)
++static void setup_3crossxy_crossxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incv1, blasint incv2, blasint incv3)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1) * 2);
 +    srand_generate(x2_buf, n * labs(incx2) * 2);
@@ -9375,6 +11072,15 @@ index 0000000..deb15b1
 +        }
 +    }
 +
++}
++
++static float check_3crossxy_crossxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incv1, blasint incv2, blasint incv3)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3crossxy_crossxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incv1, incv2, incv3);
++
 +    BLASFUNC(c3crossxy_crossxz)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, u1_buf, &incu1, u2_buf, &incu2, u3_buf, &incu3, v1_buf, &incv1, v2_buf, &incv2, v3_buf, &incv3);
 +
 +    for (i = 0; i < n * labs(incu1) * 2; i++) {
@@ -9411,12 +11117,8 @@ index 0000000..deb15b1
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incu1) * 2; i++) u1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu2) * 2; i++) u2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu3) * 2; i++) u3_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incv1) * 2; i++) v1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incv2) * 2; i++) v2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incv3) * 2; i++) v3_buf[i] = 0.0;
++
++    setup_3crossxy_crossxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incv1, incv2, incv3);
 +
 +    cblas_c3crossxy_crossxz(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, u1_buf, incu1, u2_buf, incu2, u3_buf, incu3, v1_buf, incv1, v2_buf, incv2, v3_buf, incv3);
 +
@@ -9560,10 +11262,10 @@ index 0000000..deb15b1
 +#endif
 diff --git a/utest/test_extensions/test_c3crossxy_dotxz.c b/utest/test_extensions/test_c3crossxy_dotxz.c
 new file mode 100644
-index 0000000..eebf281
+index 0000000..5cc2796
 --- /dev/null
 +++ b/utest/test_extensions/test_c3crossxy_dotxz.c
-@@ -0,0 +1,273 @@
+@@ -0,0 +1,280 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  c3crossxy_dotxz kernel unit tests                                                      */
@@ -9601,10 +11303,10 @@ index 0000000..eebf281
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3crossxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incr)
++static void setup_3crossxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incr)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1) * 2);
 +    srand_generate(x2_buf, n * labs(incx2) * 2);
@@ -9672,6 +11374,15 @@ index 0000000..eebf281
 +        }
 +    }
 +
++}
++
++static float check_3crossxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incr)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3crossxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incr);
++
 +    BLASFUNC(c3crossxy_dotxz)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, u1_buf, &incu1, u2_buf, &incu2, u3_buf, &incu3, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incu1) * 2; i++) {
@@ -9700,10 +11411,8 @@ index 0000000..eebf281
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incu1) * 2; i++) u1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu2) * 2; i++) u2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu3) * 2; i++) u3_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++
++    setup_3crossxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incr);
 +
 +    cblas_c3crossxy_dotxz(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, u1_buf, incu1, u2_buf, incu2, u3_buf, incu3, r_buf, incr);
 +
@@ -10030,10 +11739,10 @@ index 0000000..8857b84
 +#endif
 diff --git a/utest/test_extensions/test_c3dotxy_dotxz.c b/utest/test_extensions/test_c3dotxy_dotxz.c
 new file mode 100644
-index 0000000..8617df3
+index 0000000..36ce795
 --- /dev/null
 +++ b/utest/test_extensions/test_c3dotxy_dotxz.c
-@@ -0,0 +1,239 @@
+@@ -0,0 +1,248 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  c3dotxy_dotxz kernel unit tests                                                      */
@@ -10067,10 +11776,10 @@ index 0000000..8617df3
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3dotxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr, blasint incq)
++static void setup_3dotxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr, blasint incq)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1) * 2);
 +    srand_generate(x2_buf, n * labs(incx2) * 2);
@@ -10126,6 +11835,15 @@ index 0000000..8617df3
 +        }
 +    }
 +
++}
++
++static float check_3dotxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr, blasint incq)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3dotxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr, incq);
++
 +    BLASFUNC(c3dotxy_dotxz)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, r_buf, &incr, q_buf, &incq);
 +
 +    for (i = 0; i < n * labs(incr) * 2; i++) {
@@ -10146,8 +11864,8 @@ index 0000000..8617df3
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incq) * 2; i++) q_buf[i] = 0.0;
++
++    setup_3dotxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr, incq);
 +
 +    cblas_c3dotxy_dotxz(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, r_buf, incr, q_buf, incq);
 +
@@ -10734,10 +12452,10 @@ index 0000000..24bc40b
 +#endif
 diff --git a/utest/test_extensions/test_d1norm.c b/utest/test_extensions/test_d1norm.c
 new file mode 100644
-index 0000000..d46da56
+index 0000000..94b6d84
 --- /dev/null
 +++ b/utest/test_extensions/test_d1norm.c
-@@ -0,0 +1,163 @@
+@@ -0,0 +1,170 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  d1norm kernel unit tests                                                      */
@@ -10757,10 +12475,9 @@ index 0000000..d46da56
 +static double r_ref[BUFFER];
 +
 +
-+static double check_1norm(blasint n,  blasint incq, blasint incr)
++static void setup_1norm(blasint n,  blasint incq, blasint incr)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
 +
 +    drand_generate(q_buf, n * labs(incq));
 +
@@ -10775,6 +12492,14 @@ index 0000000..d46da56
 +
 +        r_ref[or] = sqrt(q_buf[oq] * q_buf[oq]);
 +    }
++}
++
++static double check_1norm(blasint n,  blasint incq, blasint incr)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_1norm(n, incq, incr);
 +
 +    BLASFUNC(d1norm)(&n, q_buf, &incq, r_buf, &incr);
 +
@@ -10791,7 +12516,7 @@ index 0000000..d46da56
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++    setup_1norm(n, incq, incr);
 +
 +    cblas_d1norm(n, q_buf, incq, r_buf, incr);
 +
@@ -11090,10 +12815,10 @@ index 0000000..27471c4
 +#endif
 diff --git a/utest/test_extensions/test_d3cross.c b/utest/test_extensions/test_d3cross.c
 new file mode 100644
-index 0000000..97baf4c
+index 0000000..39e60fa
 --- /dev/null
 +++ b/utest/test_extensions/test_d3cross.c
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,235 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  d3cross kernel unit tests                                                      */
@@ -11122,10 +12847,10 @@ index 0000000..97baf4c
 +static double w3_ref[BUFFER];
 +
 +
-+static double check_3cross(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++static void setup_3cross(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1));
 +    drand_generate(x2_buf, n * labs(incx2));
@@ -11166,6 +12891,15 @@ index 0000000..97baf4c
 +        w3_ref[ow3] = x1_buf[ox1] * y2_buf[oy2] - x2_buf[ox2] * y1_buf[oy1];
 +    }
 +
++}
++
++static double check_3cross(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3cross(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
++
 +    BLASFUNC(d3cross)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3);
 +
 +    for (i = 0; i < n * labs(incw1); i++) {
@@ -11189,9 +12923,8 @@ index 0000000..97baf4c
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incw1) * 2; i++) w1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw2) * 2; i++) w2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw3) * 2; i++) w3_buf[i] = 0.0;
++
++    setup_3cross(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    cblas_d3cross(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3);
 +
@@ -11323,10 +13056,10 @@ index 0000000..97baf4c
 +#endif
 diff --git a/utest/test_extensions/test_d3crossdot.c b/utest/test_extensions/test_d3crossdot.c
 new file mode 100644
-index 0000000..700b01a
+index 0000000..de4a89c
 --- /dev/null
 +++ b/utest/test_extensions/test_d3crossdot.c
-@@ -0,0 +1,213 @@
+@@ -0,0 +1,223 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  d3crossdot kernel unit tests                                                      */
@@ -11354,10 +13087,10 @@ index 0000000..700b01a
 +static double r_ref[BUFFER];
 +
 +
-+static double check_3crossdot(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr)
++static void setup_3crossdot(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1));
 +    drand_generate(x2_buf, n * labs(incx2));
@@ -11403,6 +13136,15 @@ index 0000000..700b01a
 +        }
 +    }
 +
++}
++
++static double check_3crossdot(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3crossdot(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr);
++
 +    BLASFUNC(d3crossdot)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incr); i++) {
@@ -11418,7 +13160,8 @@ index 0000000..700b01a
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++
++    setup_3crossdot(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr);
 +
 +    cblas_d3crossdot(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, r_buf, incr);
 +
@@ -11542,10 +13285,10 @@ index 0000000..700b01a
 +#endif
 diff --git a/utest/test_extensions/test_d3crossscal.c b/utest/test_extensions/test_d3crossscal.c
 new file mode 100644
-index 0000000..ea6852b
+index 0000000..987aeed
 --- /dev/null
 +++ b/utest/test_extensions/test_d3crossscal.c
-@@ -0,0 +1,228 @@
+@@ -0,0 +1,236 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  d3crossscal kernel unit tests                                                      */
@@ -11575,10 +13318,10 @@ index 0000000..ea6852b
 +static double a_val = 2.0;
 +
 +
-+static double check_3crossscal(blasint n, double a,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++static void setup_3crossscal(blasint n, double a,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1));
 +    drand_generate(x2_buf, n * labs(incx2));
@@ -11619,6 +13362,15 @@ index 0000000..ea6852b
 +        w3_ref[ow3] = a * (x1_buf[ox1] * y2_buf[oy2] - x2_buf[ox2] * y1_buf[oy1]);
 +    }
 +
++}
++
++static double check_3crossscal(blasint n, double a,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3crossscal(n, a,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
++
 +    BLASFUNC(d3crossscal)(&n, &a, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3);
 +
 +    for (i = 0; i < n * labs(incw1); i++) {
@@ -11642,9 +13394,8 @@ index 0000000..ea6852b
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incw1) * 2; i++) w1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw2) * 2; i++) w2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw3) * 2; i++) w3_buf[i] = 0.0;
++
++    setup_3crossscal(n, a,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    cblas_d3crossscal(n, a_val, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3);
 +
@@ -11776,10 +13527,10 @@ index 0000000..ea6852b
 +#endif
 diff --git a/utest/test_extensions/test_d3crosssqr.c b/utest/test_extensions/test_d3crosssqr.c
 new file mode 100644
-index 0000000..9d13deb
+index 0000000..119d6d1
 --- /dev/null
 +++ b/utest/test_extensions/test_d3crosssqr.c
-@@ -0,0 +1,201 @@
+@@ -0,0 +1,211 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  d3crosssqr kernel unit tests                                                      */
@@ -11804,10 +13555,10 @@ index 0000000..9d13deb
 +static double r_ref[BUFFER];
 +
 +
-+static double check_3crosssqr(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incr)
++static void setup_3crosssqr(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incr)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1));
 +    drand_generate(x2_buf, n * labs(incx2));
@@ -11844,6 +13595,15 @@ index 0000000..9d13deb
 +        }
 +    }
 +
++}
++
++static double check_3crosssqr(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incr)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3crosssqr(n,  incx1, incx2, incx3, incy1, incy2, incy3, incr);
++
 +    BLASFUNC(d3crosssqr)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incr); i++) {
@@ -11859,7 +13619,8 @@ index 0000000..9d13deb
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++
++    setup_3crosssqr(n,  incx1, incx2, incx3, incy1, incy2, incy3, incr);
 +
 +    cblas_d3crosssqr(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, r_buf, incr);
 +
@@ -11983,10 +13744,10 @@ index 0000000..9d13deb
 +#endif
 diff --git a/utest/test_extensions/test_d3crossxy_crossxz.c b/utest/test_extensions/test_d3crossxy_crossxz.c
 new file mode 100644
-index 0000000..d941a60
+index 0000000..672f994
 --- /dev/null
 +++ b/utest/test_extensions/test_d3crossxy_crossxz.c
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,292 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  d3crossxy_crossxz kernel unit tests                                                      */
@@ -12024,10 +13785,10 @@ index 0000000..d941a60
 +static double v3_ref[BUFFER];
 +
 +
-+static double check_3crossxy_crossxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incv1, blasint incv2, blasint incv3)
++static void setup_3crossxy_crossxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incv1, blasint incv2, blasint incv3)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1));
 +    drand_generate(x2_buf, n * labs(incx2));
@@ -12092,6 +13853,15 @@ index 0000000..d941a60
 +        v3_ref[ov3] = x1_buf[ox1] * w2_buf[ow2] - x2_buf[ox2] * w1_buf[ow1];
 +    }
 +
++}
++
++static double check_3crossxy_crossxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incv1, blasint incv2, blasint incv3)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3crossxy_crossxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incv1, incv2, incv3);
++
 +    BLASFUNC(d3crossxy_crossxz)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, u1_buf, &incu1, u2_buf, &incu2, u3_buf, &incu3, v1_buf, &incv1, v2_buf, &incv2, v3_buf, &incv3);
 +
 +    for (i = 0; i < n * labs(incu1); i++) {
@@ -12127,12 +13897,8 @@ index 0000000..d941a60
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incu1) * 2; i++) u1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu2) * 2; i++) u2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu3) * 2; i++) u3_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incv1) * 2; i++) v1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incv2) * 2; i++) v2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incv3) * 2; i++) v3_buf[i] = 0.0;
++
++    setup_3crossxy_crossxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incv1, incv2, incv3);
 +
 +    cblas_d3crossxy_crossxz(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, u1_buf, incu1, u2_buf, incu2, u3_buf, incu3, v1_buf, incv1, v2_buf, incv2, v3_buf, incv3);
 +
@@ -12276,10 +14042,10 @@ index 0000000..d941a60
 +#endif
 diff --git a/utest/test_extensions/test_d3crossxy_dotxz.c b/utest/test_extensions/test_d3crossxy_dotxz.c
 new file mode 100644
-index 0000000..0c674ab
+index 0000000..4cb8803
 --- /dev/null
 +++ b/utest/test_extensions/test_d3crossxy_dotxz.c
-@@ -0,0 +1,257 @@
+@@ -0,0 +1,264 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  d3crossxy_dotxz kernel unit tests                                                      */
@@ -12313,10 +14079,10 @@ index 0000000..0c674ab
 +static double r_ref[BUFFER];
 +
 +
-+static double check_3crossxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incr)
++static void setup_3crossxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incr)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1));
 +    drand_generate(x2_buf, n * labs(incx2));
@@ -12373,6 +14139,15 @@ index 0000000..0c674ab
 +                  + x3_buf[ox3] * w3_buf[ow3];
 +    }
 +
++}
++
++static double check_3crossxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incr)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3crossxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incr);
++
 +    BLASFUNC(d3crossxy_dotxz)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, u1_buf, &incu1, u2_buf, &incu2, u3_buf, &incu3, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incu1); i++) {
@@ -12400,10 +14175,8 @@ index 0000000..0c674ab
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incu1) * 2; i++) u1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu2) * 2; i++) u2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu3) * 2; i++) u3_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++
++    setup_3crossxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incr);
 +
 +    cblas_d3crossxy_dotxz(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, u1_buf, incu1, u2_buf, incu2, u3_buf, incu3, r_buf, incr);
 +
@@ -12713,10 +14486,10 @@ index 0000000..2b2660f
 +#endif
 diff --git a/utest/test_extensions/test_d3dotxy_dotxz.c b/utest/test_extensions/test_d3dotxy_dotxz.c
 new file mode 100644
-index 0000000..8f6bc2e
+index 0000000..54b7c94
 --- /dev/null
 +++ b/utest/test_extensions/test_d3dotxy_dotxz.c
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,236 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  d3dotxy_dotxz kernel unit tests                                                      */
@@ -12746,10 +14519,10 @@ index 0000000..8f6bc2e
 +static double q_ref[BUFFER];
 +
 +
-+static double check_3dotxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr, blasint incq)
++static void setup_3dotxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr, blasint incq)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1));
 +    drand_generate(x2_buf, n * labs(incx2));
@@ -12798,6 +14571,15 @@ index 0000000..8f6bc2e
 +                  + x3_buf[ox3] * w3_buf[ow3];
 +    }
 +
++}
++
++static double check_3dotxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr, blasint incq)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3dotxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr, incq);
++
 +    BLASFUNC(d3dotxy_dotxz)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, r_buf, &incr, q_buf, &incq);
 +
 +    for (i = 0; i < n * labs(incr); i++) {
@@ -12817,8 +14599,8 @@ index 0000000..8f6bc2e
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incq) * 2; i++) q_buf[i] = 0.0;
++
++    setup_3dotxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr, incq);
 +
 +    cblas_d3dotxy_dotxz(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, r_buf, incr, q_buf, incq);
 +
@@ -13382,10 +15164,10 @@ index 0000000..549fd96
 +#endif
 diff --git a/utest/test_extensions/test_s1norm.c b/utest/test_extensions/test_s1norm.c
 new file mode 100644
-index 0000000..ddd8c7c
+index 0000000..84e2afe
 --- /dev/null
 +++ b/utest/test_extensions/test_s1norm.c
-@@ -0,0 +1,163 @@
+@@ -0,0 +1,170 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  s1norm kernel unit tests                                                      */
@@ -13405,10 +15187,9 @@ index 0000000..ddd8c7c
 +static float r_ref[BUFFER];
 +
 +
-+static float check_1norm(blasint n,  blasint incq, blasint incr)
++static void setup_1norm(blasint n,  blasint incq, blasint incr)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
 +
 +    srand_generate(q_buf, n * labs(incq));
 +
@@ -13423,6 +15204,14 @@ index 0000000..ddd8c7c
 +
 +        r_ref[or] = sqrtf(q_buf[oq] * q_buf[oq]);
 +    }
++}
++
++static float check_1norm(blasint n,  blasint incq, blasint incr)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_1norm(n, incq, incr);
 +
 +    BLASFUNC(s1norm)(&n, q_buf, &incq, r_buf, &incr);
 +
@@ -13439,7 +15228,7 @@ index 0000000..ddd8c7c
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++    setup_1norm(n, incq, incr);
 +
 +    cblas_s1norm(n, q_buf, incq, r_buf, incr);
 +
@@ -13738,10 +15527,10 @@ index 0000000..4e978a1
 +#endif
 diff --git a/utest/test_extensions/test_s3cross.c b/utest/test_extensions/test_s3cross.c
 new file mode 100644
-index 0000000..c6f5410
+index 0000000..a34992d
 --- /dev/null
 +++ b/utest/test_extensions/test_s3cross.c
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,235 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  s3cross kernel unit tests                                                      */
@@ -13770,10 +15559,10 @@ index 0000000..c6f5410
 +static float w3_ref[BUFFER];
 +
 +
-+static float check_3cross(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++static void setup_3cross(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1));
 +    srand_generate(x2_buf, n * labs(incx2));
@@ -13814,6 +15603,15 @@ index 0000000..c6f5410
 +        w3_ref[ow3] = x1_buf[ox1] * y2_buf[oy2] - x2_buf[ox2] * y1_buf[oy1];
 +    }
 +
++}
++
++static float check_3cross(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3cross(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
++
 +    BLASFUNC(s3cross)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3);
 +
 +    for (i = 0; i < n * labs(incw1); i++) {
@@ -13837,9 +15635,8 @@ index 0000000..c6f5410
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incw1) * 2; i++) w1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw2) * 2; i++) w2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw3) * 2; i++) w3_buf[i] = 0.0;
++
++    setup_3cross(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    cblas_s3cross(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3);
 +
@@ -13971,10 +15768,10 @@ index 0000000..c6f5410
 +#endif
 diff --git a/utest/test_extensions/test_s3crossdot.c b/utest/test_extensions/test_s3crossdot.c
 new file mode 100644
-index 0000000..5fc8239
+index 0000000..1ad307e
 --- /dev/null
 +++ b/utest/test_extensions/test_s3crossdot.c
-@@ -0,0 +1,213 @@
+@@ -0,0 +1,223 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  s3crossdot kernel unit tests                                                      */
@@ -14002,10 +15799,10 @@ index 0000000..5fc8239
 +static float r_ref[BUFFER];
 +
 +
-+static float check_3crossdot(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr)
++static void setup_3crossdot(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1));
 +    srand_generate(x2_buf, n * labs(incx2));
@@ -14051,6 +15848,15 @@ index 0000000..5fc8239
 +        }
 +    }
 +
++}
++
++static float check_3crossdot(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3crossdot(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr);
++
 +    BLASFUNC(s3crossdot)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incr); i++) {
@@ -14066,7 +15872,8 @@ index 0000000..5fc8239
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++
++    setup_3crossdot(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr);
 +
 +    cblas_s3crossdot(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, r_buf, incr);
 +
@@ -14190,10 +15997,10 @@ index 0000000..5fc8239
 +#endif
 diff --git a/utest/test_extensions/test_s3crossscal.c b/utest/test_extensions/test_s3crossscal.c
 new file mode 100644
-index 0000000..92dc239
+index 0000000..d074737
 --- /dev/null
 +++ b/utest/test_extensions/test_s3crossscal.c
-@@ -0,0 +1,228 @@
+@@ -0,0 +1,236 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  s3crossscal kernel unit tests                                                      */
@@ -14223,10 +16030,10 @@ index 0000000..92dc239
 +static float a_val = 2.0f;
 +
 +
-+static float check_3crossscal(blasint n, float a,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++static void setup_3crossscal(blasint n, float a,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1));
 +    srand_generate(x2_buf, n * labs(incx2));
@@ -14267,6 +16074,15 @@ index 0000000..92dc239
 +        w3_ref[ow3] = a * (x1_buf[ox1] * y2_buf[oy2] - x2_buf[ox2] * y1_buf[oy1]);
 +    }
 +
++}
++
++static float check_3crossscal(blasint n, float a,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3crossscal(n, a,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
++
 +    BLASFUNC(s3crossscal)(&n, &a, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3);
 +
 +    for (i = 0; i < n * labs(incw1); i++) {
@@ -14290,9 +16106,8 @@ index 0000000..92dc239
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incw1) * 2; i++) w1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw2) * 2; i++) w2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw3) * 2; i++) w3_buf[i] = 0.0;
++
++    setup_3crossscal(n, a,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    cblas_s3crossscal(n, a_val, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3);
 +
@@ -14424,10 +16239,10 @@ index 0000000..92dc239
 +#endif
 diff --git a/utest/test_extensions/test_s3crosssqr.c b/utest/test_extensions/test_s3crosssqr.c
 new file mode 100644
-index 0000000..c1cc5e9
+index 0000000..c807844
 --- /dev/null
 +++ b/utest/test_extensions/test_s3crosssqr.c
-@@ -0,0 +1,201 @@
+@@ -0,0 +1,211 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  s3crosssqr kernel unit tests                                                      */
@@ -14452,10 +16267,10 @@ index 0000000..c1cc5e9
 +static float r_ref[BUFFER];
 +
 +
-+static float check_3crosssqr(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incr)
++static void setup_3crosssqr(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incr)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1));
 +    srand_generate(x2_buf, n * labs(incx2));
@@ -14492,6 +16307,15 @@ index 0000000..c1cc5e9
 +        }
 +    }
 +
++}
++
++static float check_3crosssqr(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incr)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3crosssqr(n,  incx1, incx2, incx3, incy1, incy2, incy3, incr);
++
 +    BLASFUNC(s3crosssqr)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incr); i++) {
@@ -14507,7 +16331,8 @@ index 0000000..c1cc5e9
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++
++    setup_3crosssqr(n,  incx1, incx2, incx3, incy1, incy2, incy3, incr);
 +
 +    cblas_s3crosssqr(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, r_buf, incr);
 +
@@ -14631,10 +16456,10 @@ index 0000000..c1cc5e9
 +#endif
 diff --git a/utest/test_extensions/test_s3crossxy_crossxz.c b/utest/test_extensions/test_s3crossxy_crossxz.c
 new file mode 100644
-index 0000000..278d88c
+index 0000000..d8cb0e3
 --- /dev/null
 +++ b/utest/test_extensions/test_s3crossxy_crossxz.c
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,292 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  s3crossxy_crossxz kernel unit tests                                                      */
@@ -14672,10 +16497,10 @@ index 0000000..278d88c
 +static float v3_ref[BUFFER];
 +
 +
-+static float check_3crossxy_crossxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incv1, blasint incv2, blasint incv3)
++static void setup_3crossxy_crossxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incv1, blasint incv2, blasint incv3)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1));
 +    srand_generate(x2_buf, n * labs(incx2));
@@ -14740,6 +16565,15 @@ index 0000000..278d88c
 +        v3_ref[ov3] = x1_buf[ox1] * w2_buf[ow2] - x2_buf[ox2] * w1_buf[ow1];
 +    }
 +
++}
++
++static float check_3crossxy_crossxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incv1, blasint incv2, blasint incv3)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3crossxy_crossxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incv1, incv2, incv3);
++
 +    BLASFUNC(s3crossxy_crossxz)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, u1_buf, &incu1, u2_buf, &incu2, u3_buf, &incu3, v1_buf, &incv1, v2_buf, &incv2, v3_buf, &incv3);
 +
 +    for (i = 0; i < n * labs(incu1); i++) {
@@ -14775,12 +16609,8 @@ index 0000000..278d88c
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incu1) * 2; i++) u1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu2) * 2; i++) u2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu3) * 2; i++) u3_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incv1) * 2; i++) v1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incv2) * 2; i++) v2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incv3) * 2; i++) v3_buf[i] = 0.0;
++
++    setup_3crossxy_crossxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incv1, incv2, incv3);
 +
 +    cblas_s3crossxy_crossxz(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, u1_buf, incu1, u2_buf, incu2, u3_buf, incu3, v1_buf, incv1, v2_buf, incv2, v3_buf, incv3);
 +
@@ -14924,10 +16754,10 @@ index 0000000..278d88c
 +#endif
 diff --git a/utest/test_extensions/test_s3crossxy_dotxz.c b/utest/test_extensions/test_s3crossxy_dotxz.c
 new file mode 100644
-index 0000000..5b67dce
+index 0000000..3d3c6f2
 --- /dev/null
 +++ b/utest/test_extensions/test_s3crossxy_dotxz.c
-@@ -0,0 +1,257 @@
+@@ -0,0 +1,264 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  s3crossxy_dotxz kernel unit tests                                                      */
@@ -14961,10 +16791,10 @@ index 0000000..5b67dce
 +static float r_ref[BUFFER];
 +
 +
-+static float check_3crossxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incr)
++static void setup_3crossxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incr)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1));
 +    srand_generate(x2_buf, n * labs(incx2));
@@ -15021,6 +16851,15 @@ index 0000000..5b67dce
 +                  + x3_buf[ox3] * w3_buf[ow3];
 +    }
 +
++}
++
++static float check_3crossxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incr)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3crossxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incr);
++
 +    BLASFUNC(s3crossxy_dotxz)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, u1_buf, &incu1, u2_buf, &incu2, u3_buf, &incu3, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incu1); i++) {
@@ -15048,10 +16887,8 @@ index 0000000..5b67dce
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incu1) * 2; i++) u1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu2) * 2; i++) u2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu3) * 2; i++) u3_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++
++    setup_3crossxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incr);
 +
 +    cblas_s3crossxy_dotxz(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, u1_buf, incu1, u2_buf, incu2, u3_buf, incu3, r_buf, incr);
 +
@@ -15371,10 +17208,10 @@ index 0000000..03b2deb
 +#endif
 diff --git a/utest/test_extensions/test_s3dotxy_dotxz.c b/utest/test_extensions/test_s3dotxy_dotxz.c
 new file mode 100644
-index 0000000..7e12b11
+index 0000000..35f3179
 --- /dev/null
 +++ b/utest/test_extensions/test_s3dotxy_dotxz.c
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,236 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  s3dotxy_dotxz kernel unit tests                                                      */
@@ -15404,10 +17241,10 @@ index 0000000..7e12b11
 +static float q_ref[BUFFER];
 +
 +
-+static float check_3dotxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr, blasint incq)
++static void setup_3dotxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr, blasint incq)
 +{
 +    blasint i;
-+    float maxdiff = 0.0;
++
 +
 +    srand_generate(x1_buf, n * labs(incx1));
 +    srand_generate(x2_buf, n * labs(incx2));
@@ -15456,6 +17293,15 @@ index 0000000..7e12b11
 +                  + x3_buf[ox3] * w3_buf[ow3];
 +    }
 +
++}
++
++static float check_3dotxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr, blasint incq)
++{
++    blasint i;
++    float maxdiff = 0.0;
++
++    setup_3dotxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr, incq);
++
 +    BLASFUNC(s3dotxy_dotxz)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, r_buf, &incr, q_buf, &incq);
 +
 +    for (i = 0; i < n * labs(incr); i++) {
@@ -15475,8 +17321,8 @@ index 0000000..7e12b11
 +    blasint i;
 +    float maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incq) * 2; i++) q_buf[i] = 0.0;
++
++    setup_3dotxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr, incq);
 +
 +    cblas_s3dotxy_dotxz(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, r_buf, incr, q_buf, incq);
 +
@@ -16040,10 +17886,10 @@ index 0000000..055d8a2
 +#endif
 diff --git a/utest/test_extensions/test_z1norm.c b/utest/test_extensions/test_z1norm.c
 new file mode 100644
-index 0000000..dec8efe
+index 0000000..e57168e
 --- /dev/null
 +++ b/utest/test_extensions/test_z1norm.c
-@@ -0,0 +1,174 @@
+@@ -0,0 +1,181 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  z1norm kernel unit tests                                                      */
@@ -16067,10 +17913,9 @@ index 0000000..dec8efe
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_1norm(blasint n,  blasint incq, blasint incr)
++static void setup_1norm(blasint n,  blasint incq, blasint incr)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
 +
 +    drand_generate(q_buf, n * labs(incq) * 2);
 +
@@ -16091,6 +17936,14 @@ index 0000000..dec8efe
 +        r_ref[2*or+1] = copysign(sqrt((m - p0) / 2.0), p1);
 +        }
 +    }
++}
++
++static float check_1norm(blasint n,  blasint incq, blasint incr)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_1norm(n, incq, incr);
 +
 +    BLASFUNC(z1norm)(&n, q_buf, &incq, r_buf, &incr);
 +
@@ -16108,7 +17961,7 @@ index 0000000..dec8efe
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++    setup_1norm(n, incq, incr);
 +
 +    cblas_z1norm(n, q_buf, incq, r_buf, incr);
 +
@@ -16390,10 +18243,10 @@ index 0000000..095b38e
 +#endif
 diff --git a/utest/test_extensions/test_z3cross.c b/utest/test_extensions/test_z3cross.c
 new file mode 100644
-index 0000000..2ee1e33
+index 0000000..0b5443b
 --- /dev/null
 +++ b/utest/test_extensions/test_z3cross.c
-@@ -0,0 +1,244 @@
+@@ -0,0 +1,252 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  z3cross kernel unit tests                                                      */
@@ -16426,10 +18279,10 @@ index 0000000..2ee1e33
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3cross(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++static void setup_3cross(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1) * 2);
 +    drand_generate(x2_buf, n * labs(incx2) * 2);
@@ -16482,6 +18335,15 @@ index 0000000..2ee1e33
 +        }
 +    }
 +
++}
++
++static float check_3cross(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3cross(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
++
 +    BLASFUNC(z3cross)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3);
 +
 +    for (i = 0; i < n * labs(incw1) * 2; i++) {
@@ -16506,9 +18368,8 @@ index 0000000..2ee1e33
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incw1) * 2; i++) w1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw2) * 2; i++) w2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw3) * 2; i++) w3_buf[i] = 0.0;
++
++    setup_3cross(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    cblas_z3cross(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3);
 +
@@ -16640,10 +18501,10 @@ index 0000000..2ee1e33
 +#endif
 diff --git a/utest/test_extensions/test_z3crossdot.c b/utest/test_extensions/test_z3crossdot.c
 new file mode 100644
-index 0000000..2d61695
+index 0000000..e6d1f78
 --- /dev/null
 +++ b/utest/test_extensions/test_z3crossdot.c
-@@ -0,0 +1,230 @@
+@@ -0,0 +1,240 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  z3crossdot kernel unit tests                                                      */
@@ -16675,10 +18536,10 @@ index 0000000..2d61695
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3crossdot(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr)
++static void setup_3crossdot(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1) * 2);
 +    drand_generate(x2_buf, n * labs(incx2) * 2);
@@ -16736,6 +18597,15 @@ index 0000000..2d61695
 +        }
 +    }
 +
++}
++
++static float check_3crossdot(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3crossdot(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr);
++
 +    BLASFUNC(z3crossdot)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incr) * 2; i++) {
@@ -16752,7 +18622,8 @@ index 0000000..2d61695
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++
++    setup_3crossdot(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr);
 +
 +    cblas_z3crossdot(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, r_buf, incr);
 +
@@ -16876,10 +18747,10 @@ index 0000000..2d61695
 +#endif
 diff --git a/utest/test_extensions/test_z3crossscal.c b/utest/test_extensions/test_z3crossscal.c
 new file mode 100644
-index 0000000..923f2ee
+index 0000000..0a4cb84
 --- /dev/null
 +++ b/utest/test_extensions/test_z3crossscal.c
-@@ -0,0 +1,245 @@
+@@ -0,0 +1,253 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  z3crossscal kernel unit tests                                                      */
@@ -16913,10 +18784,10 @@ index 0000000..923f2ee
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3crossscal(blasint n, double ar, double ai,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++static void setup_3crossscal(blasint n, double ar, double ai,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1) * 2);
 +    drand_generate(x2_buf, n * labs(incx2) * 2);
@@ -16969,6 +18840,15 @@ index 0000000..923f2ee
 +        }
 +    }
 +
++}
++
++static float check_3crossscal(blasint n, double ar, double ai,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3crossscal(n, ar, ai,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
++
 +    BLASFUNC(z3crossscal)(&n, a_val, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3);
 +
 +    for (i = 0; i < n * labs(incw1) * 2; i++) {
@@ -16993,9 +18873,8 @@ index 0000000..923f2ee
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incw1) * 2; i++) w1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw2) * 2; i++) w2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incw3) * 2; i++) w3_buf[i] = 0.0;
++
++    setup_3crossscal(n, ar, ai,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3);
 +
 +    cblas_z3crossscal(n, a_val, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3);
 +
@@ -17127,10 +19006,10 @@ index 0000000..923f2ee
 +#endif
 diff --git a/utest/test_extensions/test_z3crosssqr.c b/utest/test_extensions/test_z3crosssqr.c
 new file mode 100644
-index 0000000..55f9f47
+index 0000000..3fbf125
 --- /dev/null
 +++ b/utest/test_extensions/test_z3crosssqr.c
-@@ -0,0 +1,213 @@
+@@ -0,0 +1,223 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  z3crosssqr kernel unit tests                                                      */
@@ -17159,10 +19038,10 @@ index 0000000..55f9f47
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3crosssqr(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incr)
++static void setup_3crosssqr(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incr)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1) * 2);
 +    drand_generate(x2_buf, n * labs(incx2) * 2);
@@ -17206,6 +19085,15 @@ index 0000000..55f9f47
 +        }
 +    }
 +
++}
++
++static float check_3crosssqr(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incr)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3crosssqr(n,  incx1, incx2, incx3, incy1, incy2, incy3, incr);
++
 +    BLASFUNC(z3crosssqr)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incr) * 2; i++) {
@@ -17222,7 +19110,8 @@ index 0000000..55f9f47
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++
++    setup_3crosssqr(n,  incx1, incx2, incx3, incy1, incy2, incy3, incr);
 +
 +    cblas_z3crosssqr(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, r_buf, incr);
 +
@@ -17346,10 +19235,10 @@ index 0000000..55f9f47
 +#endif
 diff --git a/utest/test_extensions/test_z3crossxy_crossxz.c b/utest/test_extensions/test_z3crossxy_crossxz.c
 new file mode 100644
-index 0000000..0962910
+index 0000000..1057417
 --- /dev/null
 +++ b/utest/test_extensions/test_z3crossxy_crossxz.c
-@@ -0,0 +1,307 @@
+@@ -0,0 +1,312 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  z3crossxy_crossxz kernel unit tests                                                      */
@@ -17391,10 +19280,10 @@ index 0000000..0962910
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3crossxy_crossxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incv1, blasint incv2, blasint incv3)
++static void setup_3crossxy_crossxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incv1, blasint incv2, blasint incv3)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1) * 2);
 +    drand_generate(x2_buf, n * labs(incx2) * 2);
@@ -17474,6 +19363,15 @@ index 0000000..0962910
 +        }
 +    }
 +
++}
++
++static float check_3crossxy_crossxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incv1, blasint incv2, blasint incv3)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3crossxy_crossxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incv1, incv2, incv3);
++
 +    BLASFUNC(z3crossxy_crossxz)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, u1_buf, &incu1, u2_buf, &incu2, u3_buf, &incu3, v1_buf, &incv1, v2_buf, &incv2, v3_buf, &incv3);
 +
 +    for (i = 0; i < n * labs(incu1) * 2; i++) {
@@ -17510,12 +19408,8 @@ index 0000000..0962910
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incu1) * 2; i++) u1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu2) * 2; i++) u2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu3) * 2; i++) u3_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incv1) * 2; i++) v1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incv2) * 2; i++) v2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incv3) * 2; i++) v3_buf[i] = 0.0;
++
++    setup_3crossxy_crossxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incv1, incv2, incv3);
 +
 +    cblas_z3crossxy_crossxz(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, u1_buf, incu1, u2_buf, incu2, u3_buf, incu3, v1_buf, incv1, v2_buf, incv2, v3_buf, incv3);
 +
@@ -17659,10 +19553,10 @@ index 0000000..0962910
 +#endif
 diff --git a/utest/test_extensions/test_z3crossxy_dotxz.c b/utest/test_extensions/test_z3crossxy_dotxz.c
 new file mode 100644
-index 0000000..7b076b4
+index 0000000..25ea2b1
 --- /dev/null
 +++ b/utest/test_extensions/test_z3crossxy_dotxz.c
-@@ -0,0 +1,273 @@
+@@ -0,0 +1,280 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  z3crossxy_dotxz kernel unit tests                                                      */
@@ -17700,10 +19594,10 @@ index 0000000..7b076b4
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3crossxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incr)
++static void setup_3crossxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incr)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1) * 2);
 +    drand_generate(x2_buf, n * labs(incx2) * 2);
@@ -17771,6 +19665,15 @@ index 0000000..7b076b4
 +        }
 +    }
 +
++}
++
++static float check_3crossxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incu1, blasint incu2, blasint incu3, blasint incr)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3crossxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incr);
++
 +    BLASFUNC(z3crossxy_dotxz)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, u1_buf, &incu1, u2_buf, &incu2, u3_buf, &incu3, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incu1) * 2; i++) {
@@ -17799,10 +19702,8 @@ index 0000000..7b076b4
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incu1) * 2; i++) u1_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu2) * 2; i++) u2_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incu3) * 2; i++) u3_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
++
++    setup_3crossxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incu1, incu2, incu3, incr);
 +
 +    cblas_z3crossxy_dotxz(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, u1_buf, incu1, u2_buf, incu2, u3_buf, incu3, r_buf, incr);
 +
@@ -18119,10 +20020,10 @@ index 0000000..9b26430
 +#endif
 diff --git a/utest/test_extensions/test_z3dotxy_dotxz.c b/utest/test_extensions/test_z3dotxy_dotxz.c
 new file mode 100644
-index 0000000..8cff4d8
+index 0000000..d0c0343
 --- /dev/null
 +++ b/utest/test_extensions/test_z3dotxy_dotxz.c
-@@ -0,0 +1,239 @@
+@@ -0,0 +1,248 @@
 +/**********************************************************************************/
 +/*                                                                                */
 +/*  z3dotxy_dotxz kernel unit tests                                                      */
@@ -18156,10 +20057,10 @@ index 0000000..8cff4d8
 +    *o1 = a0 * b1 + a1 * b0;
 +}
 +
-+static float check_3dotxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr, blasint incq)
++static void setup_3dotxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr, blasint incq)
 +{
 +    blasint i;
-+    double maxdiff = 0.0;
++
 +
 +    drand_generate(x1_buf, n * labs(incx1) * 2);
 +    drand_generate(x2_buf, n * labs(incx2) * 2);
@@ -18215,6 +20116,15 @@ index 0000000..8cff4d8
 +        }
 +    }
 +
++}
++
++static float check_3dotxy_dotxz(blasint n,  blasint incx1, blasint incx2, blasint incx3, blasint incy1, blasint incy2, blasint incy3, blasint incw1, blasint incw2, blasint incw3, blasint incr, blasint incq)
++{
++    blasint i;
++    double maxdiff = 0.0;
++
++    setup_3dotxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr, incq);
++
 +    BLASFUNC(z3dotxy_dotxz)(&n, x1_buf, &incx1, x2_buf, &incx2, x3_buf, &incx3, y1_buf, &incy1, y2_buf, &incy2, y3_buf, &incy3, w1_buf, &incw1, w2_buf, &incw2, w3_buf, &incw3, r_buf, &incr, q_buf, &incq);
 +
 +    for (i = 0; i < n * labs(incr) * 2; i++) {
@@ -18235,8 +20145,8 @@ index 0000000..8cff4d8
 +    blasint i;
 +    double maxdiff = 0.0;
 +
-+    for (i = 0; i < n * labs(incr) * 2; i++) r_buf[i] = 0.0;
-+    for (i = 0; i < n * labs(incq) * 2; i++) q_buf[i] = 0.0;
++
++    setup_3dotxy_dotxz(n,  incx1, incx2, incx3, incy1, incy2, incy3, incw1, incw2, incw3, incr, incq);
 +
 +    cblas_z3dotxy_dotxz(n, x1_buf, incx1, x2_buf, incx2, x3_buf, incx3, y1_buf, incy1, y2_buf, incy2, y3_buf, incy3, w1_buf, incw1, w2_buf, incw2, w3_buf, incw3, r_buf, incr, q_buf, incq);
 +
