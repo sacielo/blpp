@@ -25,12 +25,12 @@ endfunction()
 
 add_ob_target(benchmark benchmark.cpp)
 
-# pblas_bench: cost of the pblas.h interface (call + result free) vs the
+# v3blas_bench: cost of the v3blas.h interface (call + result free) vs the
 # raw cblas extension kernels with pre-allocated outputs.
-add_ob_target(pblas_bench pblas_bench.cpp)
+add_ob_target(v3blas_bench v3blas_bench.cpp)
 
-# pblas_example: minimal C99 example of the pblas.h interface.
-add_ob_target(pblas_example pblas_example.c)
+# v3blas_example: minimal C99 example of the v3blas.h interface.
+add_ob_target(v3blas_example v3blas_example.c)
 
-set_target_properties(benchmark pblas_bench PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
-set_target_properties(pblas_example PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON)
+set_target_properties(benchmark v3blas_bench PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+set_target_properties(v3blas_example PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON)

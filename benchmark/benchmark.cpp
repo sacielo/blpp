@@ -10,11 +10,11 @@
 // the first element of its expression is printed for hand verification;
 // no timing is done. With NDEBUG the performance table is printed.
 // The table's last column is the kernel equation, a single space-free
-// token (e.g. w=a*(x^y)) so whole lines can be parsed with awk.
+// token (e.g. w=a·(x∧y)) so whole lines can be parsed with awk.
 //
 // FLOP conventions:
-//   GFLOP/s: standard count, one flop per add/mul/sqrt; a complex
-//     bilinear product is 6, a complex add is 2.
+//   FLOP/s: printed in exponential form; standard count, one flop per
+//     add/mul/sqrt; a complex bilinear product is 6, a complex add is 2.
 //   F/cyc:  expected flops per element per loop iteration, assuming a
 //     fused multiply-add counts as 1 for real; complex kernels are
 //     counted as implemented (bilinear product 6, add 2, csqrt 16).
@@ -47,10 +47,10 @@ constexpr double kEpsF = 1e-5;     // ditto for float precision (s/c)
 
 struct Result {
     std::string name;
-    double flops;       // FLOPs per element (GFLOP/s count)
+    double flops;       // FLOPs per element (FLOP/s count)
     double fcyc;        // expected FLOPs per element per iteration
     double ms_per_run;
-    double gflops;
+    double flops_rate;  // FLOP/s
     double meps;        // million elements / second
     double max_rel_err; // vs. the long double reference
     int iters;
@@ -63,7 +63,7 @@ Result make_result(const std::string &name, double flops_per_elem,
                    double err, double eps, const char *eq)
 {
     return {name, flops_per_elem, fcyc, per_run * 1e3,
-            flops_per_elem * n / per_run / 1e9, n / per_run / 1e6,
+            flops_per_elem * n / per_run, n / per_run / 1e6,
             err, iters, err <= eps, eq};
 }
 
@@ -198,7 +198,7 @@ void ccross(const T *a1, const T *a2, const T *a3,
     w3[2 * i + 1] = p1 - q1;
 }
 
-// bilinear triple dot product x.y, element i
+// bilinear triple dot product x·y, element i
 template <typename T>
 void cdot3(const T *x1, const T *x2, const T *x3,
            const T *y1, const T *y2, const T *y3,
@@ -400,7 +400,7 @@ Result bench_1norm_t(int n, const char *nm, double eps,
         ref[i] = sqrtl((ld)q[i] * q[i]);
 
     const double flops = 2.0, fcyc = 2.0;
-    const char *eq = "r=sqrt(q.q)";
+    const char *eq = "r=sqrt(q·q)";
 #ifndef NDEBUG
     call(n, q.data(), 1, r.data(), 1);
     double err = max_rel_err(r.data(), ref.data(), n);
@@ -414,7 +414,7 @@ Result bench_1norm_t(int n, const char *nm, double eps,
 #endif
 }
 
-// w = x^y  (cross product)
+// w = x∧y  (cross product)
 template <typename T, typename Call>
 Result bench_3cross_t(int n, const char *nm, double eps,
                       Call call)
@@ -435,7 +435,7 @@ Result bench_3cross_t(int n, const char *nm, double eps,
     }
 
     const double flops = 9.0, fcyc = 6.0;
-    const char *eq = "w=x^y";
+    const char *eq = "w=x∧y";
 #ifndef NDEBUG
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
          y1.data(), 1, y2.data(), 1, y3.data(), 1,
@@ -443,8 +443,8 @@ Result bench_3cross_t(int n, const char *nm, double eps,
     double err = std::fmax(max_rel_err(w1.data(), w1_ref.data(), n),
                    std::fmax(max_rel_err(w2.data(), w2_ref.data(), n),
                              max_rel_err(w3.data(), w3_ref.data(), n)));
-    std::printf("%s[0]: x^y = w\n"
-                "(%g %g %g)^(%g %g %g) = (%g %g %g)\n", nm,
+    std::printf("%s[0]: x∧y = w\n"
+                "(%g %g %g)∧(%g %g %g) = (%g %g %g)\n", nm,
                 (double)x1[0], (double)x2[0], (double)x3[0],
                 (double)y1[0], (double)y2[0], (double)y3[0],
                 (double)w1[0], (double)w2[0], (double)w3[0]);
@@ -462,7 +462,7 @@ Result bench_3cross_t(int n, const char *nm, double eps,
 #endif
 }
 
-// w = a*(x^y)
+// w = a·(x∧y)
 template <typename T, typename Call>
 Result bench_3crossscal_t(int n, const char *nm, double eps, T a,
                           Call call)
@@ -483,7 +483,7 @@ Result bench_3crossscal_t(int n, const char *nm, double eps, T a,
     }
 
     const double flops = 12.0, fcyc = 9.0;
-    const char *eq = "w=a*(x^y)";
+    const char *eq = "w=a·(x∧y)";
 #ifndef NDEBUG
     call(n, a, x1.data(), 1, x2.data(), 1, x3.data(), 1,
          y1.data(), 1, y2.data(), 1, y3.data(), 1,
@@ -491,8 +491,8 @@ Result bench_3crossscal_t(int n, const char *nm, double eps, T a,
     double err = std::fmax(max_rel_err(w1.data(), w1_ref.data(), n),
                    std::fmax(max_rel_err(w2.data(), w2_ref.data(), n),
                              max_rel_err(w3.data(), w3_ref.data(), n)));
-    std::printf("%s[0]: a*(x^y) = w  (a = %g)\n"
-                "(%g %g %g)^(%g %g %g) = (%g %g %g)\n", nm, (double)a,
+    std::printf("%s[0]: a·(x∧y) = w  (a = %g)\n"
+                "(%g %g %g)∧(%g %g %g) = (%g %g %g)\n", nm, (double)a,
                 (double)x1[0], (double)x2[0], (double)x3[0],
                 (double)y1[0], (double)y2[0], (double)y3[0],
                 (double)w1[0], (double)w2[0], (double)w3[0]);
@@ -510,7 +510,7 @@ Result bench_3crossscal_t(int n, const char *nm, double eps, T a,
 #endif
 }
 
-// r = (x^y).w
+// r = (x∧y)·w
 template <typename T, typename Call>
 Result bench_3crossdot_t(int n, const char *nm, double eps,
                          Call call)
@@ -535,14 +535,14 @@ Result bench_3crossdot_t(int n, const char *nm, double eps,
     }
 
     const double flops = 14.0, fcyc = 9.0;
-    const char *eq = "r=(x^y).w";
+    const char *eq = "r=(x∧y)·w";
 #ifndef NDEBUG
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
          y1.data(), 1, y2.data(), 1, y3.data(), 1,
          w1.data(), 1, w2.data(), 1, w3.data(), 1, r.data(), 1);
     double err = max_rel_err(r.data(), ref.data(), n);
-    std::printf("%s[0]: (x^y).w = r\n"
-                "((%g %g %g)^(%g %g %g)).(%g %g %g) = %g\n", nm,
+    std::printf("%s[0]: (x∧y)·w = r\n"
+                "((%g %g %g)∧(%g %g %g))·(%g %g %g) = %g\n", nm,
                 (double)x1[0], (double)x2[0], (double)x3[0],
                 (double)y1[0], (double)y2[0], (double)y3[0],
                 (double)w1[0], (double)w2[0], (double)w3[0], (double)r[0]);
@@ -558,7 +558,7 @@ Result bench_3crossdot_t(int n, const char *nm, double eps,
 #endif
 }
 
-// r = (x^y).(x^y)
+// r = (x∧y)·(x∧y)
 template <typename T, typename Call>
 Result bench_3crosssqr_t(int n, const char *nm, double eps,
                          Call call)
@@ -579,13 +579,13 @@ Result bench_3crosssqr_t(int n, const char *nm, double eps,
     }
 
     const double flops = 14.0, fcyc = 9.0;
-    const char *eq = "r=(x^y).(x^y)";
+    const char *eq = "r=(x∧y)·(x∧y)";
 #ifndef NDEBUG
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
          y1.data(), 1, y2.data(), 1, y3.data(), 1, r.data(), 1);
     double err = max_rel_err(r.data(), ref.data(), n);
-    std::printf("%s[0]: (x^y).(x^y) = r\n"
-                "((%g %g %g)^(%g %g %g)).(same) = %g\n", nm,
+    std::printf("%s[0]: (x∧y)·(x∧y) = r\n"
+                "((%g %g %g)∧(%g %g %g))·(same) = %g\n", nm,
                 (double)x1[0], (double)x2[0], (double)x3[0],
                 (double)y1[0], (double)y2[0], (double)y3[0], (double)r[0]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
@@ -599,7 +599,7 @@ Result bench_3crosssqr_t(int n, const char *nm, double eps,
 #endif
 }
 
-// u = x^y, v = x^w
+// u = x∧y, v = x∧w
 template <typename T, typename Call>
 Result bench_3crossxy_crossxz_t(int n, const char *nm, double eps,
                                 Call call)
@@ -628,7 +628,7 @@ Result bench_3crossxy_crossxz_t(int n, const char *nm, double eps,
     }
 
     const double flops = 18.0, fcyc = 12.0;
-    const char *eq = "u=x^y,v=x^w";
+    const char *eq = "u=x∧y,v=x∧w";
     double err;
 #ifndef NDEBUG
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
@@ -642,7 +642,7 @@ Result bench_3crossxy_crossxz_t(int n, const char *nm, double eps,
                                   std::fmax(max_rel_err(v1.data(), v1_ref.data(), n),
                                             std::fmax(max_rel_err(v2.data(), v2_ref.data(), n),
                                                       max_rel_err(v3.data(), v3_ref.data(), n))))));
-    std::printf("%s[0]: x^y = u, x^w = v\n"
+    std::printf("%s[0]: x∧y = u, x∧w = v\n"
                 "u = (%g %g %g)  v = (%g %g %g)\n", nm,
                 (double)u1[0], (double)u2[0], (double)u3[0],
                 (double)v1[0], (double)v2[0], (double)v3[0]);
@@ -665,7 +665,7 @@ Result bench_3crossxy_crossxz_t(int n, const char *nm, double eps,
 #endif
 }
 
-// u = x^y, r = x.w
+// u = x∧y, r = x·w
 template <typename T, typename Call>
 Result bench_3crossxy_dotxz_t(int n, const char *nm, double eps,
                               Call call)
@@ -692,7 +692,7 @@ Result bench_3crossxy_dotxz_t(int n, const char *nm, double eps,
     }
 
     const double flops = 14.0, fcyc = 9.0;
-    const char *eq = "u=x^y,r=x.w";
+    const char *eq = "u=x∧y,r=x·w";
     double err;
 #ifndef NDEBUG
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
@@ -703,7 +703,7 @@ Result bench_3crossxy_dotxz_t(int n, const char *nm, double eps,
               std::fmax(max_rel_err(u2.data(), u2_ref.data(), n),
                         std::fmax(max_rel_err(u3.data(), u3_ref.data(), n),
                                   max_rel_err(r.data(), ref.data(), n))));
-    std::printf("%s[0]: x^y = u, x.w = r\n"
+    std::printf("%s[0]: x∧y = u, x·w = r\n"
                 "u = (%g %g %g)  r = %g\n", nm,
                 (double)u1[0], (double)u2[0], (double)u3[0], (double)r[0]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
@@ -722,7 +722,7 @@ Result bench_3crossxy_dotxz_t(int n, const char *nm, double eps,
 #endif
 }
 
-// r = x.y, q = x.w
+// r = x·y, q = x·w
 template <typename T, typename Call>
 Result bench_3dotxy_dotxz_t(int n, const char *nm, double eps,
                             Call call)
@@ -748,7 +748,7 @@ Result bench_3dotxy_dotxz_t(int n, const char *nm, double eps,
     }
 
     const double flops = 10.0, fcyc = 6.0;
-    const char *eq = "r=x.y,q=x.w";
+    const char *eq = "r=x·y,q=x·w";
     double err;
 #ifndef NDEBUG
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
@@ -757,7 +757,7 @@ Result bench_3dotxy_dotxz_t(int n, const char *nm, double eps,
          r.data(), 1, q.data(), 1);
     err = std::fmax(max_rel_err(r.data(), r_ref.data(), n),
               max_rel_err(q.data(), q_ref.data(), n));
-    std::printf("%s[0]: x.y = r, x.w = q\n"
+    std::printf("%s[0]: x·y = r, x·w = q\n"
                 "r = %g  q = %g\n", nm, (double)r[0], (double)q[0]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
@@ -997,7 +997,7 @@ Result bench_1norm_x(int n, const char *nm, double eps, Call call)
     }
 
     const double flops = 16.0, fcyc = 16.0;
-    const char *eq = "r=sqrt(q.q)";
+    const char *eq = "r=sqrt(q·q)";
 #ifndef NDEBUG
     call(n, q.data(), 1, r.data(), 1);
     double err = max_rel_err_c(r.data(), ref.data(), n);
@@ -1012,7 +1012,7 @@ Result bench_1norm_x(int n, const char *nm, double eps, Call call)
 #endif
 }
 
-// w = x^y
+// w = x∧y
 template <typename T, typename Call>
 Result bench_3cross_x(int n, const char *nm, double eps, Call call)
 {
@@ -1032,7 +1032,7 @@ Result bench_3cross_x(int n, const char *nm, double eps, Call call)
                w1_ref.data(), w2_ref.data(), w3_ref.data(), i);
 
     const double flops = 42.0, fcyc = 42.0;
-    const char *eq = "w=x^y";
+    const char *eq = "w=x∧y";
 #ifndef NDEBUG
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
          y1.data(), 1, y2.data(), 1, y3.data(), 1,
@@ -1040,7 +1040,7 @@ Result bench_3cross_x(int n, const char *nm, double eps, Call call)
     double err = std::fmax(max_rel_err_c(w1.data(), w1_ref.data(), n),
                    std::fmax(max_rel_err_c(w2.data(), w2_ref.data(), n),
                              max_rel_err_c(w3.data(), w3_ref.data(), n)));
-    std::printf("%s[0]: w = x^y\n"
+    std::printf("%s[0]: w = x∧y\n"
                 "w1 = (%g %g)  w2 = (%g %g)  w3 = (%g %g)\n", nm,
                 (double)w1[0], (double)w1[1], (double)w2[0], (double)w2[1],
                 (double)w3[0], (double)w3[1]);
@@ -1058,7 +1058,7 @@ Result bench_3cross_x(int n, const char *nm, double eps, Call call)
 #endif
 }
 
-// w = a*(x^y)
+// w = a·(x∧y)
 template <typename T, typename Call>
 Result bench_3crossscal_x(int n, const char *nm, double eps, const T a[2],
                           Call call)
@@ -1090,7 +1090,7 @@ Result bench_3crossscal_x(int n, const char *nm, double eps, const T a[2],
     }
 
     const double flops = 60.0, fcyc = 60.0;
-    const char *eq = "w=a*(x^y)";
+    const char *eq = "w=a·(x∧y)";
 #ifndef NDEBUG
     call(n, a, x1.data(), 1, x2.data(), 1, x3.data(), 1,
          y1.data(), 1, y2.data(), 1, y3.data(), 1,
@@ -1098,7 +1098,7 @@ Result bench_3crossscal_x(int n, const char *nm, double eps, const T a[2],
     double err = std::fmax(max_rel_err_c(w1.data(), w1_ref.data(), n),
                    std::fmax(max_rel_err_c(w2.data(), w2_ref.data(), n),
                              max_rel_err_c(w3.data(), w3_ref.data(), n)));
-    std::printf("%s[0]: w = a*(x^y), a = (%g %g)\n"
+    std::printf("%s[0]: w = a·(x∧y), a = (%g %g)\n"
                 "w1 = (%g %g)  w2 = (%g %g)  w3 = (%g %g)\n", nm,
                 (double)a[0], (double)a[1],
                 (double)w1[0], (double)w1[1], (double)w2[0], (double)w2[1],
@@ -1117,7 +1117,7 @@ Result bench_3crossscal_x(int n, const char *nm, double eps, const T a[2],
 #endif
 }
 
-// r = (x^y).w
+// r = (x∧y)·w
 template <typename T, typename Call>
 Result bench_3crossdot_x(int n, const char *nm, double eps, Call call)
 {
@@ -1160,13 +1160,13 @@ Result bench_3crossdot_x(int n, const char *nm, double eps, Call call)
     }
 
     const double flops = 64.0, fcyc = 64.0;
-    const char *eq = "r=(x^y).w";
+    const char *eq = "r=(x∧y)·w";
 #ifndef NDEBUG
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
          y1.data(), 1, y2.data(), 1, y3.data(), 1,
          w1.data(), 1, w2.data(), 1, w3.data(), 1, r.data(), 1);
     double err = max_rel_err_c(r.data(), ref.data(), n);
-    std::printf("%s[0]: r = (x^y).w = (%g %g)\n", nm, (double)r[0], (double)r[1]);
+    std::printf("%s[0]: r = (x∧y)·w = (%g %g)\n", nm, (double)r[0], (double)r[1]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
     Timing t = timed_run([&] {
@@ -1179,7 +1179,7 @@ Result bench_3crossdot_x(int n, const char *nm, double eps, Call call)
 #endif
 }
 
-// r = (x^y).(x^y)
+// r = (x∧y)·(x∧y)
 template <typename T, typename Call>
 Result bench_3crosssqr_x(int n, const char *nm, double eps, Call call)
 {
@@ -1215,12 +1215,12 @@ Result bench_3crosssqr_x(int n, const char *nm, double eps, Call call)
     }
 
     const double flops = 64.0, fcyc = 64.0;
-    const char *eq = "r=(x^y).(x^y)";
+    const char *eq = "r=(x∧y)·(x∧y)";
 #ifndef NDEBUG
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
          y1.data(), 1, y2.data(), 1, y3.data(), 1, r.data(), 1);
     double err = max_rel_err_c(r.data(), ref.data(), n);
-    std::printf("%s[0]: r = (x^y).(x^y) = (%g %g)\n", nm, (double)r[0], (double)r[1]);
+    std::printf("%s[0]: r = (x∧y)·(x∧y) = (%g %g)\n", nm, (double)r[0], (double)r[1]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
     Timing t = timed_run([&] {
@@ -1232,7 +1232,7 @@ Result bench_3crosssqr_x(int n, const char *nm, double eps, Call call)
 #endif
 }
 
-// u = x^y, v = x^w
+// u = x∧y, v = x∧w
 template <typename T, typename Call>
 Result bench_3crossxy_crossxz_x(int n, const char *nm, double eps, Call call)
 {
@@ -1261,7 +1261,7 @@ Result bench_3crossxy_crossxz_x(int n, const char *nm, double eps, Call call)
     }
 
     const double flops = 84.0, fcyc = 84.0;
-    const char *eq = "u=x^y,v=x^w";
+    const char *eq = "u=x∧y,v=x∧w";
 #ifndef NDEBUG
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
          y1.data(), 1, y2.data(), 1, y3.data(), 1,
@@ -1274,7 +1274,7 @@ Result bench_3crossxy_crossxz_x(int n, const char *nm, double eps, Call call)
                                        std::fmax(max_rel_err_c(v1.data(), v1r.data(), n),
                                                  std::fmax(max_rel_err_c(v2.data(), v2r.data(), n),
                                                            max_rel_err_c(v3.data(), v3r.data(), n))))));
-    std::printf("%s[0]: u = x^y, v = x^w\n"
+    std::printf("%s[0]: u = x∧y, v = x∧w\n"
                 "u1 = (%g %g)  v1 = (%g %g)\n", nm,
                 (double)u1[0], (double)u1[1], (double)v1[0], (double)v1[1]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
@@ -1296,7 +1296,7 @@ Result bench_3crossxy_crossxz_x(int n, const char *nm, double eps, Call call)
 #endif
 }
 
-// u = x^y, r = x.w
+// u = x∧y, r = x·w
 template <typename T, typename Call>
 Result bench_3crossxy_dotxz_x(int n, const char *nm, double eps, Call call)
 {
@@ -1324,7 +1324,7 @@ Result bench_3crossxy_dotxz_x(int n, const char *nm, double eps, Call call)
     }
 
     const double flops = 64.0, fcyc = 64.0;
-    const char *eq = "u=x^y,r=x.w";
+    const char *eq = "u=x∧y,r=x·w";
 #ifndef NDEBUG
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
          y1.data(), 1, y2.data(), 1, y3.data(), 1,
@@ -1334,7 +1334,7 @@ Result bench_3crossxy_dotxz_x(int n, const char *nm, double eps, Call call)
                    std::fmax(max_rel_err_c(u2.data(), u2r.data(), n),
                              std::fmax(max_rel_err_c(u3.data(), u3r.data(), n),
                                        max_rel_err_c(r.data(), ref.data(), n))));
-    std::printf("%s[0]: u = x^y, r = x.w\n"
+    std::printf("%s[0]: u = x∧y, r = x·w\n"
                 "u1 = (%g %g)  r = (%g %g)\n", nm,
                 (double)u1[0], (double)u1[1], (double)r[0], (double)r[1]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
@@ -1353,7 +1353,7 @@ Result bench_3crossxy_dotxz_x(int n, const char *nm, double eps, Call call)
 #endif
 }
 
-// r = x.y, q = x.w
+// r = x·y, q = x·w
 template <typename T, typename Call>
 Result bench_3dotxy_dotxz_x(int n, const char *nm, double eps, Call call)
 {
@@ -1381,7 +1381,7 @@ Result bench_3dotxy_dotxz_x(int n, const char *nm, double eps, Call call)
     }
 
     const double flops = 44.0, fcyc = 44.0;
-    const char *eq = "r=x.y,q=x.w";
+    const char *eq = "r=x·y,q=x·w";
 #ifndef NDEBUG
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1,
          y1.data(), 1, y2.data(), 1, y3.data(), 1,
@@ -1389,7 +1389,7 @@ Result bench_3dotxy_dotxz_x(int n, const char *nm, double eps, Call call)
          r.data(), 1, q.data(), 1);
     double err = std::fmax(max_rel_err_c(r.data(), rr.data(), n),
                    max_rel_err_c(q.data(), qr.data(), n));
-    std::printf("%s[0]: r = x.y, q = x.w\n"
+    std::printf("%s[0]: r = x·y, q = x·w\n"
                 "r = (%g %g)  q = (%g %g)\n", nm,
                 (double)r[0], (double)r[1], (double)q[0], (double)q[1]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
@@ -1595,11 +1595,11 @@ int main(int argc, char **argv)
     results.push_back(bench_3dotxy_dotxz(n, prec));
 
     std::printf("%-19s %10s %12s %12s %6s %13s %7s  %s  %s\n",
-                "kernel", "ms/run", "GFLOP/s", "Melem/s", "F/cyc",
+                "kernel", "ms/run", "FLOP/s", "Melem/s", "F/cyc",
                 "max_rel_err", "iters", "status", "equation");
     for (const Result &res : results)
-        std::printf("%-19s %10.3f %12.3f %12.3f %6.0f %13.3e %7d  %s  %s\n",
-                    res.name.c_str(), res.ms_per_run, res.gflops, res.meps,
+        std::printf("%-19s %10.3f %12.3e %12.3f %6.0f %13.3e %7d  %s  %s\n",
+                    res.name.c_str(), res.ms_per_run, res.flops_rate, res.meps,
                     res.fcyc, res.max_rel_err, res.iters,
                     res.ok ? "OK" : "FAIL", res.eq.c_str());
     return 0;

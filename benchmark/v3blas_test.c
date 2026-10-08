@@ -1,14 +1,14 @@
 /*
- * pblas_test.c - verification for the pblas.h higher-level interface.
+ * v3blas_test.c - verification for the v3blas.h higher-level interface.
  * Runs all 13 physics extension operations at s, d, c, z precision and
  * compares against a long double reference, plus strided smoke cases.
  * Plain C99 (proves the header compiles as C).
  *
  * Build against an installed OpenBLAS (see CMakeLists.txt):
- *   gcc -O2 -I ../pkgs/openblas/include/openblas pblas_test.c \
- *       -L ../pkgs/openblas/lib -lopenblas -lm -o /tmp/pblas_test
+ *   gcc -O2 -I ../pkgs/openblas/include/openblas v3blas_test.c \
+ *       -L ../pkgs/openblas/lib -lopenblas -lm -o /tmp/v3blas_test
  */
-#include "pblas.h"
+#include "v3blas.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -334,14 +334,14 @@ static void test_c(void)
     f3_c(x, 1); f3_c(y, 4); f3_c(w, 7);
     f1_c(q, 10); f1_c(t, 11); f1_c(xv, 13); f1_c(yv, 12);
 
-    v1c r_ax = v1axpy_c(xv, yv, pblas_cc(1.5f, 0.5f));
-    v1c r_xy = v1xypa_c(q, t, pblas_cc(0.25f, 0.1f));
+    v1c r_ax = v1axpy_c(xv, yv, v3blas_cc(1.5f, 0.5f));
+    v1c r_xy = v1xypa_c(q, t, v3blas_cc(0.25f, 0.1f));
     v1c r_dot = v3dot_c(x, y);
     v3c r_had = v3had_c(x, y);
     v1c r_sqr = v3sqr_c(x);
     v1c r_norm = v1norm_c(q);
     v3c r_cr = v3cross_c(x, y);
-    v3c r_crs = v3crossscal_c(x, y, pblas_cc(1.5f, 0.5f));
+    v3c r_crs = v3crossscal_c(x, y, v3blas_cc(1.5f, 0.5f));
     v1c r_crd = v3crossdot_c(x, y, w);
     v1c r_crsq = v3crosssqr_c(x, y);
     v3uvc p33 = v3crossxy_crossxz_c(x, y, w);
@@ -359,7 +359,7 @@ static void test_c(void)
 
     /* strided smoke: v1xypa_c with q at inc = 2 */
     {
-        pblas_floatcomplex bq[2 * N], bt[N];
+        v3blas_floatcomplex bq[2 * N], bt[N];
         refset RS[N];
         v1c sr;
         for (int i = 0; i < N; i++) {
@@ -371,7 +371,7 @@ static void test_c(void)
         }
         v1c sq = v1c_view(bq, 2, N);
         v1c st = v1c_view(bt, 1, N);
-        sr = v1xypa_c(sq, st, pblas_cc(0.25f, 0.1f));
+        sr = v1xypa_c(sq, st, v3blas_cc(0.25f, 0.1f));
         ld e = 0;
         for (int i = 0; i < N; i++) {
             cr gv = { sr.x[i].re, sr.x[i].im };
@@ -399,14 +399,14 @@ static void test_z(void)
     f3_z(x, 1); f3_z(y, 4); f3_z(w, 7);
     f1_z(q, 10); f1_z(t, 11); f1_z(xv, 13); f1_z(yv, 12);
 
-    v1z r_ax = v1axpy_z(xv, yv, pblas_zc(1.5, 0.5));
-    v1z r_xy = v1xypa_z(q, t, pblas_zc(0.25, 0.1));
+    v1z r_ax = v1axpy_z(xv, yv, v3blas_zc(1.5, 0.5));
+    v1z r_xy = v1xypa_z(q, t, v3blas_zc(0.25, 0.1));
     v1z r_dot = v3dot_z(x, y);
     v3z r_had = v3had_z(x, y);
     v1z r_sqr = v3sqr_z(x);
     v1z r_norm = v1norm_z(q);
     v3z r_cr = v3cross_z(x, y);
-    v3z r_crs = v3crossscal_z(x, y, pblas_zc(1.5, 0.5));
+    v3z r_crs = v3crossscal_z(x, y, v3blas_zc(1.5, 0.5));
     v1z r_crd = v3crossdot_z(x, y, w);
     v1z r_crsq = v3crosssqr_z(x, y);
     v3uvz p33 = v3crossxy_crossxz_z(x, y, w);
@@ -436,6 +436,6 @@ int main(void)
     test_d();
     test_c();
     test_z();
-    printf("pblas_test: %s (%d failures)\n", fails ? "FAIL" : "OK", fails);
+    printf("v3blas_test: %s (%d failures)\n", fails ? "FAIL" : "OK", fails);
     return fails ? 1 : 0;
 }

@@ -20,14 +20,14 @@ All work lives in `/home/sac/blpp/openblas`.
 | 11 | `<p>3dotxy_dotxz` | `r = x·y`, `q = x·w` | done 2026-10-07 — unit + cblas tests pass, bench 0.379 ms/run @ n=1000 |
 | 12 | `<p>1norm` | `r = √(q·q)` | done 2026-10-07 — unit + cblas tests pass, bench 0.084 ms/run @ n=1000 |
 
-## pblas.h — header-only higher-level interface (done 2026-10-08)
+## v3blas.h — header-only higher-level interface (done 2026-10-08)
 
-MATLAB/Octave-style API over the 13 kernels, design in `PBLAS_API.md`.
+MATLAB/Octave-style API over the 13 kernels, design in `V3BLAS_API.md`.
 
-- `openblas/pblas.h` (plain C, C++-safe, single macro × 4 precisions):
+- `openblas/v3blas.h` (plain C, C++-safe, single macro × 4 precisions):
   - structs `v1<p> {T *x; blasint inc, n;}`, `v3<p> {T *x,*y,*z; blasint incx,incy,incz, n;}`
     (`<p>` = s d c z; `blasint` = the cblas extension index type);
-  - complex element = `pblas_floatcomplex`/`pblas_doublecomplex` `{re, im}` — the
+  - complex element = `v3blas_floatcomplex`/`v3blas_doublecomplex` `{re, im}` — the
     interleaved cblas c/z layout, zero-copy, re/im always explicit;
   - ops named like the kernels: `v1axpy_<p>`, `v1xypa_<p>`, `v3dot_<p>`, `v3had_<p>`,
     `v3sqr_<p>`, `v1norm_<p>`, `v3cross_<p>`, `v3crossscal_<p>`, `v3crossdot_<p>`,
@@ -36,10 +36,10 @@ MATLAB/Octave-style API over the 13 kernels, design in `PBLAS_API.md`.
     `v1rq<p> {v1 r; v1 q;}` (members named after the equation output tokens);
   - results heap-allocated (inc 1) via `*_new`, released by the matching `_free`
     (v1/v3 _free take a pointer, combined _free by value); inputs borrowed.
-- `benchmark/pblas_test.c` (C99, long double reference): all 13 ops × 4 precisions
+- `benchmark/v3blas_test.c` (C99, long double reference): all 13 ops × 4 precisions
   + strided smoke cases (v3cross_d inc=2, v1xypa_c inc=2) — all pass
   (d/z exact, s/c ≤ ~3e-7). C++ compile check passes.
-- Root `CMakeLists.txt`: installs `pblas.h` next to `cblas.h`.
+- Root `CMakeLists.txt`: installs `v3blas.h` next to `cblas.h`.
 
 ## Conventions settled while doing #1
 
@@ -89,9 +89,9 @@ MATLAB/Octave-style API over the 13 kernels, design in `PBLAS_API.md`.
   nearly equal products, which cancels catastrophically at float precision as
   n grows (the old (i+seed)%997 sawtooth was a ramp with equally spaced
   components; LCG-from-seed is also affine and just hides it).
-- pblas_bench verifies pblas == cblas bitwise on identical inputs (its subject
+- v3blas_bench verifies v3blas == cblas bitwise on identical inputs (its subject
   is API overhead: call + result free vs raw call with pre-allocated outputs);
-  true-reference checks stay in pblas_test.c and the unit tests.
+  true-reference checks stay in v3blas_test.c and the unit tests.
 - benchmark/ links only an *installed* OpenBLAS (cmake --install build
   --prefix ../pkgs/openblas; headers in include/openblas/). Referencing the
   source + build trees instead duplicates the same headers/macros.
