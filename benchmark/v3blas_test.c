@@ -1,7 +1,8 @@
 /*
  * v3blas_test.c - verification for the v3blas.h higher-level interface.
  * Runs all 13 physics extension operations at s, d, c, z precision and
- * compares against a long double reference, plus strided smoke cases.
+ * compares against a long double reference, plus a strided v3 smoke
+ * case.  All arrays are the caller's own (the library never allocates).
  * Plain C99 (proves the header compiles as C).
  *
  * Build against an installed OpenBLAS (see CMakeLists.txt):
@@ -10,7 +11,6 @@
  */
 #include "v3blas.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
@@ -201,56 +201,64 @@ static void cmp_all(int esz, int iscx, const void *const g[28],
     }
 }
 
-/* data fillers: components of a 3-vector get seeds S, S+1, S+2 */
-static void f1_s(v1s v, int S) { for (int i = 0; i < v.n; i++) v.x[i] = (float)VAL(S, i); }
-static void f1_d(v1d v, int S) { for (int i = 0; i < v.n; i++) v.x[i] = (double)VAL(S, i); }
-static void f1_c(v1c v, int S) { for (int i = 0; i < v.n; i++) { v.x[i].re = (float)VAL(S, i); v.x[i].im = (float)(VAL(S, i) * 0.7L); } }
-static void f1_z(v1z v, int S) { for (int i = 0; i < v.n; i++) { v.x[i].re = VAL(S, i); v.x[i].im = VAL(S, i) * 0.7L; } }
+/* data fills: components of a 3-vector get seeds S, S+1, S+2 */
+static void f1_s(float *v, int S) { for (int i = 0; i < N; i++) v[i] = (float)VAL(S, i); }
+static void f1_d(double *v, int S) { for (int i = 0; i < N; i++) v[i] = (double)VAL(S, i); }
+static void f1_c(v3blas_floatcomplex *v, int S) { for (int i = 0; i < N; i++) { v[i].re = (float)VAL(S, i); v[i].im = (float)(VAL(S, i) * 0.7L); } }
+static void f1_z(v3blas_doublecomplex *v, int S) { for (int i = 0; i < N; i++) { v[i].re = VAL(S, i); v[i].im = VAL(S, i) * 0.7L; } }
 
-static void f3_s(v3s v, int S) { for (int i = 0; i < v.n; i++) { v.x[i] = (float)VAL(S, i); v.y[i] = (float)VAL(S + 1, i); v.z[i] = (float)VAL(S + 2, i); } }
-static void f3_d(v3d v, int S) { for (int i = 0; i < v.n; i++) { v.x[i] = (double)VAL(S, i); v.y[i] = (double)VAL(S + 1, i); v.z[i] = (double)VAL(S + 2, i); } }
-static void f3_c(v3c v, int S) { for (int i = 0; i < v.n; i++) { v.x[i].re = (float)VAL(S, i); v.x[i].im = (float)(VAL(S, i) * 0.7L); v.y[i].re = (float)VAL(S + 1, i); v.y[i].im = (float)(VAL(S + 1, i) * 0.7L); v.z[i].re = (float)VAL(S + 2, i); v.z[i].im = (float)(VAL(S + 2, i) * 0.7L); } }
-static void f3_z(v3z v, int S) { for (int i = 0; i < v.n; i++) { v.x[i].re = VAL(S, i); v.x[i].im = VAL(S, i) * 0.7L; v.y[i].re = VAL(S + 1, i); v.y[i].im = VAL(S + 1, i) * 0.7L; v.z[i].re = VAL(S + 2, i); v.z[i].im = VAL(S + 2, i) * 0.7L; } }
+static void f3_s(float *a0, float *a1, float *a2, int S) { for (int i = 0; i < N; i++) { a0[i] = (float)VAL(S, i); a1[i] = (float)VAL(S + 1, i); a2[i] = (float)VAL(S + 2, i); } }
+static void f3_d(double *a0, double *a1, double *a2, int S) { for (int i = 0; i < N; i++) { a0[i] = (double)VAL(S, i); a1[i] = (double)VAL(S + 1, i); a2[i] = (double)VAL(S + 2, i); } }
+static void f3_c(v3blas_floatcomplex *a0, v3blas_floatcomplex *a1, v3blas_floatcomplex *a2, int S) { for (int i = 0; i < N; i++) { a0[i].re = (float)VAL(S, i); a0[i].im = (float)(VAL(S, i) * 0.7L); a1[i].re = (float)VAL(S + 1, i); a1[i].im = (float)(VAL(S + 1, i) * 0.7L); a2[i].re = (float)VAL(S + 2, i); a2[i].im = (float)(VAL(S + 2, i) * 0.7L); } }
+static void f3_z(v3blas_doublecomplex *a0, v3blas_doublecomplex *a1, v3blas_doublecomplex *a2, int S) { for (int i = 0; i < N; i++) { a0[i].re = VAL(S, i); a0[i].im = VAL(S, i) * 0.7L; a1[i].re = VAL(S + 1, i); a1[i].im = VAL(S + 1, i) * 0.7L; a2[i].re = VAL(S + 2, i); a2[i].im = VAL(S + 2, i) * 0.7L; } }
+
 
 static void test_s(void)
 {
     prec = "s";
     refset R[N];
     for (int i = 0; i < N; i++) refset_fill(i, 1, 0, &R[i]);
-    v3s x = v3s_new(N), y = v3s_new(N), w = v3s_new(N);
-    v1s q = v1s_new(N), t = v1s_new(N), xv = v1s_new(N), yv = v1s_new(N);
-    f3_s(x, 1); f3_s(y, 4); f3_s(w, 7);
+    float x0[N], x1[N], x2[N];
+    float y0[N], y1[N], y2[N];
+    float w0[N], w1[N], w2[N];
+    float q[N], t[N], xv[N], yv[N];
+    f3_s(x0, x1, x2, 1); f3_s(y0, y1, y2, 4); f3_s(w0, w1, w2, 7);
     f1_s(q, 10); f1_s(t, 11); f1_s(xv, 13); f1_s(yv, 12);
+    v3s x = v3s_wrap(x0, x1, x2, N), y = v3s_wrap(y0, y1, y2, N);
+    v3s w = v3s_wrap(w0, w1, w2, N);
 
-    v1s r_ax = v1axpy_s(xv, yv, 1.5f);
-    v1s r_xy = v1xypa_s(q, t, 0.25f);
-    v1s r_dot = v3dot_s(x, y);
-    v3s r_had = v3had_s(x, y);
-    v1s r_sqr = v3sqr_s(x);
-    v1s r_norm = v1norm_s(q);
-    v3s r_cr = v3cross_s(x, y);
-    v3s r_crs = v3crossscal_s(x, y, 1.5f);
-    v1s r_crd = v3crossdot_s(x, y, w);
-    v1s r_crsq = v3crosssqr_s(x, y);
-    v3uvs p33 = v3crossxy_crossxz_s(x, y, w);
-    v3urs p31 = v3crossxy_dotxz_s(x, y, w);
-    v1rqs p11 = v3dotxy_dotxz_s(x, y, w);
+    float ax[N], xy[N], dot[N], sqr[N], norm[N];
+    float had0[N], had1[N], had2[N];
+    float cr0[N], cr1[N], cr2[N];
+    float cs0[N], cs1[N], cs2[N];
+    float crd[N], crsq[N];
+    float uu0[N], uu1[N], uu2[N];
+    float vv0[N], vv1[N], vv2[N];
+    float pu0[N], pu1[N], pu2[N], pur[N];
+    float dxy_r[N], dxy_q[N];
+
+    v1axpy_s(1.5f, xv, yv, ax, N);
+    v1xypa_s(q, t, 0.25f, xy, N);
+    v3dot_s(x, y, dot);
+    v3had_s(x, y, had0, had1, had2);
+    v3sqr_s(x, sqr);
+    v1norm_s(q, norm, N);
+    v3cross_s(x, y, cr0, cr1, cr2);
+    v3crossscal_s(x, y, 1.5f, cs0, cs1, cs2);
+    v3crossdot_s(x, y, w, crd);
+    v3crosssqr_s(x, y, crsq);
+    v3uvs p33 = v3crossxy_crossxz_s(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
+    v3urs p31 = v3crossxy_dotxz_s(x, y, w, pu0, pu1, pu2, pur);
+    rqs p11 = v3dotxy_dotxz_s(x, y, w, dxy_r, dxy_q);
+    (void)p33; (void)p31;
 
     const void *g[28] = {
-        r_ax.x, r_xy.x, r_dot.x, r_had.x, r_had.y, r_had.z,
-        r_sqr.x, r_norm.x, r_cr.x, r_cr.y, r_cr.z,
-        r_crs.x, r_crs.y, r_crs.z, r_crd.x, r_crsq.x,
+        ax, xy, dot, had0, had1, had2, sqr, norm,
+        cr0, cr1, cr2, cs0, cs1, cs2, crd, crsq,
         p33.u.x, p33.u.y, p33.u.z, p33.v.x, p33.v.y, p33.v.z,
-        p31.u.x, p31.u.y, p31.u.z, p31.r.x, p11.r.x, p11.q.x
+        p31.u.x, p31.u.y, p31.u.z, p31.r, p11.r, p11.q
     };
     cmp_all(4, 0, g, R, N, 1e-5L);
-
-    v1s_free(&r_ax); v1s_free(&r_xy); v1s_free(&r_dot); v3s_free(&r_had);
-    v1s_free(&r_sqr); v1s_free(&r_norm); v3s_free(&r_cr); v3s_free(&r_crs);
-    v1s_free(&r_crd); v1s_free(&r_crsq);
-    v3uvs_free(p33); v3urs_free(p31); v1rqs_free(p11);
-    v3s_free(&x); v3s_free(&y); v3s_free(&w);
-    v1s_free(&q); v1s_free(&t); v1s_free(&xv); v1s_free(&yv);
 }
 
 static void test_d(void)
@@ -258,31 +266,45 @@ static void test_d(void)
     prec = "d";
     refset R[N];
     for (int i = 0; i < N; i++) refset_fill(i, 1, 0, &R[i]);
-    v3d x = v3d_new(N), y = v3d_new(N), w = v3d_new(N);
-    v1d q = v1d_new(N), t = v1d_new(N), xv = v1d_new(N), yv = v1d_new(N);
-    f3_d(x, 1); f3_d(y, 4); f3_d(w, 7);
+    double x0[N], x1[N], x2[N];
+    double y0[N], y1[N], y2[N];
+    double w0[N], w1[N], w2[N];
+    double q[N], t[N], xv[N], yv[N];
+    f3_d(x0, x1, x2, 1); f3_d(y0, y1, y2, 4); f3_d(w0, w1, w2, 7);
     f1_d(q, 10); f1_d(t, 11); f1_d(xv, 13); f1_d(yv, 12);
+    v3d x = v3d_wrap(x0, x1, x2, N), y = v3d_wrap(y0, y1, y2, N);
+    v3d w = v3d_wrap(w0, w1, w2, N);
 
-    v1d r_ax = v1axpy_d(xv, yv, 1.5);
-    v1d r_xy = v1xypa_d(q, t, 0.25);
-    v1d r_dot = v3dot_d(x, y);
-    v3d r_had = v3had_d(x, y);
-    v1d r_sqr = v3sqr_d(x);
-    v1d r_norm = v1norm_d(q);
-    v3d r_cr = v3cross_d(x, y);
-    v3d r_crs = v3crossscal_d(x, y, 1.5);
-    v1d r_crd = v3crossdot_d(x, y, w);
-    v1d r_crsq = v3crosssqr_d(x, y);
-    v3uvd p33 = v3crossxy_crossxz_d(x, y, w);
-    v3urd p31 = v3crossxy_dotxz_d(x, y, w);
-    v1rqd p11 = v3dotxy_dotxz_d(x, y, w);
+    double ax[N], xy[N], dot[N], sqr[N], norm[N];
+    double had0[N], had1[N], had2[N];
+    double cr0[N], cr1[N], cr2[N];
+    double cs0[N], cs1[N], cs2[N];
+    double crd[N], crsq[N];
+    double uu0[N], uu1[N], uu2[N];
+    double vv0[N], vv1[N], vv2[N];
+    double pu0[N], pu1[N], pu2[N], pur[N];
+    double dxy_r[N], dxy_q[N];
+
+    v1axpy_d(1.5, xv, yv, ax, N);
+    v1xypa_d(q, t, 0.25, xy, N);
+    v3dot_d(x, y, dot);
+    v3had_d(x, y, had0, had1, had2);
+    v3sqr_d(x, sqr);
+    v1norm_d(q, norm, N);
+    v3cross_d(x, y, cr0, cr1, cr2);
+    v3crossscal_d(x, y, 1.5, cs0, cs1, cs2);
+    v3crossdot_d(x, y, w, crd);
+    v3crosssqr_d(x, y, crsq);
+    v3uvd p33 = v3crossxy_crossxz_d(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
+    v3urd p31 = v3crossxy_dotxz_d(x, y, w, pu0, pu1, pu2, pur);
+    rqd p11 = v3dotxy_dotxz_d(x, y, w, dxy_r, dxy_q);
+    (void)p33; (void)p31;
 
     const void *g[28] = {
-        r_ax.x, r_xy.x, r_dot.x, r_had.x, r_had.y, r_had.z,
-        r_sqr.x, r_norm.x, r_cr.x, r_cr.y, r_cr.z,
-        r_crs.x, r_crs.y, r_crs.z, r_crd.x, r_crsq.x,
+        ax, xy, dot, had0, had1, had2, sqr, norm,
+        cr0, cr1, cr2, cs0, cs1, cs2, crd, crsq,
         p33.u.x, p33.u.y, p33.u.z, p33.v.x, p33.v.y, p33.v.z,
-        p31.u.x, p31.u.y, p31.u.z, p31.r.x, p11.r.x, p11.q.x
+        p31.u.x, p31.u.y, p31.u.z, p31.r, p11.r, p11.q
     };
     cmp_all(8, 0, g, R, N, 1e-12L);
 
@@ -290,8 +312,8 @@ static void test_d(void)
     {
         double bx[2 * N], by[2 * N], bz[2 * N];
         double byx[2 * N], byy[2 * N], byz[2 * N];
+        double sw0[N], sw1[N], sw2[N];
         refset RS[N];
-        v3d sw;
         for (int i = 0; i < N; i++) {
             bx[2 * i] = (double)VAL(21, i);
             by[2 * i] = (double)VAL(22, i);
@@ -301,9 +323,11 @@ static void test_d(void)
             byz[2 * i] = (double)VAL(26, i);
             refset_fill(i, 21, 0, &RS[i]);
         }
-        v3d sx = v3d_view(bx, by, bz, 2, 2, 2, N);
-        v3d sy = v3d_view(byx, byy, byz, 2, 2, 2, N);
-        sw = v3cross_d(sx, sy);
+        v3d sx = v3d_wrap(bx, by, bz, N);
+        v3d sy = v3d_wrap(byx, byy, byz, N);
+        sx.incx = 2; sx.incy = 2; sx.incz = 2;
+        sy.incx = 2; sy.incy = 2; sy.incz = 2;
+        v3d sw = v3cross_d(sx, sy, sw0, sw1, sw2);
         for (int c = 0; c < 3; c++) {
             ld e = 0;
             const double *a = (const double *[]){ sw.x, sw.y, sw.z }[c];
@@ -313,15 +337,7 @@ static void test_d(void)
             }
             chk("strided v3cross_d", e, 1e-12L);
         }
-        v3d_free(&sw);
     }
-
-    v1d_free(&r_ax); v1d_free(&r_xy); v1d_free(&r_dot); v3d_free(&r_had);
-    v1d_free(&r_sqr); v1d_free(&r_norm); v3d_free(&r_cr); v3d_free(&r_crs);
-    v1d_free(&r_crd); v1d_free(&r_crsq);
-    v3uvd_free(p33); v3urd_free(p31); v1rqd_free(p11);
-    v3d_free(&x); v3d_free(&y); v3d_free(&w);
-    v1d_free(&q); v1d_free(&t); v1d_free(&xv); v1d_free(&yv);
 }
 
 static void test_c(void)
@@ -329,64 +345,48 @@ static void test_c(void)
     prec = "c";
     refset R[N];
     for (int i = 0; i < N; i++) refset_fill(i, 1, 1, &R[i]);
-    v3c x = v3c_new(N), y = v3c_new(N), w = v3c_new(N);
-    v1c q = v1c_new(N), t = v1c_new(N), xv = v1c_new(N), yv = v1c_new(N);
-    f3_c(x, 1); f3_c(y, 4); f3_c(w, 7);
+    typedef v3blas_floatcomplex Z;
+    Z x0[N], x1[N], x2[N];
+    Z y0[N], y1[N], y2[N];
+    Z w0[N], w1[N], w2[N];
+    Z q[N], t[N], xv[N], yv[N];
+    f3_c(x0, x1, x2, 1); f3_c(y0, y1, y2, 4); f3_c(w0, w1, w2, 7);
     f1_c(q, 10); f1_c(t, 11); f1_c(xv, 13); f1_c(yv, 12);
+    v3c x = v3c_wrap(x0, x1, x2, N), y = v3c_wrap(y0, y1, y2, N);
+    v3c w = v3c_wrap(w0, w1, w2, N);
 
-    v1c r_ax = v1axpy_c(xv, yv, v3blas_cc(1.5f, 0.5f));
-    v1c r_xy = v1xypa_c(q, t, v3blas_cc(0.25f, 0.1f));
-    v1c r_dot = v3dot_c(x, y);
-    v3c r_had = v3had_c(x, y);
-    v1c r_sqr = v3sqr_c(x);
-    v1c r_norm = v1norm_c(q);
-    v3c r_cr = v3cross_c(x, y);
-    v3c r_crs = v3crossscal_c(x, y, v3blas_cc(1.5f, 0.5f));
-    v1c r_crd = v3crossdot_c(x, y, w);
-    v1c r_crsq = v3crosssqr_c(x, y);
-    v3uvc p33 = v3crossxy_crossxz_c(x, y, w);
-    v3urc p31 = v3crossxy_dotxz_c(x, y, w);
-    v1rqc p11 = v3dotxy_dotxz_c(x, y, w);
+    Z ax[N], xy[N], dot[N], sqr[N], norm[N];
+    Z had0[N], had1[N], had2[N];
+    Z cr0[N], cr1[N], cr2[N];
+    Z cs0[N], cs1[N], cs2[N];
+    Z crd[N], crsq[N];
+    Z uu0[N], uu1[N], uu2[N];
+    Z vv0[N], vv1[N], vv2[N];
+    Z pu0[N], pu1[N], pu2[N], pur[N];
+    Z dxy_r[N], dxy_q[N];
+
+    v1axpy_c(v3blas_cc(1.5f, 0.5f), xv, yv, ax, N);
+    v1xypa_c(q, t, v3blas_cc(0.25f, 0.1f), xy, N);
+    v3dot_c(x, y, dot);
+    v3had_c(x, y, had0, had1, had2);
+    v3sqr_c(x, sqr);
+    v1norm_c(q, norm, N);
+    v3cross_c(x, y, cr0, cr1, cr2);
+    v3crossscal_c(x, y, v3blas_cc(1.5f, 0.5f), cs0, cs1, cs2);
+    v3crossdot_c(x, y, w, crd);
+    v3crosssqr_c(x, y, crsq);
+    v3uvc p33 = v3crossxy_crossxz_c(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
+    v3urc p31 = v3crossxy_dotxz_c(x, y, w, pu0, pu1, pu2, pur);
+    rqc p11 = v3dotxy_dotxz_c(x, y, w, dxy_r, dxy_q);
+    (void)p33; (void)p31;
 
     const void *g[28] = {
-        r_ax.x, r_xy.x, r_dot.x, r_had.x, r_had.y, r_had.z,
-        r_sqr.x, r_norm.x, r_cr.x, r_cr.y, r_cr.z,
-        r_crs.x, r_crs.y, r_crs.z, r_crd.x, r_crsq.x,
+        ax, xy, dot, had0, had1, had2, sqr, norm,
+        cr0, cr1, cr2, cs0, cs1, cs2, crd, crsq,
         p33.u.x, p33.u.y, p33.u.z, p33.v.x, p33.v.y, p33.v.z,
-        p31.u.x, p31.u.y, p31.u.z, p31.r.x, p11.r.x, p11.q.x
+        p31.u.x, p31.u.y, p31.u.z, p31.r, p11.r, p11.q
     };
     cmp_all(8, 1, g, R, N, 1e-5L);
-
-    /* strided smoke: v1xypa_c with q at inc = 2 */
-    {
-        v3blas_floatcomplex bq[2 * N], bt[N];
-        refset RS[N];
-        v1c sr;
-        for (int i = 0; i < N; i++) {
-            bq[2 * i].re = (float)VAL(21, i);
-            bq[2 * i].im = (float)(VAL(21, i) * 0.7L);
-            bt[i].re = (float)VAL(22, i);
-            bt[i].im = (float)(VAL(22, i) * 0.7L);
-            refset_fill(i, 12, 1, &RS[i]); /* q = seed 21, t = seed 22 */
-        }
-        v1c sq = v1c_view(bq, 2, N);
-        v1c st = v1c_view(bt, 1, N);
-        sr = v1xypa_c(sq, st, v3blas_cc(0.25f, 0.1f));
-        ld e = 0;
-        for (int i = 0; i < N; i++) {
-            cr gv = { sr.x[i].re, sr.x[i].im };
-            if (relerr(gv, RS[i].xy) > e) e = relerr(gv, RS[i].xy);
-        }
-        chk("strided v1xypa_c", e, 1e-5L);
-        v1c_free(&sr);
-    }
-
-    v1c_free(&r_ax); v1c_free(&r_xy); v1c_free(&r_dot); v3c_free(&r_had);
-    v1c_free(&r_sqr); v1c_free(&r_norm); v3c_free(&r_cr); v3c_free(&r_crs);
-    v1c_free(&r_crd); v1c_free(&r_crsq);
-    v3uvc_free(p33); v3urc_free(p31); v1rqc_free(p11);
-    v3c_free(&x); v3c_free(&y); v3c_free(&w);
-    v1c_free(&q); v1c_free(&t); v1c_free(&xv); v1c_free(&yv);
 }
 
 static void test_z(void)
@@ -394,40 +394,48 @@ static void test_z(void)
     prec = "z";
     refset R[N];
     for (int i = 0; i < N; i++) refset_fill(i, 1, 1, &R[i]);
-    v3z x = v3z_new(N), y = v3z_new(N), w = v3z_new(N);
-    v1z q = v1z_new(N), t = v1z_new(N), xv = v1z_new(N), yv = v1z_new(N);
-    f3_z(x, 1); f3_z(y, 4); f3_z(w, 7);
+    typedef v3blas_doublecomplex Z;
+    Z x0[N], x1[N], x2[N];
+    Z y0[N], y1[N], y2[N];
+    Z w0[N], w1[N], w2[N];
+    Z q[N], t[N], xv[N], yv[N];
+    f3_z(x0, x1, x2, 1); f3_z(y0, y1, y2, 4); f3_z(w0, w1, w2, 7);
     f1_z(q, 10); f1_z(t, 11); f1_z(xv, 13); f1_z(yv, 12);
+    v3z x = v3z_wrap(x0, x1, x2, N), y = v3z_wrap(y0, y1, y2, N);
+    v3z w = v3z_wrap(w0, w1, w2, N);
 
-    v1z r_ax = v1axpy_z(xv, yv, v3blas_zc(1.5, 0.5));
-    v1z r_xy = v1xypa_z(q, t, v3blas_zc(0.25, 0.1));
-    v1z r_dot = v3dot_z(x, y);
-    v3z r_had = v3had_z(x, y);
-    v1z r_sqr = v3sqr_z(x);
-    v1z r_norm = v1norm_z(q);
-    v3z r_cr = v3cross_z(x, y);
-    v3z r_crs = v3crossscal_z(x, y, v3blas_zc(1.5, 0.5));
-    v1z r_crd = v3crossdot_z(x, y, w);
-    v1z r_crsq = v3crosssqr_z(x, y);
-    v3uvz p33 = v3crossxy_crossxz_z(x, y, w);
-    v3urz p31 = v3crossxy_dotxz_z(x, y, w);
-    v1rqz p11 = v3dotxy_dotxz_z(x, y, w);
+    Z ax[N], xy[N], dot[N], sqr[N], norm[N];
+    Z had0[N], had1[N], had2[N];
+    Z cr0[N], cr1[N], cr2[N];
+    Z cs0[N], cs1[N], cs2[N];
+    Z crd[N], crsq[N];
+    Z uu0[N], uu1[N], uu2[N];
+    Z vv0[N], vv1[N], vv2[N];
+    Z pu0[N], pu1[N], pu2[N], pur[N];
+    Z dxy_r[N], dxy_q[N];
+
+    v1axpy_z(v3blas_zc(1.5, 0.5), xv, yv, ax, N);
+    v1xypa_z(q, t, v3blas_zc(0.25, 0.1), xy, N);
+    v3dot_z(x, y, dot);
+    v3had_z(x, y, had0, had1, had2);
+    v3sqr_z(x, sqr);
+    v1norm_z(q, norm, N);
+    v3cross_z(x, y, cr0, cr1, cr2);
+    v3crossscal_z(x, y, v3blas_zc(1.5, 0.5), cs0, cs1, cs2);
+    v3crossdot_z(x, y, w, crd);
+    v3crosssqr_z(x, y, crsq);
+    v3uvz p33 = v3crossxy_crossxz_z(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
+    v3urz p31 = v3crossxy_dotxz_z(x, y, w, pu0, pu1, pu2, pur);
+    rqz p11 = v3dotxy_dotxz_z(x, y, w, dxy_r, dxy_q);
+    (void)p33; (void)p31;
 
     const void *g[28] = {
-        r_ax.x, r_xy.x, r_dot.x, r_had.x, r_had.y, r_had.z,
-        r_sqr.x, r_norm.x, r_cr.x, r_cr.y, r_cr.z,
-        r_crs.x, r_crs.y, r_crs.z, r_crd.x, r_crsq.x,
+        ax, xy, dot, had0, had1, had2, sqr, norm,
+        cr0, cr1, cr2, cs0, cs1, cs2, crd, crsq,
         p33.u.x, p33.u.y, p33.u.z, p33.v.x, p33.v.y, p33.v.z,
-        p31.u.x, p31.u.y, p31.u.z, p31.r.x, p11.r.x, p11.q.x
+        p31.u.x, p31.u.y, p31.u.z, p31.r, p11.r, p11.q
     };
     cmp_all(16, 1, g, R, N, 1e-12L);
-
-    v1z_free(&r_ax); v1z_free(&r_xy); v1z_free(&r_dot); v3z_free(&r_had);
-    v1z_free(&r_sqr); v1z_free(&r_norm); v3z_free(&r_cr); v3z_free(&r_crs);
-    v1z_free(&r_crd); v1z_free(&r_crsq);
-    v3uvz_free(p33); v3urz_free(p31); v1rqz_free(p11);
-    v3z_free(&x); v3z_free(&y); v3z_free(&w);
-    v1z_free(&q); v1z_free(&t); v1z_free(&xv); v1z_free(&yv);
 }
 
 int main(void)

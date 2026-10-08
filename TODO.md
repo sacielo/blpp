@@ -25,19 +25,21 @@ All work lives in `/home/sac/blpp/openblas`.
 MATLAB/Octave-style API over the 13 kernels, design in `V3BLAS_API.md`.
 
 - `openblas/v3blas.h` (plain C, C++-safe, single macro × 4 precisions):
-  - structs `v1<p> {T *x; blasint inc, n;}`, `v3<p> {T *x,*y,*z; blasint incx,incy,incz, n;}`
+  - 1-vectors are plain unit-stride C arrays (no struct, no wrapper);
+    structs `v3<p> {T *x,*y,*z; blasint incx,incy,incz, n;}`
     (`<p>` = s d c z; `blasint` = the cblas extension index type);
   - complex element = `v3blas_floatcomplex`/`v3blas_doublecomplex` `{re, im}` — the
     interleaved cblas c/z layout, zero-copy, re/im always explicit;
   - ops named like the kernels: `v1axpy_<p>`, `v1xypa_<p>`, `v3dot_<p>`, `v3had_<p>`,
     `v3sqr_<p>`, `v1norm_<p>`, `v3cross_<p>`, `v3crossscal_<p>`, `v3crossdot_<p>`,
     `v3crosssqr_<p>`, `v3crossxy_crossxz_<p>`, `v3crossxy_dotxz_<p>`, `v3dotxy_dotxz_<p>`;
-  - multi-output result structs: `v3uv<p> {v3 u; v3 v;}`, `v3ur<p> {v3 u; v1 r;}`,
-    `v1rq<p> {v1 r; v1 q;}` (members named after the equation output tokens);
-  - results heap-allocated (inc 1) via `*_new`, released by the matching `_free`
-    (v1/v3 _free take a pointer, combined _free by value); inputs borrowed.
+  - multi-output result structs: `v3uv<p> {v3 u; v3 v;}`, `v3ur<p> {v3 u; T *r; blasint n;}`,
+    `rq<p> {T *r, *q; blasint n;}` (members named after the equation output tokens);
+  - the library NEVER allocates: caller provides output arrays (unit stride),
+    ops return views of them (`T *`, `v3<p>`, or the struct); inputs borrowed
+    and never modified; `v3<p>_wrap` sets incs to 1, fields are public.
 - `benchmark/v3blas_test.c` (C99, long double reference): all 13 ops × 4 precisions
-  + strided smoke cases (v3cross_d inc=2, v1xypa_c inc=2) — all pass
+  + strided smoke case (v3cross_d inc=2) — all pass
   (d/z exact, s/c ≤ ~3e-7). C++ compile check passes.
 - Root `CMakeLists.txt`: installs `v3blas.h` next to `cblas.h`.
 
