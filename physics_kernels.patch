@@ -1,12 +1,12 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 360bc44..9b2d6fe 100644
+index 360bc44..e5b87f5 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -776,6 +776,7 @@ if(NOT NO_CBLAS)
  
    file(WRITE ${CBLAS_H} "${CBLAS_H_CONTENTS_NEW}")
    install (FILES ${CBLAS_H} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-+  install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/v3blas.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
++  install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/v3blas.h ${CMAKE_CURRENT_SOURCE_DIR}/v3blas.hpp ${CMAKE_CURRENT_SOURCE_DIR}/v3blas.f90 DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
  endif()
  
  if(NOT NO_LAPACKE)
@@ -20743,12 +20743,1555 @@ index 0000000..ac351c4
 +}
 +
 +#endif
+diff --git a/v3blas.f90 b/v3blas.f90
+new file mode 100644
+index 0000000..67ceaa3
+--- /dev/null
++++ b/v3blas.f90
+@@ -0,0 +1,1537 @@
++! ****************************************************************************
++! Copyright (c) 2026, The OpenBLAS Project
++! All rights reserved.
++! Redistribution and use in source and binary forms, with or without
++! modification, are permitted provided that the following conditions are
++! met:
++! 1. Redistributions of source code must retain the above copyright
++! notice, this list of conditions and the following disclaimer.
++! 2. Redistributions in binary form must reproduce the above copyright
++! notice, this list of conditions and the following disclaimer in
++! the documentation or other materials provided with the
++! distribution.
++! 3. Neither the name of the OpenBLAS project nor the names
++! of its contributors may be used to endorse or promote products
++! derived from this software without specific prior written permission.
++! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++! AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++! IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++! ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++! LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++! CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++! SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
++! INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
++! CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++! ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++! POSSIBILITY OF SUCH DAMAGE.
++! ****************************************************************************
++
++! v3blas.f90 - Fortran front-end for the v3blas extension operations.
++! Type-generic, void, allocation-free Fortran 2003 (ISO_C_BINDING).
++! A 3-vector is its three component arrays; n comes first (BLAS style);
++! unit stride only - for strides call the cblas_* entry points.
++! Same equation names as v3blas.h; outputs are trailing arguments:
++!   call v3cross(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)  ! w = x AND y
++!   call v3dot(n, x1, x2, x3, y1, y2, y3, r)             ! r = x . y
++! The compiler picks s/d/c/z from the argument types.  Compile this
++! file first, then the user program; link -lopenblas -lgfortran.
++
++module v3blas
++  use, intrinsic :: iso_c_binding, only: c_int, c_float, c_double, &
++      c_float_complex, c_double_complex
++  implicit none
++  private
++  public :: v1axpy, v1xypa, v3dot, v3had, v3sqr, v1norm, v3cross, v3crossscal &
++      , v3crossdot, v3crosssqr, v3crossxy_crossxz, v3crossxy_dotxz, v3dotxy_dotxz
++
++  interface v1axpy
++    module procedure v1axpy_s, v1axpy_d, &
++                     v1axpy_c, v1axpy_z
++  end interface v1axpy
++  interface v1xypa
++    module procedure v1xypa_s, v1xypa_d, &
++                     v1xypa_c, v1xypa_z
++  end interface v1xypa
++  interface v3dot
++    module procedure v3dot_s, v3dot_d, &
++                     v3dot_c, v3dot_z
++  end interface v3dot
++  interface v3had
++    module procedure v3had_s, v3had_d, &
++                     v3had_c, v3had_z
++  end interface v3had
++  interface v3sqr
++    module procedure v3sqr_s, v3sqr_d, &
++                     v3sqr_c, v3sqr_z
++  end interface v3sqr
++  interface v1norm
++    module procedure v1norm_s, v1norm_d, &
++                     v1norm_c, v1norm_z
++  end interface v1norm
++  interface v3cross
++    module procedure v3cross_s, v3cross_d, &
++                     v3cross_c, v3cross_z
++  end interface v3cross
++  interface v3crossscal
++    module procedure v3crossscal_s, v3crossscal_d, &
++                     v3crossscal_c, v3crossscal_z
++  end interface v3crossscal
++  interface v3crossdot
++    module procedure v3crossdot_s, v3crossdot_d, &
++                     v3crossdot_c, v3crossdot_z
++  end interface v3crossdot
++  interface v3crosssqr
++    module procedure v3crosssqr_s, v3crosssqr_d, &
++                     v3crosssqr_c, v3crosssqr_z
++  end interface v3crosssqr
++  interface v3crossxy_crossxz
++    module procedure v3crossxy_crossxz_s, v3crossxy_crossxz_d, &
++                     v3crossxy_crossxz_c, v3crossxy_crossxz_z
++  end interface v3crossxy_crossxz
++  interface v3crossxy_dotxz
++    module procedure v3crossxy_dotxz_s, v3crossxy_dotxz_d, &
++                     v3crossxy_dotxz_c, v3crossxy_dotxz_z
++  end interface v3crossxy_dotxz
++  interface v3dotxy_dotxz
++    module procedure v3dotxy_dotxz_s, v3dotxy_dotxz_d, &
++                     v3dotxy_dotxz_c, v3dotxy_dotxz_z
++  end interface v3dotxy_dotxz
++
++  interface                        ! private C entry points
++    subroutine cblas_axpy_s(n, alpha, x, incx, y, incy) &
++        bind(C, name="cblas_saxpy")
++      import :: c_int, c_float
++      integer(c_int), value :: n, incx, incy
++      real(c_float), value :: alpha
++      real(c_float) :: x(*)
++      real(c_float) :: y(*)
++    end subroutine cblas_axpy_s
++    subroutine cblas_axpy_d(n, alpha, x, incx, y, incy) &
++        bind(C, name="cblas_daxpy")
++      import :: c_int, c_double
++      integer(c_int), value :: n, incx, incy
++      real(c_double), value :: alpha
++      real(c_double) :: x(*)
++      real(c_double) :: y(*)
++    end subroutine cblas_axpy_d
++    subroutine cblas_axpy_c(n, alpha, x, incx, y, incy) &
++        bind(C, name="cblas_caxpy")
++      import :: c_int, c_float_complex
++      integer(c_int), value :: n, incx, incy
++      complex(c_float_complex) :: alpha
++      complex(c_float_complex) :: x(*)
++      complex(c_float_complex) :: y(*)
++    end subroutine cblas_axpy_c
++    subroutine cblas_axpy_z(n, alpha, x, incx, y, incy) &
++        bind(C, name="cblas_zaxpy")
++      import :: c_int, c_double_complex
++      integer(c_int), value :: n, incx, incy
++      complex(c_double_complex) :: alpha
++      complex(c_double_complex) :: x(*)
++      complex(c_double_complex) :: y(*)
++    end subroutine cblas_axpy_z
++    subroutine cblas_1xypa_s(n, a, q, incq, t, inct, r, incr) &
++        bind(C, name="cblas_s1xypa")
++      import :: c_int, c_float
++      integer(c_int), value :: n, incq, inct, incr
++      real(c_float), value :: a
++      real(c_float) :: q(*)
++      real(c_float) :: t(*)
++      real(c_float) :: r(*)
++    end subroutine cblas_1xypa_s
++    subroutine cblas_1xypa_d(n, a, q, incq, t, inct, r, incr) &
++        bind(C, name="cblas_d1xypa")
++      import :: c_int, c_double
++      integer(c_int), value :: n, incq, inct, incr
++      real(c_double), value :: a
++      real(c_double) :: q(*)
++      real(c_double) :: t(*)
++      real(c_double) :: r(*)
++    end subroutine cblas_1xypa_d
++    subroutine cblas_1xypa_c(n, a, q, incq, t, inct, r, incr) &
++        bind(C, name="cblas_c1xypa")
++      import :: c_int, c_float_complex
++      integer(c_int), value :: n, incq, inct, incr
++      complex(c_float_complex) :: a
++      complex(c_float_complex) :: q(*)
++      complex(c_float_complex) :: t(*)
++      complex(c_float_complex) :: r(*)
++    end subroutine cblas_1xypa_c
++    subroutine cblas_1xypa_z(n, a, q, incq, t, inct, r, incr) &
++        bind(C, name="cblas_z1xypa")
++      import :: c_int, c_double_complex
++      integer(c_int), value :: n, incq, inct, incr
++      complex(c_double_complex) :: a
++      complex(c_double_complex) :: q(*)
++      complex(c_double_complex) :: t(*)
++      complex(c_double_complex) :: r(*)
++    end subroutine cblas_1xypa_z
++    subroutine cblas_3dot_s(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, &
++      incy2, y3, incy3, r, incr) &
++        bind(C, name="cblas_s3dot")
++      import :: c_int, c_float
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, incr
++      real(c_float) :: x1(*)
++      real(c_float) :: x2(*)
++      real(c_float) :: x3(*)
++      real(c_float) :: y1(*)
++      real(c_float) :: y2(*)
++      real(c_float) :: y3(*)
++      real(c_float) :: r(*)
++    end subroutine cblas_3dot_s
++    subroutine cblas_3dot_d(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, &
++      incy2, y3, incy3, r, incr) &
++        bind(C, name="cblas_d3dot")
++      import :: c_int, c_double
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, incr
++      real(c_double) :: x1(*)
++      real(c_double) :: x2(*)
++      real(c_double) :: x3(*)
++      real(c_double) :: y1(*)
++      real(c_double) :: y2(*)
++      real(c_double) :: y3(*)
++      real(c_double) :: r(*)
++    end subroutine cblas_3dot_d
++    subroutine cblas_3dot_c(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, &
++      incy2, y3, incy3, r, incr) &
++        bind(C, name="cblas_c3dot")
++      import :: c_int, c_float_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, incr
++      complex(c_float_complex) :: x1(*)
++      complex(c_float_complex) :: x2(*)
++      complex(c_float_complex) :: x3(*)
++      complex(c_float_complex) :: y1(*)
++      complex(c_float_complex) :: y2(*)
++      complex(c_float_complex) :: y3(*)
++      complex(c_float_complex) :: r(*)
++    end subroutine cblas_3dot_c
++    subroutine cblas_3dot_z(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, &
++      incy2, y3, incy3, r, incr) &
++        bind(C, name="cblas_z3dot")
++      import :: c_int, c_double_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, incr
++      complex(c_double_complex) :: x1(*)
++      complex(c_double_complex) :: x2(*)
++      complex(c_double_complex) :: x3(*)
++      complex(c_double_complex) :: y1(*)
++      complex(c_double_complex) :: y2(*)
++      complex(c_double_complex) :: y3(*)
++      complex(c_double_complex) :: r(*)
++    end subroutine cblas_3dot_z
++    subroutine cblas_3had_s(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, &
++      incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3) &
++        bind(C, name="cblas_s3had")
++      import :: c_int, c_float
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3
++      real(c_float) :: x1(*)
++      real(c_float) :: x2(*)
++      real(c_float) :: x3(*)
++      real(c_float) :: y1(*)
++      real(c_float) :: y2(*)
++      real(c_float) :: y3(*)
++      real(c_float) :: w1(*)
++      real(c_float) :: w2(*)
++      real(c_float) :: w3(*)
++    end subroutine cblas_3had_s
++    subroutine cblas_3had_d(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, &
++      incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3) &
++        bind(C, name="cblas_d3had")
++      import :: c_int, c_double
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3
++      real(c_double) :: x1(*)
++      real(c_double) :: x2(*)
++      real(c_double) :: x3(*)
++      real(c_double) :: y1(*)
++      real(c_double) :: y2(*)
++      real(c_double) :: y3(*)
++      real(c_double) :: w1(*)
++      real(c_double) :: w2(*)
++      real(c_double) :: w3(*)
++    end subroutine cblas_3had_d
++    subroutine cblas_3had_c(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, &
++      incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3) &
++        bind(C, name="cblas_c3had")
++      import :: c_int, c_float_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3
++      complex(c_float_complex) :: x1(*)
++      complex(c_float_complex) :: x2(*)
++      complex(c_float_complex) :: x3(*)
++      complex(c_float_complex) :: y1(*)
++      complex(c_float_complex) :: y2(*)
++      complex(c_float_complex) :: y3(*)
++      complex(c_float_complex) :: w1(*)
++      complex(c_float_complex) :: w2(*)
++      complex(c_float_complex) :: w3(*)
++    end subroutine cblas_3had_c
++    subroutine cblas_3had_z(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, &
++      incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3) &
++        bind(C, name="cblas_z3had")
++      import :: c_int, c_double_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3
++      complex(c_double_complex) :: x1(*)
++      complex(c_double_complex) :: x2(*)
++      complex(c_double_complex) :: x3(*)
++      complex(c_double_complex) :: y1(*)
++      complex(c_double_complex) :: y2(*)
++      complex(c_double_complex) :: y3(*)
++      complex(c_double_complex) :: w1(*)
++      complex(c_double_complex) :: w2(*)
++      complex(c_double_complex) :: w3(*)
++    end subroutine cblas_3had_z
++    subroutine cblas_3sqr_s(n, x1, incx1, x2, incx2, x3, incx3, r, incr) &
++        bind(C, name="cblas_s3sqr")
++      import :: c_int, c_float
++      integer(c_int), value :: n, incx1, incx2, incx3, incr
++      real(c_float) :: x1(*)
++      real(c_float) :: x2(*)
++      real(c_float) :: x3(*)
++      real(c_float) :: r(*)
++    end subroutine cblas_3sqr_s
++    subroutine cblas_3sqr_d(n, x1, incx1, x2, incx2, x3, incx3, r, incr) &
++        bind(C, name="cblas_d3sqr")
++      import :: c_int, c_double
++      integer(c_int), value :: n, incx1, incx2, incx3, incr
++      real(c_double) :: x1(*)
++      real(c_double) :: x2(*)
++      real(c_double) :: x3(*)
++      real(c_double) :: r(*)
++    end subroutine cblas_3sqr_d
++    subroutine cblas_3sqr_c(n, x1, incx1, x2, incx2, x3, incx3, r, incr) &
++        bind(C, name="cblas_c3sqr")
++      import :: c_int, c_float_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incr
++      complex(c_float_complex) :: x1(*)
++      complex(c_float_complex) :: x2(*)
++      complex(c_float_complex) :: x3(*)
++      complex(c_float_complex) :: r(*)
++    end subroutine cblas_3sqr_c
++    subroutine cblas_3sqr_z(n, x1, incx1, x2, incx2, x3, incx3, r, incr) &
++        bind(C, name="cblas_z3sqr")
++      import :: c_int, c_double_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incr
++      complex(c_double_complex) :: x1(*)
++      complex(c_double_complex) :: x2(*)
++      complex(c_double_complex) :: x3(*)
++      complex(c_double_complex) :: r(*)
++    end subroutine cblas_3sqr_z
++    subroutine cblas_1norm_s(n, q, incq, r, incr) &
++        bind(C, name="cblas_s1norm")
++      import :: c_int, c_float
++      integer(c_int), value :: n, incq, incr
++      real(c_float) :: q(*)
++      real(c_float) :: r(*)
++    end subroutine cblas_1norm_s
++    subroutine cblas_1norm_d(n, q, incq, r, incr) &
++        bind(C, name="cblas_d1norm")
++      import :: c_int, c_double
++      integer(c_int), value :: n, incq, incr
++      real(c_double) :: q(*)
++      real(c_double) :: r(*)
++    end subroutine cblas_1norm_d
++    subroutine cblas_1norm_c(n, q, incq, r, incr) &
++        bind(C, name="cblas_c1norm")
++      import :: c_int, c_float_complex
++      integer(c_int), value :: n, incq, incr
++      complex(c_float_complex) :: q(*)
++      complex(c_float_complex) :: r(*)
++    end subroutine cblas_1norm_c
++    subroutine cblas_1norm_z(n, q, incq, r, incr) &
++        bind(C, name="cblas_z1norm")
++      import :: c_int, c_double_complex
++      integer(c_int), value :: n, incq, incr
++      complex(c_double_complex) :: q(*)
++      complex(c_double_complex) :: r(*)
++    end subroutine cblas_1norm_z
++    subroutine cblas_3cross_s(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, &
++      incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3) &
++        bind(C, name="cblas_s3cross")
++      import :: c_int, c_float
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3
++      real(c_float) :: x1(*)
++      real(c_float) :: x2(*)
++      real(c_float) :: x3(*)
++      real(c_float) :: y1(*)
++      real(c_float) :: y2(*)
++      real(c_float) :: y3(*)
++      real(c_float) :: w1(*)
++      real(c_float) :: w2(*)
++      real(c_float) :: w3(*)
++    end subroutine cblas_3cross_s
++    subroutine cblas_3cross_d(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, &
++      incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3) &
++        bind(C, name="cblas_d3cross")
++      import :: c_int, c_double
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3
++      real(c_double) :: x1(*)
++      real(c_double) :: x2(*)
++      real(c_double) :: x3(*)
++      real(c_double) :: y1(*)
++      real(c_double) :: y2(*)
++      real(c_double) :: y3(*)
++      real(c_double) :: w1(*)
++      real(c_double) :: w2(*)
++      real(c_double) :: w3(*)
++    end subroutine cblas_3cross_d
++    subroutine cblas_3cross_c(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, &
++      incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3) &
++        bind(C, name="cblas_c3cross")
++      import :: c_int, c_float_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3
++      complex(c_float_complex) :: x1(*)
++      complex(c_float_complex) :: x2(*)
++      complex(c_float_complex) :: x3(*)
++      complex(c_float_complex) :: y1(*)
++      complex(c_float_complex) :: y2(*)
++      complex(c_float_complex) :: y3(*)
++      complex(c_float_complex) :: w1(*)
++      complex(c_float_complex) :: w2(*)
++      complex(c_float_complex) :: w3(*)
++    end subroutine cblas_3cross_c
++    subroutine cblas_3cross_z(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, &
++      incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3) &
++        bind(C, name="cblas_z3cross")
++      import :: c_int, c_double_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3
++      complex(c_double_complex) :: x1(*)
++      complex(c_double_complex) :: x2(*)
++      complex(c_double_complex) :: x3(*)
++      complex(c_double_complex) :: y1(*)
++      complex(c_double_complex) :: y2(*)
++      complex(c_double_complex) :: y3(*)
++      complex(c_double_complex) :: w1(*)
++      complex(c_double_complex) :: w2(*)
++      complex(c_double_complex) :: w3(*)
++    end subroutine cblas_3cross_z
++    subroutine cblas_3crossscal_s(n, a, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3) &
++        bind(C, name="cblas_s3crossscal")
++      import :: c_int, c_float
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3
++      real(c_float), value :: a
++      real(c_float) :: x1(*)
++      real(c_float) :: x2(*)
++      real(c_float) :: x3(*)
++      real(c_float) :: y1(*)
++      real(c_float) :: y2(*)
++      real(c_float) :: y3(*)
++      real(c_float) :: w1(*)
++      real(c_float) :: w2(*)
++      real(c_float) :: w3(*)
++    end subroutine cblas_3crossscal_s
++    subroutine cblas_3crossscal_d(n, a, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3) &
++        bind(C, name="cblas_d3crossscal")
++      import :: c_int, c_double
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3
++      real(c_double), value :: a
++      real(c_double) :: x1(*)
++      real(c_double) :: x2(*)
++      real(c_double) :: x3(*)
++      real(c_double) :: y1(*)
++      real(c_double) :: y2(*)
++      real(c_double) :: y3(*)
++      real(c_double) :: w1(*)
++      real(c_double) :: w2(*)
++      real(c_double) :: w3(*)
++    end subroutine cblas_3crossscal_d
++    subroutine cblas_3crossscal_c(n, a, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3) &
++        bind(C, name="cblas_c3crossscal")
++      import :: c_int, c_float_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3
++      complex(c_float_complex) :: a
++      complex(c_float_complex) :: x1(*)
++      complex(c_float_complex) :: x2(*)
++      complex(c_float_complex) :: x3(*)
++      complex(c_float_complex) :: y1(*)
++      complex(c_float_complex) :: y2(*)
++      complex(c_float_complex) :: y3(*)
++      complex(c_float_complex) :: w1(*)
++      complex(c_float_complex) :: w2(*)
++      complex(c_float_complex) :: w3(*)
++    end subroutine cblas_3crossscal_c
++    subroutine cblas_3crossscal_z(n, a, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3) &
++        bind(C, name="cblas_z3crossscal")
++      import :: c_int, c_double_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3
++      complex(c_double_complex) :: a
++      complex(c_double_complex) :: x1(*)
++      complex(c_double_complex) :: x2(*)
++      complex(c_double_complex) :: x3(*)
++      complex(c_double_complex) :: y1(*)
++      complex(c_double_complex) :: y2(*)
++      complex(c_double_complex) :: y3(*)
++      complex(c_double_complex) :: w1(*)
++      complex(c_double_complex) :: w2(*)
++      complex(c_double_complex) :: w3(*)
++    end subroutine cblas_3crossscal_z
++    subroutine cblas_3crossdot_s(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, &
++      y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, r, incr) &
++        bind(C, name="cblas_s3crossdot")
++      import :: c_int, c_float
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incr
++      real(c_float) :: x1(*)
++      real(c_float) :: x2(*)
++      real(c_float) :: x3(*)
++      real(c_float) :: y1(*)
++      real(c_float) :: y2(*)
++      real(c_float) :: y3(*)
++      real(c_float) :: w1(*)
++      real(c_float) :: w2(*)
++      real(c_float) :: w3(*)
++      real(c_float) :: r(*)
++    end subroutine cblas_3crossdot_s
++    subroutine cblas_3crossdot_d(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, &
++      y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, r, incr) &
++        bind(C, name="cblas_d3crossdot")
++      import :: c_int, c_double
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incr
++      real(c_double) :: x1(*)
++      real(c_double) :: x2(*)
++      real(c_double) :: x3(*)
++      real(c_double) :: y1(*)
++      real(c_double) :: y2(*)
++      real(c_double) :: y3(*)
++      real(c_double) :: w1(*)
++      real(c_double) :: w2(*)
++      real(c_double) :: w3(*)
++      real(c_double) :: r(*)
++    end subroutine cblas_3crossdot_d
++    subroutine cblas_3crossdot_c(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, &
++      y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, r, incr) &
++        bind(C, name="cblas_c3crossdot")
++      import :: c_int, c_float_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incr
++      complex(c_float_complex) :: x1(*)
++      complex(c_float_complex) :: x2(*)
++      complex(c_float_complex) :: x3(*)
++      complex(c_float_complex) :: y1(*)
++      complex(c_float_complex) :: y2(*)
++      complex(c_float_complex) :: y3(*)
++      complex(c_float_complex) :: w1(*)
++      complex(c_float_complex) :: w2(*)
++      complex(c_float_complex) :: w3(*)
++      complex(c_float_complex) :: r(*)
++    end subroutine cblas_3crossdot_c
++    subroutine cblas_3crossdot_z(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, &
++      y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, r, incr) &
++        bind(C, name="cblas_z3crossdot")
++      import :: c_int, c_double_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incr
++      complex(c_double_complex) :: x1(*)
++      complex(c_double_complex) :: x2(*)
++      complex(c_double_complex) :: x3(*)
++      complex(c_double_complex) :: y1(*)
++      complex(c_double_complex) :: y2(*)
++      complex(c_double_complex) :: y3(*)
++      complex(c_double_complex) :: w1(*)
++      complex(c_double_complex) :: w2(*)
++      complex(c_double_complex) :: w3(*)
++      complex(c_double_complex) :: r(*)
++    end subroutine cblas_3crossdot_z
++    subroutine cblas_3crosssqr_s(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, &
++      y2, incy2, y3, incy3, r, incr) &
++        bind(C, name="cblas_s3crosssqr")
++      import :: c_int, c_float
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, incr
++      real(c_float) :: x1(*)
++      real(c_float) :: x2(*)
++      real(c_float) :: x3(*)
++      real(c_float) :: y1(*)
++      real(c_float) :: y2(*)
++      real(c_float) :: y3(*)
++      real(c_float) :: r(*)
++    end subroutine cblas_3crosssqr_s
++    subroutine cblas_3crosssqr_d(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, &
++      y2, incy2, y3, incy3, r, incr) &
++        bind(C, name="cblas_d3crosssqr")
++      import :: c_int, c_double
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, incr
++      real(c_double) :: x1(*)
++      real(c_double) :: x2(*)
++      real(c_double) :: x3(*)
++      real(c_double) :: y1(*)
++      real(c_double) :: y2(*)
++      real(c_double) :: y3(*)
++      real(c_double) :: r(*)
++    end subroutine cblas_3crosssqr_d
++    subroutine cblas_3crosssqr_c(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, &
++      y2, incy2, y3, incy3, r, incr) &
++        bind(C, name="cblas_c3crosssqr")
++      import :: c_int, c_float_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, incr
++      complex(c_float_complex) :: x1(*)
++      complex(c_float_complex) :: x2(*)
++      complex(c_float_complex) :: x3(*)
++      complex(c_float_complex) :: y1(*)
++      complex(c_float_complex) :: y2(*)
++      complex(c_float_complex) :: y3(*)
++      complex(c_float_complex) :: r(*)
++    end subroutine cblas_3crosssqr_c
++    subroutine cblas_3crosssqr_z(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, &
++      y2, incy2, y3, incy3, r, incr) &
++        bind(C, name="cblas_z3crosssqr")
++      import :: c_int, c_double_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, incr
++      complex(c_double_complex) :: x1(*)
++      complex(c_double_complex) :: x2(*)
++      complex(c_double_complex) :: x3(*)
++      complex(c_double_complex) :: y1(*)
++      complex(c_double_complex) :: y2(*)
++      complex(c_double_complex) :: y3(*)
++      complex(c_double_complex) :: r(*)
++    end subroutine cblas_3crosssqr_z
++    subroutine cblas_3crossxy_crossxz_s(n, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, u1, incu1, &
++      u2, incu2, u3, incu3, v1, incv1, v2, incv2, v3, incv3) &
++        bind(C, name="cblas_s3crossxy_crossxz")
++      import :: c_int, c_float
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incu1, incu2, incu3, incv1, incv2, incv3
++      real(c_float) :: x1(*)
++      real(c_float) :: x2(*)
++      real(c_float) :: x3(*)
++      real(c_float) :: y1(*)
++      real(c_float) :: y2(*)
++      real(c_float) :: y3(*)
++      real(c_float) :: w1(*)
++      real(c_float) :: w2(*)
++      real(c_float) :: w3(*)
++      real(c_float) :: u1(*)
++      real(c_float) :: u2(*)
++      real(c_float) :: u3(*)
++      real(c_float) :: v1(*)
++      real(c_float) :: v2(*)
++      real(c_float) :: v3(*)
++    end subroutine cblas_3crossxy_crossxz_s
++    subroutine cblas_3crossxy_crossxz_d(n, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, u1, incu1, &
++      u2, incu2, u3, incu3, v1, incv1, v2, incv2, v3, incv3) &
++        bind(C, name="cblas_d3crossxy_crossxz")
++      import :: c_int, c_double
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incu1, incu2, incu3, incv1, incv2, incv3
++      real(c_double) :: x1(*)
++      real(c_double) :: x2(*)
++      real(c_double) :: x3(*)
++      real(c_double) :: y1(*)
++      real(c_double) :: y2(*)
++      real(c_double) :: y3(*)
++      real(c_double) :: w1(*)
++      real(c_double) :: w2(*)
++      real(c_double) :: w3(*)
++      real(c_double) :: u1(*)
++      real(c_double) :: u2(*)
++      real(c_double) :: u3(*)
++      real(c_double) :: v1(*)
++      real(c_double) :: v2(*)
++      real(c_double) :: v3(*)
++    end subroutine cblas_3crossxy_crossxz_d
++    subroutine cblas_3crossxy_crossxz_c(n, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, u1, incu1, &
++      u2, incu2, u3, incu3, v1, incv1, v2, incv2, v3, incv3) &
++        bind(C, name="cblas_c3crossxy_crossxz")
++      import :: c_int, c_float_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incu1, incu2, incu3, incv1, incv2, incv3
++      complex(c_float_complex) :: x1(*)
++      complex(c_float_complex) :: x2(*)
++      complex(c_float_complex) :: x3(*)
++      complex(c_float_complex) :: y1(*)
++      complex(c_float_complex) :: y2(*)
++      complex(c_float_complex) :: y3(*)
++      complex(c_float_complex) :: w1(*)
++      complex(c_float_complex) :: w2(*)
++      complex(c_float_complex) :: w3(*)
++      complex(c_float_complex) :: u1(*)
++      complex(c_float_complex) :: u2(*)
++      complex(c_float_complex) :: u3(*)
++      complex(c_float_complex) :: v1(*)
++      complex(c_float_complex) :: v2(*)
++      complex(c_float_complex) :: v3(*)
++    end subroutine cblas_3crossxy_crossxz_c
++    subroutine cblas_3crossxy_crossxz_z(n, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, u1, incu1, &
++      u2, incu2, u3, incu3, v1, incv1, v2, incv2, v3, incv3) &
++        bind(C, name="cblas_z3crossxy_crossxz")
++      import :: c_int, c_double_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incu1, incu2, incu3, incv1, incv2, incv3
++      complex(c_double_complex) :: x1(*)
++      complex(c_double_complex) :: x2(*)
++      complex(c_double_complex) :: x3(*)
++      complex(c_double_complex) :: y1(*)
++      complex(c_double_complex) :: y2(*)
++      complex(c_double_complex) :: y3(*)
++      complex(c_double_complex) :: w1(*)
++      complex(c_double_complex) :: w2(*)
++      complex(c_double_complex) :: w3(*)
++      complex(c_double_complex) :: u1(*)
++      complex(c_double_complex) :: u2(*)
++      complex(c_double_complex) :: u3(*)
++      complex(c_double_complex) :: v1(*)
++      complex(c_double_complex) :: v2(*)
++      complex(c_double_complex) :: v3(*)
++    end subroutine cblas_3crossxy_crossxz_z
++    subroutine cblas_3crossxy_dotxz_s(n, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, u1, incu1, &
++      u2, incu2, u3, incu3, r, incr) &
++        bind(C, name="cblas_s3crossxy_dotxz")
++      import :: c_int, c_float
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incu1, incu2, incu3, incr
++      real(c_float) :: x1(*)
++      real(c_float) :: x2(*)
++      real(c_float) :: x3(*)
++      real(c_float) :: y1(*)
++      real(c_float) :: y2(*)
++      real(c_float) :: y3(*)
++      real(c_float) :: w1(*)
++      real(c_float) :: w2(*)
++      real(c_float) :: w3(*)
++      real(c_float) :: u1(*)
++      real(c_float) :: u2(*)
++      real(c_float) :: u3(*)
++      real(c_float) :: r(*)
++    end subroutine cblas_3crossxy_dotxz_s
++    subroutine cblas_3crossxy_dotxz_d(n, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, u1, incu1, &
++      u2, incu2, u3, incu3, r, incr) &
++        bind(C, name="cblas_d3crossxy_dotxz")
++      import :: c_int, c_double
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incu1, incu2, incu3, incr
++      real(c_double) :: x1(*)
++      real(c_double) :: x2(*)
++      real(c_double) :: x3(*)
++      real(c_double) :: y1(*)
++      real(c_double) :: y2(*)
++      real(c_double) :: y3(*)
++      real(c_double) :: w1(*)
++      real(c_double) :: w2(*)
++      real(c_double) :: w3(*)
++      real(c_double) :: u1(*)
++      real(c_double) :: u2(*)
++      real(c_double) :: u3(*)
++      real(c_double) :: r(*)
++    end subroutine cblas_3crossxy_dotxz_d
++    subroutine cblas_3crossxy_dotxz_c(n, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, u1, incu1, &
++      u2, incu2, u3, incu3, r, incr) &
++        bind(C, name="cblas_c3crossxy_dotxz")
++      import :: c_int, c_float_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incu1, incu2, incu3, incr
++      complex(c_float_complex) :: x1(*)
++      complex(c_float_complex) :: x2(*)
++      complex(c_float_complex) :: x3(*)
++      complex(c_float_complex) :: y1(*)
++      complex(c_float_complex) :: y2(*)
++      complex(c_float_complex) :: y3(*)
++      complex(c_float_complex) :: w1(*)
++      complex(c_float_complex) :: w2(*)
++      complex(c_float_complex) :: w3(*)
++      complex(c_float_complex) :: u1(*)
++      complex(c_float_complex) :: u2(*)
++      complex(c_float_complex) :: u3(*)
++      complex(c_float_complex) :: r(*)
++    end subroutine cblas_3crossxy_dotxz_c
++    subroutine cblas_3crossxy_dotxz_z(n, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, u1, incu1, &
++      u2, incu2, u3, incu3, r, incr) &
++        bind(C, name="cblas_z3crossxy_dotxz")
++      import :: c_int, c_double_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incu1, incu2, incu3, incr
++      complex(c_double_complex) :: x1(*)
++      complex(c_double_complex) :: x2(*)
++      complex(c_double_complex) :: x3(*)
++      complex(c_double_complex) :: y1(*)
++      complex(c_double_complex) :: y2(*)
++      complex(c_double_complex) :: y3(*)
++      complex(c_double_complex) :: w1(*)
++      complex(c_double_complex) :: w2(*)
++      complex(c_double_complex) :: w3(*)
++      complex(c_double_complex) :: u1(*)
++      complex(c_double_complex) :: u2(*)
++      complex(c_double_complex) :: u3(*)
++      complex(c_double_complex) :: r(*)
++    end subroutine cblas_3crossxy_dotxz_z
++    subroutine cblas_3dotxy_dotxz_s(n, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, r, incr, q, &
++      incq) &
++        bind(C, name="cblas_s3dotxy_dotxz")
++      import :: c_int, c_float
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incr, incq
++      real(c_float) :: x1(*)
++      real(c_float) :: x2(*)
++      real(c_float) :: x3(*)
++      real(c_float) :: y1(*)
++      real(c_float) :: y2(*)
++      real(c_float) :: y3(*)
++      real(c_float) :: w1(*)
++      real(c_float) :: w2(*)
++      real(c_float) :: w3(*)
++      real(c_float) :: r(*)
++      real(c_float) :: q(*)
++    end subroutine cblas_3dotxy_dotxz_s
++    subroutine cblas_3dotxy_dotxz_d(n, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, r, incr, q, &
++      incq) &
++        bind(C, name="cblas_d3dotxy_dotxz")
++      import :: c_int, c_double
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incr, incq
++      real(c_double) :: x1(*)
++      real(c_double) :: x2(*)
++      real(c_double) :: x3(*)
++      real(c_double) :: y1(*)
++      real(c_double) :: y2(*)
++      real(c_double) :: y3(*)
++      real(c_double) :: w1(*)
++      real(c_double) :: w2(*)
++      real(c_double) :: w3(*)
++      real(c_double) :: r(*)
++      real(c_double) :: q(*)
++    end subroutine cblas_3dotxy_dotxz_d
++    subroutine cblas_3dotxy_dotxz_c(n, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, r, incr, q, &
++      incq) &
++        bind(C, name="cblas_c3dotxy_dotxz")
++      import :: c_int, c_float_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incr, incq
++      complex(c_float_complex) :: x1(*)
++      complex(c_float_complex) :: x2(*)
++      complex(c_float_complex) :: x3(*)
++      complex(c_float_complex) :: y1(*)
++      complex(c_float_complex) :: y2(*)
++      complex(c_float_complex) :: y3(*)
++      complex(c_float_complex) :: w1(*)
++      complex(c_float_complex) :: w2(*)
++      complex(c_float_complex) :: w3(*)
++      complex(c_float_complex) :: r(*)
++      complex(c_float_complex) :: q(*)
++    end subroutine cblas_3dotxy_dotxz_c
++    subroutine cblas_3dotxy_dotxz_z(n, x1, incx1, x2, incx2, x3, incx3, y1, &
++      incy1, y2, incy2, y3, incy3, w1, incw1, w2, incw2, w3, incw3, r, incr, q, &
++      incq) &
++        bind(C, name="cblas_z3dotxy_dotxz")
++      import :: c_int, c_double_complex
++      integer(c_int), value :: n, incx1, incx2, incx3, incy1, incy2, incy3, &
++      incw1, incw2, incw3, incr, incq
++      complex(c_double_complex) :: x1(*)
++      complex(c_double_complex) :: x2(*)
++      complex(c_double_complex) :: x3(*)
++      complex(c_double_complex) :: y1(*)
++      complex(c_double_complex) :: y2(*)
++      complex(c_double_complex) :: y3(*)
++      complex(c_double_complex) :: w1(*)
++      complex(c_double_complex) :: w2(*)
++      complex(c_double_complex) :: w3(*)
++      complex(c_double_complex) :: r(*)
++      complex(c_double_complex) :: q(*)
++    end subroutine cblas_3dotxy_dotxz_z
++  end interface
++
++contains
++
++  subroutine v1axpy_s(n, alpha, x, y)
++    integer(c_int), value :: n
++    real(c_float), value :: alpha
++    real(c_float) :: x(*)
++    real(c_float) :: y(*)
++    call cblas_axpy_s(n, alpha, x, 1_c_int, y, 1_c_int)
++  end subroutine v1axpy_s
++  subroutine v1axpy_d(n, alpha, x, y)
++    integer(c_int), value :: n
++    real(c_double), value :: alpha
++    real(c_double) :: x(*)
++    real(c_double) :: y(*)
++    call cblas_axpy_d(n, alpha, x, 1_c_int, y, 1_c_int)
++  end subroutine v1axpy_d
++  subroutine v1axpy_c(n, alpha, x, y)
++    integer(c_int), value :: n
++    complex(c_float_complex) :: alpha
++    complex(c_float_complex) :: x(*)
++    complex(c_float_complex) :: y(*)
++    call cblas_axpy_c(n, alpha, x, 1_c_int, y, 1_c_int)
++  end subroutine v1axpy_c
++  subroutine v1axpy_z(n, alpha, x, y)
++    integer(c_int), value :: n
++    complex(c_double_complex) :: alpha
++    complex(c_double_complex) :: x(*)
++    complex(c_double_complex) :: y(*)
++    call cblas_axpy_z(n, alpha, x, 1_c_int, y, 1_c_int)
++  end subroutine v1axpy_z
++  subroutine v1xypa_s(n, a, q, t, r)
++    integer(c_int), value :: n
++    real(c_float), value :: a
++    real(c_float) :: q(*)
++    real(c_float) :: t(*)
++    real(c_float) :: r(*)
++    call cblas_1xypa_s(n, a, q, 1_c_int, t, 1_c_int, r, 1_c_int)
++  end subroutine v1xypa_s
++  subroutine v1xypa_d(n, a, q, t, r)
++    integer(c_int), value :: n
++    real(c_double), value :: a
++    real(c_double) :: q(*)
++    real(c_double) :: t(*)
++    real(c_double) :: r(*)
++    call cblas_1xypa_d(n, a, q, 1_c_int, t, 1_c_int, r, 1_c_int)
++  end subroutine v1xypa_d
++  subroutine v1xypa_c(n, a, q, t, r)
++    integer(c_int), value :: n
++    complex(c_float_complex) :: a
++    complex(c_float_complex) :: q(*)
++    complex(c_float_complex) :: t(*)
++    complex(c_float_complex) :: r(*)
++    call cblas_1xypa_c(n, a, q, 1_c_int, t, 1_c_int, r, 1_c_int)
++  end subroutine v1xypa_c
++  subroutine v1xypa_z(n, a, q, t, r)
++    integer(c_int), value :: n
++    complex(c_double_complex) :: a
++    complex(c_double_complex) :: q(*)
++    complex(c_double_complex) :: t(*)
++    complex(c_double_complex) :: r(*)
++    call cblas_1xypa_z(n, a, q, 1_c_int, t, 1_c_int, r, 1_c_int)
++  end subroutine v1xypa_z
++  subroutine v3dot_s(n, x1, x2, x3, y1, y2, y3, r)
++    integer(c_int), value :: n
++    real(c_float) :: x1(*)
++    real(c_float) :: x2(*)
++    real(c_float) :: x3(*)
++    real(c_float) :: y1(*)
++    real(c_float) :: y2(*)
++    real(c_float) :: y3(*)
++    real(c_float) :: r(*)
++    call cblas_3dot_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
++      1_c_int, y3, 1_c_int, r, 1_c_int)
++  end subroutine v3dot_s
++  subroutine v3dot_d(n, x1, x2, x3, y1, y2, y3, r)
++    integer(c_int), value :: n
++    real(c_double) :: x1(*)
++    real(c_double) :: x2(*)
++    real(c_double) :: x3(*)
++    real(c_double) :: y1(*)
++    real(c_double) :: y2(*)
++    real(c_double) :: y3(*)
++    real(c_double) :: r(*)
++    call cblas_3dot_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
++      1_c_int, y3, 1_c_int, r, 1_c_int)
++  end subroutine v3dot_d
++  subroutine v3dot_c(n, x1, x2, x3, y1, y2, y3, r)
++    integer(c_int), value :: n
++    complex(c_float_complex) :: x1(*)
++    complex(c_float_complex) :: x2(*)
++    complex(c_float_complex) :: x3(*)
++    complex(c_float_complex) :: y1(*)
++    complex(c_float_complex) :: y2(*)
++    complex(c_float_complex) :: y3(*)
++    complex(c_float_complex) :: r(*)
++    call cblas_3dot_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
++      1_c_int, y3, 1_c_int, r, 1_c_int)
++  end subroutine v3dot_c
++  subroutine v3dot_z(n, x1, x2, x3, y1, y2, y3, r)
++    integer(c_int), value :: n
++    complex(c_double_complex) :: x1(*)
++    complex(c_double_complex) :: x2(*)
++    complex(c_double_complex) :: x3(*)
++    complex(c_double_complex) :: y1(*)
++    complex(c_double_complex) :: y2(*)
++    complex(c_double_complex) :: y3(*)
++    complex(c_double_complex) :: r(*)
++    call cblas_3dot_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
++      1_c_int, y3, 1_c_int, r, 1_c_int)
++  end subroutine v3dot_z
++  subroutine v3had_s(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
++    integer(c_int), value :: n
++    real(c_float) :: x1(*)
++    real(c_float) :: x2(*)
++    real(c_float) :: x3(*)
++    real(c_float) :: y1(*)
++    real(c_float) :: y2(*)
++    real(c_float) :: y3(*)
++    real(c_float) :: w1(*)
++    real(c_float) :: w2(*)
++    real(c_float) :: w3(*)
++    call cblas_3had_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
++      1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  end subroutine v3had_s
++  subroutine v3had_d(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
++    integer(c_int), value :: n
++    real(c_double) :: x1(*)
++    real(c_double) :: x2(*)
++    real(c_double) :: x3(*)
++    real(c_double) :: y1(*)
++    real(c_double) :: y2(*)
++    real(c_double) :: y3(*)
++    real(c_double) :: w1(*)
++    real(c_double) :: w2(*)
++    real(c_double) :: w3(*)
++    call cblas_3had_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
++      1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  end subroutine v3had_d
++  subroutine v3had_c(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
++    integer(c_int), value :: n
++    complex(c_float_complex) :: x1(*)
++    complex(c_float_complex) :: x2(*)
++    complex(c_float_complex) :: x3(*)
++    complex(c_float_complex) :: y1(*)
++    complex(c_float_complex) :: y2(*)
++    complex(c_float_complex) :: y3(*)
++    complex(c_float_complex) :: w1(*)
++    complex(c_float_complex) :: w2(*)
++    complex(c_float_complex) :: w3(*)
++    call cblas_3had_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
++      1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  end subroutine v3had_c
++  subroutine v3had_z(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
++    integer(c_int), value :: n
++    complex(c_double_complex) :: x1(*)
++    complex(c_double_complex) :: x2(*)
++    complex(c_double_complex) :: x3(*)
++    complex(c_double_complex) :: y1(*)
++    complex(c_double_complex) :: y2(*)
++    complex(c_double_complex) :: y3(*)
++    complex(c_double_complex) :: w1(*)
++    complex(c_double_complex) :: w2(*)
++    complex(c_double_complex) :: w3(*)
++    call cblas_3had_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
++      1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  end subroutine v3had_z
++  subroutine v3sqr_s(n, x1, x2, x3, r)
++    integer(c_int), value :: n
++    real(c_float) :: x1(*)
++    real(c_float) :: x2(*)
++    real(c_float) :: x3(*)
++    real(c_float) :: r(*)
++    call cblas_3sqr_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, r, 1_c_int)
++  end subroutine v3sqr_s
++  subroutine v3sqr_d(n, x1, x2, x3, r)
++    integer(c_int), value :: n
++    real(c_double) :: x1(*)
++    real(c_double) :: x2(*)
++    real(c_double) :: x3(*)
++    real(c_double) :: r(*)
++    call cblas_3sqr_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, r, 1_c_int)
++  end subroutine v3sqr_d
++  subroutine v3sqr_c(n, x1, x2, x3, r)
++    integer(c_int), value :: n
++    complex(c_float_complex) :: x1(*)
++    complex(c_float_complex) :: x2(*)
++    complex(c_float_complex) :: x3(*)
++    complex(c_float_complex) :: r(*)
++    call cblas_3sqr_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, r, 1_c_int)
++  end subroutine v3sqr_c
++  subroutine v3sqr_z(n, x1, x2, x3, r)
++    integer(c_int), value :: n
++    complex(c_double_complex) :: x1(*)
++    complex(c_double_complex) :: x2(*)
++    complex(c_double_complex) :: x3(*)
++    complex(c_double_complex) :: r(*)
++    call cblas_3sqr_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, r, 1_c_int)
++  end subroutine v3sqr_z
++  subroutine v1norm_s(n, q, r)
++    integer(c_int), value :: n
++    real(c_float) :: q(*)
++    real(c_float) :: r(*)
++    call cblas_1norm_s(n, q, 1_c_int, r, 1_c_int)
++  end subroutine v1norm_s
++  subroutine v1norm_d(n, q, r)
++    integer(c_int), value :: n
++    real(c_double) :: q(*)
++    real(c_double) :: r(*)
++    call cblas_1norm_d(n, q, 1_c_int, r, 1_c_int)
++  end subroutine v1norm_d
++  subroutine v1norm_c(n, q, r)
++    integer(c_int), value :: n
++    complex(c_float_complex) :: q(*)
++    complex(c_float_complex) :: r(*)
++    call cblas_1norm_c(n, q, 1_c_int, r, 1_c_int)
++  end subroutine v1norm_c
++  subroutine v1norm_z(n, q, r)
++    integer(c_int), value :: n
++    complex(c_double_complex) :: q(*)
++    complex(c_double_complex) :: r(*)
++    call cblas_1norm_z(n, q, 1_c_int, r, 1_c_int)
++  end subroutine v1norm_z
++  subroutine v3cross_s(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
++    integer(c_int), value :: n
++    real(c_float) :: x1(*)
++    real(c_float) :: x2(*)
++    real(c_float) :: x3(*)
++    real(c_float) :: y1(*)
++    real(c_float) :: y2(*)
++    real(c_float) :: y3(*)
++    real(c_float) :: w1(*)
++    real(c_float) :: w2(*)
++    real(c_float) :: w3(*)
++    call cblas_3cross_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, &
++      y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  end subroutine v3cross_s
++  subroutine v3cross_d(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
++    integer(c_int), value :: n
++    real(c_double) :: x1(*)
++    real(c_double) :: x2(*)
++    real(c_double) :: x3(*)
++    real(c_double) :: y1(*)
++    real(c_double) :: y2(*)
++    real(c_double) :: y3(*)
++    real(c_double) :: w1(*)
++    real(c_double) :: w2(*)
++    real(c_double) :: w3(*)
++    call cblas_3cross_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, &
++      y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  end subroutine v3cross_d
++  subroutine v3cross_c(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
++    integer(c_int), value :: n
++    complex(c_float_complex) :: x1(*)
++    complex(c_float_complex) :: x2(*)
++    complex(c_float_complex) :: x3(*)
++    complex(c_float_complex) :: y1(*)
++    complex(c_float_complex) :: y2(*)
++    complex(c_float_complex) :: y3(*)
++    complex(c_float_complex) :: w1(*)
++    complex(c_float_complex) :: w2(*)
++    complex(c_float_complex) :: w3(*)
++    call cblas_3cross_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, &
++      y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  end subroutine v3cross_c
++  subroutine v3cross_z(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
++    integer(c_int), value :: n
++    complex(c_double_complex) :: x1(*)
++    complex(c_double_complex) :: x2(*)
++    complex(c_double_complex) :: x3(*)
++    complex(c_double_complex) :: y1(*)
++    complex(c_double_complex) :: y2(*)
++    complex(c_double_complex) :: y3(*)
++    complex(c_double_complex) :: w1(*)
++    complex(c_double_complex) :: w2(*)
++    complex(c_double_complex) :: w3(*)
++    call cblas_3cross_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, &
++      y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  end subroutine v3cross_z
++  subroutine v3crossscal_s(n, a, x1, x2, x3, y1, y2, y3, w1, w2, w3)
++    integer(c_int), value :: n
++    real(c_float), value :: a
++    real(c_float) :: x1(*)
++    real(c_float) :: x2(*)
++    real(c_float) :: x3(*)
++    real(c_float) :: y1(*)
++    real(c_float) :: y2(*)
++    real(c_float) :: y3(*)
++    real(c_float) :: w1(*)
++    real(c_float) :: w2(*)
++    real(c_float) :: w3(*)
++    call cblas_3crossscal_s(n, a, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  end subroutine v3crossscal_s
++  subroutine v3crossscal_d(n, a, x1, x2, x3, y1, y2, y3, w1, w2, w3)
++    integer(c_int), value :: n
++    real(c_double), value :: a
++    real(c_double) :: x1(*)
++    real(c_double) :: x2(*)
++    real(c_double) :: x3(*)
++    real(c_double) :: y1(*)
++    real(c_double) :: y2(*)
++    real(c_double) :: y3(*)
++    real(c_double) :: w1(*)
++    real(c_double) :: w2(*)
++    real(c_double) :: w3(*)
++    call cblas_3crossscal_d(n, a, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  end subroutine v3crossscal_d
++  subroutine v3crossscal_c(n, a, x1, x2, x3, y1, y2, y3, w1, w2, w3)
++    integer(c_int), value :: n
++    complex(c_float_complex) :: a
++    complex(c_float_complex) :: x1(*)
++    complex(c_float_complex) :: x2(*)
++    complex(c_float_complex) :: x3(*)
++    complex(c_float_complex) :: y1(*)
++    complex(c_float_complex) :: y2(*)
++    complex(c_float_complex) :: y3(*)
++    complex(c_float_complex) :: w1(*)
++    complex(c_float_complex) :: w2(*)
++    complex(c_float_complex) :: w3(*)
++    call cblas_3crossscal_c(n, a, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  end subroutine v3crossscal_c
++  subroutine v3crossscal_z(n, a, x1, x2, x3, y1, y2, y3, w1, w2, w3)
++    integer(c_int), value :: n
++    complex(c_double_complex) :: a
++    complex(c_double_complex) :: x1(*)
++    complex(c_double_complex) :: x2(*)
++    complex(c_double_complex) :: x3(*)
++    complex(c_double_complex) :: y1(*)
++    complex(c_double_complex) :: y2(*)
++    complex(c_double_complex) :: y3(*)
++    complex(c_double_complex) :: w1(*)
++    complex(c_double_complex) :: w2(*)
++    complex(c_double_complex) :: w3(*)
++    call cblas_3crossscal_z(n, a, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  end subroutine v3crossscal_z
++  subroutine v3crossdot_s(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r)
++    integer(c_int), value :: n
++    real(c_float) :: x1(*)
++    real(c_float) :: x2(*)
++    real(c_float) :: x3(*)
++    real(c_float) :: y1(*)
++    real(c_float) :: y2(*)
++    real(c_float) :: y3(*)
++    real(c_float) :: w1(*)
++    real(c_float) :: w2(*)
++    real(c_float) :: w3(*)
++    real(c_float) :: r(*)
++    call cblas_3crossdot_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      r, 1_c_int)
++  end subroutine v3crossdot_s
++  subroutine v3crossdot_d(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r)
++    integer(c_int), value :: n
++    real(c_double) :: x1(*)
++    real(c_double) :: x2(*)
++    real(c_double) :: x3(*)
++    real(c_double) :: y1(*)
++    real(c_double) :: y2(*)
++    real(c_double) :: y3(*)
++    real(c_double) :: w1(*)
++    real(c_double) :: w2(*)
++    real(c_double) :: w3(*)
++    real(c_double) :: r(*)
++    call cblas_3crossdot_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      r, 1_c_int)
++  end subroutine v3crossdot_d
++  subroutine v3crossdot_c(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r)
++    integer(c_int), value :: n
++    complex(c_float_complex) :: x1(*)
++    complex(c_float_complex) :: x2(*)
++    complex(c_float_complex) :: x3(*)
++    complex(c_float_complex) :: y1(*)
++    complex(c_float_complex) :: y2(*)
++    complex(c_float_complex) :: y3(*)
++    complex(c_float_complex) :: w1(*)
++    complex(c_float_complex) :: w2(*)
++    complex(c_float_complex) :: w3(*)
++    complex(c_float_complex) :: r(*)
++    call cblas_3crossdot_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      r, 1_c_int)
++  end subroutine v3crossdot_c
++  subroutine v3crossdot_z(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r)
++    integer(c_int), value :: n
++    complex(c_double_complex) :: x1(*)
++    complex(c_double_complex) :: x2(*)
++    complex(c_double_complex) :: x3(*)
++    complex(c_double_complex) :: y1(*)
++    complex(c_double_complex) :: y2(*)
++    complex(c_double_complex) :: y3(*)
++    complex(c_double_complex) :: w1(*)
++    complex(c_double_complex) :: w2(*)
++    complex(c_double_complex) :: w3(*)
++    complex(c_double_complex) :: r(*)
++    call cblas_3crossdot_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      r, 1_c_int)
++  end subroutine v3crossdot_z
++  subroutine v3crosssqr_s(n, x1, x2, x3, y1, y2, y3, r)
++    integer(c_int), value :: n
++    real(c_float) :: x1(*)
++    real(c_float) :: x2(*)
++    real(c_float) :: x3(*)
++    real(c_float) :: y1(*)
++    real(c_float) :: y2(*)
++    real(c_float) :: y3(*)
++    real(c_float) :: r(*)
++    call cblas_3crosssqr_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, r, 1_c_int)
++  end subroutine v3crosssqr_s
++  subroutine v3crosssqr_d(n, x1, x2, x3, y1, y2, y3, r)
++    integer(c_int), value :: n
++    real(c_double) :: x1(*)
++    real(c_double) :: x2(*)
++    real(c_double) :: x3(*)
++    real(c_double) :: y1(*)
++    real(c_double) :: y2(*)
++    real(c_double) :: y3(*)
++    real(c_double) :: r(*)
++    call cblas_3crosssqr_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, r, 1_c_int)
++  end subroutine v3crosssqr_d
++  subroutine v3crosssqr_c(n, x1, x2, x3, y1, y2, y3, r)
++    integer(c_int), value :: n
++    complex(c_float_complex) :: x1(*)
++    complex(c_float_complex) :: x2(*)
++    complex(c_float_complex) :: x3(*)
++    complex(c_float_complex) :: y1(*)
++    complex(c_float_complex) :: y2(*)
++    complex(c_float_complex) :: y3(*)
++    complex(c_float_complex) :: r(*)
++    call cblas_3crosssqr_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, r, 1_c_int)
++  end subroutine v3crosssqr_c
++  subroutine v3crosssqr_z(n, x1, x2, x3, y1, y2, y3, r)
++    integer(c_int), value :: n
++    complex(c_double_complex) :: x1(*)
++    complex(c_double_complex) :: x2(*)
++    complex(c_double_complex) :: x3(*)
++    complex(c_double_complex) :: y1(*)
++    complex(c_double_complex) :: y2(*)
++    complex(c_double_complex) :: y3(*)
++    complex(c_double_complex) :: r(*)
++    call cblas_3crosssqr_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, r, 1_c_int)
++  end subroutine v3crosssqr_z
++  subroutine v3crossxy_crossxz_s(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, v1, v2, v3)
++    integer(c_int), value :: n
++    real(c_float) :: x1(*)
++    real(c_float) :: x2(*)
++    real(c_float) :: x3(*)
++    real(c_float) :: y1(*)
++    real(c_float) :: y2(*)
++    real(c_float) :: y3(*)
++    real(c_float) :: w1(*)
++    real(c_float) :: w2(*)
++    real(c_float) :: w3(*)
++    real(c_float) :: u1(*)
++    real(c_float) :: u2(*)
++    real(c_float) :: u3(*)
++    real(c_float) :: v1(*)
++    real(c_float) :: v2(*)
++    real(c_float) :: v3(*)
++    call cblas_3crossxy_crossxz_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, v1, 1_c_int, v2, 1_c_int, v3, &
++      1_c_int)
++  end subroutine v3crossxy_crossxz_s
++  subroutine v3crossxy_crossxz_d(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, v1, v2, v3)
++    integer(c_int), value :: n
++    real(c_double) :: x1(*)
++    real(c_double) :: x2(*)
++    real(c_double) :: x3(*)
++    real(c_double) :: y1(*)
++    real(c_double) :: y2(*)
++    real(c_double) :: y3(*)
++    real(c_double) :: w1(*)
++    real(c_double) :: w2(*)
++    real(c_double) :: w3(*)
++    real(c_double) :: u1(*)
++    real(c_double) :: u2(*)
++    real(c_double) :: u3(*)
++    real(c_double) :: v1(*)
++    real(c_double) :: v2(*)
++    real(c_double) :: v3(*)
++    call cblas_3crossxy_crossxz_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, v1, 1_c_int, v2, 1_c_int, v3, &
++      1_c_int)
++  end subroutine v3crossxy_crossxz_d
++  subroutine v3crossxy_crossxz_c(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, v1, v2, v3)
++    integer(c_int), value :: n
++    complex(c_float_complex) :: x1(*)
++    complex(c_float_complex) :: x2(*)
++    complex(c_float_complex) :: x3(*)
++    complex(c_float_complex) :: y1(*)
++    complex(c_float_complex) :: y2(*)
++    complex(c_float_complex) :: y3(*)
++    complex(c_float_complex) :: w1(*)
++    complex(c_float_complex) :: w2(*)
++    complex(c_float_complex) :: w3(*)
++    complex(c_float_complex) :: u1(*)
++    complex(c_float_complex) :: u2(*)
++    complex(c_float_complex) :: u3(*)
++    complex(c_float_complex) :: v1(*)
++    complex(c_float_complex) :: v2(*)
++    complex(c_float_complex) :: v3(*)
++    call cblas_3crossxy_crossxz_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, v1, 1_c_int, v2, 1_c_int, v3, &
++      1_c_int)
++  end subroutine v3crossxy_crossxz_c
++  subroutine v3crossxy_crossxz_z(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, v1, v2, v3)
++    integer(c_int), value :: n
++    complex(c_double_complex) :: x1(*)
++    complex(c_double_complex) :: x2(*)
++    complex(c_double_complex) :: x3(*)
++    complex(c_double_complex) :: y1(*)
++    complex(c_double_complex) :: y2(*)
++    complex(c_double_complex) :: y3(*)
++    complex(c_double_complex) :: w1(*)
++    complex(c_double_complex) :: w2(*)
++    complex(c_double_complex) :: w3(*)
++    complex(c_double_complex) :: u1(*)
++    complex(c_double_complex) :: u2(*)
++    complex(c_double_complex) :: u3(*)
++    complex(c_double_complex) :: v1(*)
++    complex(c_double_complex) :: v2(*)
++    complex(c_double_complex) :: v3(*)
++    call cblas_3crossxy_crossxz_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, v1, 1_c_int, v2, 1_c_int, v3, &
++      1_c_int)
++  end subroutine v3crossxy_crossxz_z
++  subroutine v3crossxy_dotxz_s(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, r)
++    integer(c_int), value :: n
++    real(c_float) :: x1(*)
++    real(c_float) :: x2(*)
++    real(c_float) :: x3(*)
++    real(c_float) :: y1(*)
++    real(c_float) :: y2(*)
++    real(c_float) :: y3(*)
++    real(c_float) :: w1(*)
++    real(c_float) :: w2(*)
++    real(c_float) :: w3(*)
++    real(c_float) :: u1(*)
++    real(c_float) :: u2(*)
++    real(c_float) :: u3(*)
++    real(c_float) :: r(*)
++    call cblas_3crossxy_dotxz_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, r, 1_c_int)
++  end subroutine v3crossxy_dotxz_s
++  subroutine v3crossxy_dotxz_d(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, r)
++    integer(c_int), value :: n
++    real(c_double) :: x1(*)
++    real(c_double) :: x2(*)
++    real(c_double) :: x3(*)
++    real(c_double) :: y1(*)
++    real(c_double) :: y2(*)
++    real(c_double) :: y3(*)
++    real(c_double) :: w1(*)
++    real(c_double) :: w2(*)
++    real(c_double) :: w3(*)
++    real(c_double) :: u1(*)
++    real(c_double) :: u2(*)
++    real(c_double) :: u3(*)
++    real(c_double) :: r(*)
++    call cblas_3crossxy_dotxz_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, r, 1_c_int)
++  end subroutine v3crossxy_dotxz_d
++  subroutine v3crossxy_dotxz_c(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, r)
++    integer(c_int), value :: n
++    complex(c_float_complex) :: x1(*)
++    complex(c_float_complex) :: x2(*)
++    complex(c_float_complex) :: x3(*)
++    complex(c_float_complex) :: y1(*)
++    complex(c_float_complex) :: y2(*)
++    complex(c_float_complex) :: y3(*)
++    complex(c_float_complex) :: w1(*)
++    complex(c_float_complex) :: w2(*)
++    complex(c_float_complex) :: w3(*)
++    complex(c_float_complex) :: u1(*)
++    complex(c_float_complex) :: u2(*)
++    complex(c_float_complex) :: u3(*)
++    complex(c_float_complex) :: r(*)
++    call cblas_3crossxy_dotxz_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, r, 1_c_int)
++  end subroutine v3crossxy_dotxz_c
++  subroutine v3crossxy_dotxz_z(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, r)
++    integer(c_int), value :: n
++    complex(c_double_complex) :: x1(*)
++    complex(c_double_complex) :: x2(*)
++    complex(c_double_complex) :: x3(*)
++    complex(c_double_complex) :: y1(*)
++    complex(c_double_complex) :: y2(*)
++    complex(c_double_complex) :: y3(*)
++    complex(c_double_complex) :: w1(*)
++    complex(c_double_complex) :: w2(*)
++    complex(c_double_complex) :: w3(*)
++    complex(c_double_complex) :: u1(*)
++    complex(c_double_complex) :: u2(*)
++    complex(c_double_complex) :: u3(*)
++    complex(c_double_complex) :: r(*)
++    call cblas_3crossxy_dotxz_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, r, 1_c_int)
++  end subroutine v3crossxy_dotxz_z
++  subroutine v3dotxy_dotxz_s(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r, q)
++    integer(c_int), value :: n
++    real(c_float) :: x1(*)
++    real(c_float) :: x2(*)
++    real(c_float) :: x3(*)
++    real(c_float) :: y1(*)
++    real(c_float) :: y2(*)
++    real(c_float) :: y3(*)
++    real(c_float) :: w1(*)
++    real(c_float) :: w2(*)
++    real(c_float) :: w3(*)
++    real(c_float) :: r(*)
++    real(c_float) :: q(*)
++    call cblas_3dotxy_dotxz_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      r, 1_c_int, q, 1_c_int)
++  end subroutine v3dotxy_dotxz_s
++  subroutine v3dotxy_dotxz_d(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r, q)
++    integer(c_int), value :: n
++    real(c_double) :: x1(*)
++    real(c_double) :: x2(*)
++    real(c_double) :: x3(*)
++    real(c_double) :: y1(*)
++    real(c_double) :: y2(*)
++    real(c_double) :: y3(*)
++    real(c_double) :: w1(*)
++    real(c_double) :: w2(*)
++    real(c_double) :: w3(*)
++    real(c_double) :: r(*)
++    real(c_double) :: q(*)
++    call cblas_3dotxy_dotxz_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      r, 1_c_int, q, 1_c_int)
++  end subroutine v3dotxy_dotxz_d
++  subroutine v3dotxy_dotxz_c(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r, q)
++    integer(c_int), value :: n
++    complex(c_float_complex) :: x1(*)
++    complex(c_float_complex) :: x2(*)
++    complex(c_float_complex) :: x3(*)
++    complex(c_float_complex) :: y1(*)
++    complex(c_float_complex) :: y2(*)
++    complex(c_float_complex) :: y3(*)
++    complex(c_float_complex) :: w1(*)
++    complex(c_float_complex) :: w2(*)
++    complex(c_float_complex) :: w3(*)
++    complex(c_float_complex) :: r(*)
++    complex(c_float_complex) :: q(*)
++    call cblas_3dotxy_dotxz_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      r, 1_c_int, q, 1_c_int)
++  end subroutine v3dotxy_dotxz_c
++  subroutine v3dotxy_dotxz_z(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r, q)
++    integer(c_int), value :: n
++    complex(c_double_complex) :: x1(*)
++    complex(c_double_complex) :: x2(*)
++    complex(c_double_complex) :: x3(*)
++    complex(c_double_complex) :: y1(*)
++    complex(c_double_complex) :: y2(*)
++    complex(c_double_complex) :: y3(*)
++    complex(c_double_complex) :: w1(*)
++    complex(c_double_complex) :: w2(*)
++    complex(c_double_complex) :: w3(*)
++    complex(c_double_complex) :: r(*)
++    complex(c_double_complex) :: q(*)
++    call cblas_3dotxy_dotxz_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
++      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
++      r, 1_c_int, q, 1_c_int)
++  end subroutine v3dotxy_dotxz_z
++end module v3blas
 diff --git a/v3blas.h b/v3blas.h
 new file mode 100644
-index 0000000..715a34c
+index 0000000..dd5ac99
 --- /dev/null
 +++ b/v3blas.h
-@@ -0,0 +1,238 @@
+@@ -0,0 +1,242 @@
 +/***************************************************************************
 + * Copyright (c) 2026, The OpenBLAS Project
 + * All rights reserved.
@@ -20795,19 +22338,21 @@ index 0000000..715a34c
 + * c/z precision uses the interleaved (re, im) layout consumed by the
 + * cblas c/z extension routines; re and im are always explicit.
 + *
-+ * Every operation writes into caller-provided, unit-stride output
-+ * arrays and returns a view of them: a T *r for scalar results, a
-+ * v3<P> (or the v3uv<P>/v3ur<P>/rq<P> struct of them) for vector ones.
-+ * Outputs may alias the inputs.
++ * Every operation is a void function that writes into caller-provided,
++ * unit-stride output arrays.  Outputs may alias the inputs.
++ *
++ * C11 users get precision-generic names: v3cross(x, y, w0, w1, w2)
++ * picks s/d/c/z from the type of the output pointer via _Generic
++ * (C++ gets the same through v3blas.hpp overloads).
 + *
 + * Example (double precision):
 + *   double x0[n], x1[n], x2[n], y0[n], y1[n], y2[n];   // or malloc
 + *   v3d a = v3d_wrap(x0, x1, x2, n);
 + *   v3d b = v3d_wrap(y0, y1, y2, n);
 + *   double w0[n], w1[n], w2[n];
-+ *   v3d c = v3cross_d(a, b, w0, w1, w2);   // c = a∧b, view of w0..w2
++ *   v3cross_d(a, b, w0, w1, w2);             // w = a∧b   (or v3cross)
 + *   double r[n];
-+ *   double *rr = v3sqr_d(c, r);            // r = c1^2+c2^2+c3^2
++ *   v3sqr_d(v3d_wrap(w0, w1, w2, n), r);     // r = w1^2+w2^2+w3^2
 + *
 + * See V3BLAS_API.md (blpp repo) for the full operation table.
 + */
@@ -20844,9 +22389,6 @@ index 0000000..715a34c
 + */
 +#define V3BLAS_DEFINE(P, T, ALPHA, SCAL)                                       \
 +typedef struct { T *x, *y, *z; blasint incx, incy, incz, n; } v3 ## P;         \
-+typedef struct { v3 ## P u, v; } v3uv ## P;                                    \
-+typedef struct { v3 ## P u; T *r; blasint n; } v3ur ## P;                      \
-+typedef struct { T *r, *q; blasint n; } rq ## P;                               \
 +                                                                               \
 +static inline v3 ## P v3 ## P ## _wrap(T *x, T *y, T *z, blasint n)            \
 +{                                                                              \
@@ -20856,123 +22398,99 @@ index 0000000..715a34c
 +    return v;                                                                  \
 +}                                                                              \
 +/* r = alpha*x + y (y itself is untouched) */                                  \
-+static inline T *v1axpy_ ## P(T alpha, const T *x, const T *y, T *r,           \
++static inline void v1axpy_ ## P(T alpha, const T *x, const T *y, T *r,         \
 +    blasint n)                                                                 \
 +{                                                                              \
 +    blasint i;                                                                 \
 +    for (i = 0; i < n; i++) r[i] = y[i];                                       \
 +    cblas_ ## P ## axpy(n, ALPHA, (T *)x, 1, r, 1);                            \
-+    return r;                                                                  \
 +}                                                                              \
 +/* r = q.*t + a */                                                             \
-+static inline T *v1xypa_ ## P(const T *q, const T *t, T a, T *r, blasint n)    \
++static inline void v1xypa_ ## P(const T *q, const T *t, T a, T *r, blasint n)  \
 +{                                                                              \
 +    cblas_ ## P ## 1xypa(n, SCAL, (T *)q, 1, (T *)t, 1, r, 1);                 \
-+    return r;                                                                  \
 +}                                                                              \
 +/* r = x1y1 + x2y2 + x3y3 */                                                   \
-+static inline T *v3dot_ ## P(v3 ## P x, v3 ## P y, T *r)                       \
++static inline void v3dot_ ## P(v3 ## P x, v3 ## P y, T *r)                     \
 +{                                                                              \
 +    cblas_ ## P ## 3dot(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,            \
 +                        y.x, y.incx, y.y, y.incy, y.z, y.incz, r, 1);          \
-+    return r;                                                                  \
 +}                                                                              \
-+/* w = x.*y, per component (view of wx, wy, wz) */                             \
-+static inline v3 ## P v3had_ ## P(v3 ## P x, v3 ## P y,                        \
++/* w = x.*y, per component (writes wx, wy, wz) */                              \
++static inline void v3had_ ## P(v3 ## P x, v3 ## P y,                           \
 +    T *wx, T *wy, T *wz)                                                       \
 +{                                                                              \
 +    cblas_ ## P ## 3had(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,            \
 +                        y.x, y.incx, y.y, y.incy, y.z, y.incz,                 \
 +                        wx, 1, wy, 1, wz, 1);                                  \
-+    return v3 ## P ## _wrap(wx, wy, wz, x.n);                                  \
 +}                                                                              \
 +/* r = x1^2 + x2^2 + x3^2 */                                                   \
-+static inline T *v3sqr_ ## P(v3 ## P x, T *r)                                  \
++static inline void v3sqr_ ## P(v3 ## P x, T *r)                                \
 +{                                                                              \
 +    cblas_ ## P ## 3sqr(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz, r, 1);     \
-+    return r;                                                                  \
 +}                                                                              \
 +/* r = sqrt(q·q) */                                                            \
-+static inline T *v1norm_ ## P(const T *q, T *r, blasint n)                     \
++static inline void v1norm_ ## P(const T *q, T *r, blasint n)                   \
 +{                                                                              \
 +    cblas_ ## P ## 1norm(n, (T *)q, 1, r, 1);                                  \
-+    return r;                                                                  \
 +}                                                                              \
-+/* w = x∧y (view of wx, wy, wz) */                                             \
-+static inline v3 ## P v3cross_ ## P(v3 ## P x, v3 ## P y,                      \
++/* w = x∧y (writes wx, wy, wz) */                                              \
++static inline void v3cross_ ## P(v3 ## P x, v3 ## P y,                         \
 +    T *wx, T *wy, T *wz)                                                       \
 +{                                                                              \
 +    cblas_ ## P ## 3cross(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,          \
 +                          y.x, y.incx, y.y, y.incy, y.z, y.incz,               \
 +                          wx, 1, wy, 1, wz, 1);                                \
-+    return v3 ## P ## _wrap(wx, wy, wz, x.n);                                  \
 +}                                                                              \
-+/* w = a·(x∧y) (view of wx, wy, wz) */                                         \
-+static inline v3 ## P v3crossscal_ ## P(v3 ## P x, v3 ## P y, T a,             \
++/* w = a·(x∧y) (writes wx, wy, wz) */                                          \
++static inline void v3crossscal_ ## P(v3 ## P x, v3 ## P y, T a,                \
 +    T *wx, T *wy, T *wz)                                                       \
 +{                                                                              \
 +    cblas_ ## P ## 3crossscal(x.n, SCAL, x.x, x.incx, x.y, x.incy,             \
 +        x.z, x.incz, y.x, y.incx, y.y, y.incy, y.z, y.incz,                    \
 +        wx, 1, wy, 1, wz, 1);                                                  \
-+    return v3 ## P ## _wrap(wx, wy, wz, x.n);                                  \
 +}                                                                              \
 +/* r = (x∧y)·w */                                                              \
-+static inline T *v3crossdot_ ## P(v3 ## P x, v3 ## P y, v3 ## P w, T *r)       \
++static inline void v3crossdot_ ## P(v3 ## P x, v3 ## P y, v3 ## P w, T *r)     \
 +{                                                                              \
 +    cblas_ ## P ## 3crossdot(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,       \
 +                             y.x, y.incx, y.y, y.incy, y.z, y.incz,            \
 +                             w.x, w.incx, w.y, w.incy, w.z, w.incz, r, 1);     \
-+    return r;                                                                  \
 +}                                                                              \
 +/* r = (x∧y)·(x∧y) */                                                          \
-+static inline T *v3crosssqr_ ## P(v3 ## P x, v3 ## P y, T *r)                  \
++static inline void v3crosssqr_ ## P(v3 ## P x, v3 ## P y, T *r)                \
 +{                                                                              \
 +    cblas_ ## P ## 3crosssqr(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,       \
 +                             y.x, y.incx, y.y, y.incy, y.z, y.incz, r, 1);     \
-+    return r;                                                                  \
 +}                                                                              \
-+/* u = x∧y, v = x∧w (views of the out arrays) */                               \
-+static inline v3uv ## P v3crossxy_crossxz_ ## P(v3 ## P x, v3 ## P y,          \
++/* u = x∧y, v = x∧w */                                                         \
++static inline void v3crossxy_crossxz_ ## P(v3 ## P x, v3 ## P y,               \
 +    v3 ## P w, T *ux, T *uy, T *uz, T *vx, T *vy, T *vz)                       \
 +{                                                                              \
-+    v3uv ## P p;                                                               \
 +    cblas_ ## P ## 3crossxy_crossxz(x.n,                                       \
 +        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
 +        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
 +        w.x, w.incx, w.y, w.incy, w.z, w.incz,                                 \
 +        ux, 1, uy, 1, uz, 1, vx, 1, vy, 1, vz, 1);                             \
-+    p.u = v3 ## P ## _wrap(ux, uy, uz, x.n);                                   \
-+    p.v = v3 ## P ## _wrap(vx, vy, vz, x.n);                                   \
-+    return p;                                                                  \
 +}                                                                              \
 +/* u = x∧y, r = x·w */                                                         \
-+static inline v3ur ## P v3crossxy_dotxz_ ## P(v3 ## P x, v3 ## P y,            \
++static inline void v3crossxy_dotxz_ ## P(v3 ## P x, v3 ## P y,                 \
 +    v3 ## P w, T *ux, T *uy, T *uz, T *r)                                      \
 +{                                                                              \
-+    v3ur ## P p;                                                               \
 +    cblas_ ## P ## 3crossxy_dotxz(x.n,                                         \
 +        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
 +        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
 +        w.x, w.incx, w.y, w.incy, w.z, w.incz,                                 \
 +        ux, 1, uy, 1, uz, 1, r, 1);                                            \
-+    p.u = v3 ## P ## _wrap(ux, uy, uz, x.n);                                   \
-+    p.r = r;                                                                   \
-+    p.n = x.n;                                                                 \
-+    return p;                                                                  \
 +}                                                                              \
 +/* r = x·y, q = x·w */                                                         \
-+static inline rq ## P v3dotxy_dotxz_ ## P(v3 ## P x, v3 ## P y, v3 ## P w,     \
++static inline void v3dotxy_dotxz_ ## P(v3 ## P x, v3 ## P y, v3 ## P w,        \
 +    T *r, T *q)                                                                \
 +{                                                                              \
-+    rq ## P p;                                                                 \
 +    cblas_ ## P ## 3dotxy_dotxz(x.n,                                           \
 +        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
 +        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
 +        w.x, w.incx, w.y, w.incy, w.z, w.incz, r, 1, q, 1);                    \
-+    p.r = r;                                                                   \
-+    p.q = q;                                                                   \
-+    p.n = x.n;                                                                 \
-+    return p;                                                                  \
 +}
 +
 +V3BLAS_DEFINE(s, float, alpha, a)
@@ -20982,8 +22500,129 @@ index 0000000..715a34c
 +
 +#undef V3BLAS_DEFINE
 +
++/*
++ * Precision-generic names, C11 only: the operation is selected from the
++ * type of an output pointer, zero runtime cost.  Not under C++ -
++ * v3blas.hpp provides real overloads instead.
++ */
++#if !defined(__cplusplus) && defined(__STDC_VERSION__) &&                      \
++    __STDC_VERSION__ >= 201112L
++#define V3BLAS_GEN(op, sel, ...)                                              \
++    _Generic((sel), float*: op ## _s, double*: op ## _d,                      \
++             v3blas_floatcomplex*: op ## _c,                                  \
++             v3blas_doublecomplex*: op ## _z)(__VA_ARGS__)
++
++#define v1axpy(alpha, x, y, r, n)        V3BLAS_GEN(v1axpy, (r), alpha, x, y, r, n)
++#define v1xypa(q, t, a, r, n)            V3BLAS_GEN(v1xypa, (r), q, t, a, r, n)
++#define v1norm(q, r, n)                  V3BLAS_GEN(v1norm, (r), q, r, n)
++#define v3dot(x, y, r)                   V3BLAS_GEN(v3dot, (r), x, y, r)
++#define v3sqr(x, r)                      V3BLAS_GEN(v3sqr, (r), x, r)
++#define v3crossdot(x, y, w, r)           V3BLAS_GEN(v3crossdot, (r), x, y, w, r)
++#define v3crosssqr(x, y, r)              V3BLAS_GEN(v3crosssqr, (r), x, y, r)
++#define v3dotxy_dotxz(x, y, w, r, q)     V3BLAS_GEN(v3dotxy_dotxz, (r), x, y, w, r, q)
++#define v3had(x, y, wx, wy, wz)          V3BLAS_GEN(v3had, (wx), x, y, wx, wy, wz)
++#define v3cross(x, y, wx, wy, wz)        V3BLAS_GEN(v3cross, (wx), x, y, wx, wy, wz)
++#define v3crossscal(x, y, a, wx, wy, wz) V3BLAS_GEN(v3crossscal, (wx), x, y, a, wx, wy, wz)
++#define v3crossxy_crossxz(x, y, w, ux, uy, uz, vx, vy, vz)                    \
++    V3BLAS_GEN(v3crossxy_crossxz, (ux), x, y, w, ux, uy, uz, vx, vy, vz)
++#define v3crossxy_dotxz(x, y, w, ux, uy, uz, r)                               \
++    V3BLAS_GEN(v3crossxy_dotxz, (ux), x, y, w, ux, uy, uz, r)
++#endif
++
 +#ifdef __cplusplus
 +}
 +#endif  /* __cplusplus */
 +
 +#endif /* V3BLAS_H */
+diff --git a/v3blas.hpp b/v3blas.hpp
+new file mode 100644
+index 0000000..619dd32
+--- /dev/null
++++ b/v3blas.hpp
+@@ -0,0 +1,82 @@
++/***************************************************************************
++ * Copyright (c) 2026, The OpenBLAS Project
++ * All rights reserved.
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ * 1. Redistributions of source code must retain the above copyright
++ notice, this list of conditions and the following disclaimer.
++ 2. Redistributions in binary form must reproduce the above copyright
++ notice, this list of conditions and the following disclaimer in
++ the documentation or other materials provided with the
++ distribution.
++ 3. Neither the name of the OpenBLAS project nor the names
++ of its contributors may be used to endorse or promote products
++ derived from this software without specific prior written permission.
++ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++ LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
++ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
++ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++ POSSIBILITY OF SUCH DAMAGE.
++ * *****************************************************************************/
++
++/*
++ * v3blas.hpp - C++ front-end for the v3blas extension operations.
++ *
++ * Overloaded void operations (v3cross(x, y, w0, w1, w2), v3dot(x, y, r),
++ * ...) that resolve the precision from the argument types - the C++
++ * answer to the C11 _Generic names in v3blas.h.  Thin as air: each
++ * overload is an inline call to the same static-inline wrapper C uses.
++ * The v3<P> view types, v3<P>_wrap, and the suffixed operations come
++ * straight from v3blas.h.  Nothing allocates; you own every array.
++ */
++
++#ifndef V3BLAS_HPP
++#define V3BLAS_HPP
++
++#include "v3blas.h"
++
++#define V3BLAS_CPP(P, T)                                                       \
++inline void v1axpy(T alpha, const T *x, const T *y, T *r, blasint n)           \
++{ v1axpy_ ## P(alpha, x, y, r, n); }                                          \
++inline void v1xypa(const T *q, const T *t, T a, T *r, blasint n)               \
++{ v1xypa_ ## P(q, t, a, r, n); }                                              \
++inline void v1norm(const T *q, T *r, blasint n)                                \
++{ v1norm_ ## P(q, r, n); }                                                    \
++inline void v3dot(v3 ## P x, v3 ## P y, T *r)                                  \
++{ v3dot_ ## P(x, y, r); }                                                     \
++inline void v3sqr(v3 ## P x, T *r)                                             \
++{ v3sqr_ ## P(x, r); }                                                        \
++inline void v3crossdot(v3 ## P x, v3 ## P y, v3 ## P w, T *r)                  \
++{ v3crossdot_ ## P(x, y, w, r); }                                             \
++inline void v3crosssqr(v3 ## P x, v3 ## P y, T *r)                             \
++{ v3crosssqr_ ## P(x, y, r); }                                                \
++inline void v3dotxy_dotxz(v3 ## P x, v3 ## P y, v3 ## P w, T *r, T *q)         \
++{ v3dotxy_dotxz_ ## P(x, y, w, r, q); }                                       \
++inline void v3had(v3 ## P x, v3 ## P y, T *wx, T *wy, T *wz)                   \
++{ v3had_ ## P(x, y, wx, wy, wz); }                                            \
++inline void v3cross(v3 ## P x, v3 ## P y, T *wx, T *wy, T *wz)                 \
++{ v3cross_ ## P(x, y, wx, wy, wz); }                                          \
++inline void v3crossscal(v3 ## P x, v3 ## P y, T a, T *wx, T *wy, T *wz)        \
++{ v3crossscal_ ## P(x, y, a, wx, wy, wz); }                                   \
++inline void v3crossxy_crossxz(v3 ## P x, v3 ## P y, v3 ## P w,                 \
++    T *ux, T *uy, T *uz, T *vx, T *vy, T *vz)                                  \
++{ v3crossxy_crossxz_ ## P(x, y, w, ux, uy, uz, vx, vy, vz); }                 \
++inline void v3crossxy_dotxz(v3 ## P x, v3 ## P y, v3 ## P w,                   \
++    T *ux, T *uy, T *uz, T *r)                                                 \
++{ v3crossxy_dotxz_ ## P(x, y, w, ux, uy, uz, r); }
++
++V3BLAS_CPP(s, float)
++V3BLAS_CPP(d, double)
++V3BLAS_CPP(c, v3blas_floatcomplex)
++V3BLAS_CPP(z, v3blas_doublecomplex)
++
++#undef V3BLAS_CPP
++
++#endif /* V3BLAS_HPP */
+diff --git a/v3blas.mod b/v3blas.mod
+new file mode 100644
+index 0000000..a8f1a20
+Binary files /dev/null and b/v3blas.mod differ

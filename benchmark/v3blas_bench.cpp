@@ -184,17 +184,16 @@ static void bench_all_ ## P(int n)                                         \
                                                                            \
     { memcpy(ro[0], byv, (size_t)n * esz);                                 \
       cblas_ ## P ## axpy(n, CAX, bxv, 1, ro[0], 1);                       \
-      double e = max_rel_diff(esz, ICX, v1axpy_ ## P(s_ax, bxv, byv,       \
-                                                     wo[0], n), ro[0], n); \
+      v1axpy_ ## P(s_ax, bxv, byv, wo[0], n);                              \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
       Timing tp = timed_run([&]{ v1axpy_ ## P(s_ax, bxv, byv, wo[0], n); }); \
       Timing tc = timed_run([&]{ memcpy(ro[0], byv, (size_t)n * esz);      \
           cblas_ ## P ## axpy(n, CAX, bxv, 1, ro[0], 1); });               \
       add_result("v1axpy_" #P, tp, tc, e, (ICX ? 8.0 : 2.0), n, "y=a*x+y"); } \
                                                                            \
     { cblas_ ## P ## 1xypa(n, CXA, bq, 1, bt, 1, ro[0], 1);                \
-      double e = max_rel_diff(esz, ICX,                                    \
-                              v1xypa_ ## P(bq, bt, s_xa, wo[0], n),        \
-                              ro[0], n);                                   \
+      v1xypa_ ## P(bq, bt, s_xa, wo[0], n);                                \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
       Timing tp = timed_run([&]{ v1xypa_ ## P(bq, bt, s_xa, wo[0], n); }); \
       Timing tc = timed_run([&]{ cblas_ ## P ## 1xypa(n, CXA, bq, 1,       \
           bt, 1, ro[0], 1); });                                            \
@@ -202,8 +201,8 @@ static void bench_all_ ## P(int n)                                         \
                                                                            \
     { cblas_ ## P ## 3dot(n, x.x, 1, x.y, 1, x.z, 1,                       \
                           y.x, 1, y.y, 1, y.z, 1, ro[0], 1);               \
-      double e = max_rel_diff(esz, ICX, v3dot_ ## P(x, y, wo[0]),          \
-                              ro[0], n);                                   \
+      v3dot_ ## P(x, y, wo[0]);                                            \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
       Timing tp = timed_run([&]{ v3dot_ ## P(x, y, wo[0]); });             \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3dot(n,                    \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1, ro[0], 1); });   \
@@ -212,10 +211,10 @@ static void bench_all_ ## P(int n)                                         \
     { cblas_ ## P ## 3had(n, x.x, 1, x.y, 1, x.z, 1,                       \
                           y.x, 1, y.y, 1, y.z, 1,                          \
                           ro[0], 1, ro[1], 1, ro[2], 1);                   \
-      v3 ## P r = v3had_ ## P(x, y, wo[0], wo[1], wo[2]);                  \
-      double e = max_rel_diff(esz, ICX, r.x, ro[0], n);                    \
-      e = fmax(e, max_rel_diff(esz, ICX, r.y, ro[1], n));                  \
-      e = fmax(e, max_rel_diff(esz, ICX, r.z, ro[2], n));                  \
+      v3had_ ## P(x, y, wo[0], wo[1], wo[2]);                              \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[1], ro[1], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[2], ro[2], n));                \
       Timing tp = timed_run([&]{ v3had_ ## P(x, y, wo[0], wo[1], wo[2]); }); \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3had(n,                    \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1,                  \
@@ -223,16 +222,16 @@ static void bench_all_ ## P(int n)                                         \
       add_result("v3had_" #P, tp, tc, e, (ICX ? 18.0 : 3.0), n, "w=x.*y"); } \
                                                                            \
     { cblas_ ## P ## 3sqr(n, x.x, 1, x.y, 1, x.z, 1, ro[0], 1);            \
-      double e = max_rel_diff(esz, ICX, v3sqr_ ## P(x, wo[0]),             \
-                              ro[0], n);                                   \
+      v3sqr_ ## P(x, wo[0]);                                               \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
       Timing tp = timed_run([&]{ v3sqr_ ## P(x, wo[0]); });                \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3sqr(n,                    \
           x.x, 1, x.y, 1, x.z, 1, ro[0], 1); });                           \
       add_result("v3sqr_" #P, tp, tc, e, (ICX ? 22.0 : 5.0), n, "r=x1^2+x2^2+x3^2"); } \
                                                                            \
     { cblas_ ## P ## 1norm(n, bq, 1, ro[0], 1);                            \
-      double e = max_rel_diff(esz, ICX, v1norm_ ## P(bq, wo[0], n),        \
-                              ro[0], n);                                   \
+      v1norm_ ## P(bq, wo[0], n);                                          \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
       Timing tp = timed_run([&]{ v1norm_ ## P(bq, wo[0], n); });           \
       Timing tc = timed_run([&]{ cblas_ ## P ## 1norm(n, bq, 1,            \
           ro[0], 1); });                                                   \
@@ -241,10 +240,10 @@ static void bench_all_ ## P(int n)                                         \
     { cblas_ ## P ## 3cross(n, x.x, 1, x.y, 1, x.z, 1,                     \
                             y.x, 1, y.y, 1, y.z, 1,                        \
                             ro[0], 1, ro[1], 1, ro[2], 1);                 \
-      v3 ## P r = v3cross_ ## P(x, y, wo[0], wo[1], wo[2]);                \
-      double e = max_rel_diff(esz, ICX, r.x, ro[0], n);                    \
-      e = fmax(e, max_rel_diff(esz, ICX, r.y, ro[1], n));                  \
-      e = fmax(e, max_rel_diff(esz, ICX, r.z, ro[2], n));                  \
+      v3cross_ ## P(x, y, wo[0], wo[1], wo[2]);                            \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[1], ro[1], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[2], ro[2], n));                \
       Timing tp = timed_run([&]{ v3cross_ ## P(x, y, wo[0], wo[1], wo[2]); }); \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3cross(n,                  \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1,                  \
@@ -254,10 +253,10 @@ static void bench_all_ ## P(int n)                                         \
     { cblas_ ## P ## 3crossscal(n, CCS, x.x, 1, x.y, 1, x.z, 1,            \
                                 y.x, 1, y.y, 1, y.z, 1,                    \
                                 ro[0], 1, ro[1], 1, ro[2], 1);             \
-      v3 ## P r = v3crossscal_ ## P(x, y, s_cs, wo[0], wo[1], wo[2]);      \
-      double e = max_rel_diff(esz, ICX, r.x, ro[0], n);                    \
-      e = fmax(e, max_rel_diff(esz, ICX, r.y, ro[1], n));                  \
-      e = fmax(e, max_rel_diff(esz, ICX, r.z, ro[2], n));                  \
+      v3crossscal_ ## P(x, y, s_cs, wo[0], wo[1], wo[2]);                  \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[1], ro[1], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[2], ro[2], n));                \
       Timing tp = timed_run([&]{ v3crossscal_ ## P(x, y, s_cs,             \
           wo[0], wo[1], wo[2]); });                                        \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3crossscal(n, CCS,         \
@@ -268,8 +267,8 @@ static void bench_all_ ## P(int n)                                         \
     { cblas_ ## P ## 3crossdot(n, x.x, 1, x.y, 1, x.z, 1,                  \
                                y.x, 1, y.y, 1, y.z, 1,                     \
                                w.x, 1, w.y, 1, w.z, 1, ro[0], 1);          \
-      double e = max_rel_diff(esz, ICX, v3crossdot_ ## P(x, y, w, wo[0]),  \
-                              ro[0], n);                                   \
+      v3crossdot_ ## P(x, y, w, wo[0]);                                    \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
       Timing tp = timed_run([&]{ v3crossdot_ ## P(x, y, w, wo[0]); });     \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3crossdot(n,               \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1,                  \
@@ -278,8 +277,8 @@ static void bench_all_ ## P(int n)                                         \
                                                                            \
     { cblas_ ## P ## 3crosssqr(n, x.x, 1, x.y, 1, x.z, 1,                  \
                                y.x, 1, y.y, 1, y.z, 1, ro[0], 1);          \
-      double e = max_rel_diff(esz, ICX, v3crosssqr_ ## P(x, y, wo[0]),     \
-                              ro[0], n);                                   \
+      v3crosssqr_ ## P(x, y, wo[0]);                                       \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
       Timing tp = timed_run([&]{ v3crosssqr_ ## P(x, y, wo[0]); });        \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3crosssqr(n,               \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1, ro[0], 1); });   \
@@ -290,14 +289,14 @@ static void bench_all_ ## P(int n)                                         \
                                       w.x, 1, w.y, 1, w.z, 1,              \
                                       ro[0], 1, ro[1], 1, ro[2], 1,        \
                                       ro[3], 1, ro[4], 1, ro[5], 1);       \
-      v3uv ## P r = v3crossxy_crossxz_ ## P(x, y, w,                        \
+      v3crossxy_crossxz_ ## P(x, y, w,                        \
           wo[0], wo[1], wo[2], wo[3], wo[4], wo[5]);                       \
-      double e = max_rel_diff(esz, ICX, r.u.x, ro[0], n);                  \
-      e = fmax(e, max_rel_diff(esz, ICX, r.u.y, ro[1], n));                \
-      e = fmax(e, max_rel_diff(esz, ICX, r.u.z, ro[2], n));                \
-      e = fmax(e, max_rel_diff(esz, ICX, r.v.x, ro[3], n));                \
-      e = fmax(e, max_rel_diff(esz, ICX, r.v.y, ro[4], n));                \
-      e = fmax(e, max_rel_diff(esz, ICX, r.v.z, ro[5], n));                \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[1], ro[1], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[2], ro[2], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[3], ro[3], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[4], ro[4], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[5], ro[5], n));                \
       Timing tp = timed_run([&]{ v3crossxy_crossxz_ ## P(x, y, w,          \
           wo[0], wo[1], wo[2], wo[3], wo[4], wo[5]); });                   \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3crossxy_crossxz(n,        \
@@ -312,12 +311,12 @@ static void bench_all_ ## P(int n)                                         \
                                     w.x, 1, w.y, 1, w.z, 1,                \
                                     ro[0], 1, ro[1], 1, ro[2], 1,          \
                                     ro[3], 1);                             \
-      v3ur ## P r = v3crossxy_dotxz_ ## P(x, y, w,                          \
+      v3crossxy_dotxz_ ## P(x, y, w,                          \
           wo[0], wo[1], wo[2], wo[3]);                                     \
-      double e = max_rel_diff(esz, ICX, r.u.x, ro[0], n);                  \
-      e = fmax(e, max_rel_diff(esz, ICX, r.u.y, ro[1], n));                \
-      e = fmax(e, max_rel_diff(esz, ICX, r.u.z, ro[2], n));                \
-      e = fmax(e, max_rel_diff(esz, ICX, r.r, ro[3], n));                  \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[1], ro[1], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[2], ro[2], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[3], ro[3], n));                  \
       Timing tp = timed_run([&]{ v3crossxy_dotxz_ ## P(x, y, w,            \
           wo[0], wo[1], wo[2], wo[3]); });                                 \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3crossxy_dotxz(n,          \
@@ -331,9 +330,9 @@ static void bench_all_ ## P(int n)                                         \
                                   y.x, 1, y.y, 1, y.z, 1,                  \
                                   w.x, 1, w.y, 1, w.z, 1,                  \
                                   ro[0], 1, ro[1], 1);                     \
-      rq ## P r = v3dotxy_dotxz_ ## P(x, y, w, wo[0], wo[1]);              \
-      double e = max_rel_diff(esz, ICX, r.r, ro[0], n);                    \
-      e = fmax(e, max_rel_diff(esz, ICX, r.q, ro[1], n));                  \
+      v3dotxy_dotxz_ ## P(x, y, w, wo[0], wo[1]);              \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                    \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[1], ro[1], n));                  \
       Timing tp = timed_run([&]{ v3dotxy_dotxz_ ## P(x, y, w,              \
           wo[0], wo[1]); });                                               \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3dotxy_dotxz(n,            \

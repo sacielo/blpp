@@ -20,7 +20,7 @@ All work lives in `/home/sac/blpp/openblas`.
 | 11 | `<p>3dotxy_dotxz` | `r = x·y`, `q = x·w` | done 2026-10-07 — unit + cblas tests pass, bench 0.379 ms/run @ n=1000 |
 | 12 | `<p>1norm` | `r = √(q·q)` | done 2026-10-07 — unit + cblas tests pass, bench 0.084 ms/run @ n=1000 |
 
-## v3blas.h — header-only higher-level interface (done 2026-10-08)
+## v3blas — higher-level interface, three front-ends (done 2026-10-08)
 
 MATLAB/Octave-style API over the 13 kernels, design in `V3BLAS_API.md`.
 
@@ -33,15 +33,28 @@ MATLAB/Octave-style API over the 13 kernels, design in `V3BLAS_API.md`.
   - ops named like the kernels: `v1axpy_<p>`, `v1xypa_<p>`, `v3dot_<p>`, `v3had_<p>`,
     `v3sqr_<p>`, `v1norm_<p>`, `v3cross_<p>`, `v3crossscal_<p>`, `v3crossdot_<p>`,
     `v3crosssqr_<p>`, `v3crossxy_crossxz_<p>`, `v3crossxy_dotxz_<p>`, `v3dotxy_dotxz_<p>`;
-  - multi-output result structs: `v3uv<p> {v3 u; v3 v;}`, `v3ur<p> {v3 u; T *r; blasint n;}`,
-    `rq<p> {T *r, *q; blasint n;}` (members named after the equation output tokens);
-  - the library NEVER allocates: caller provides output arrays (unit stride),
-    ops return views of them (`T *`, `v3<p>`, or the struct); inputs borrowed
-    and never modified; `v3<p>_wrap` sets incs to 1, fields are public.
+  - all ops are `void`: outputs are trailing caller-provided pointer
+    arguments (`T *r`, `T *wx, *wy, *wz`, ...); no result structs, no
+    return values, nothing to alias;
+  - C11 `_Generic` macros give precision-generic names (`v3cross(...)` →
+    `v3cross_s/_d/_c/_z` from the output pointer type); suffixed names
+    stay canonical and work everywhere;
+  - the library NEVER allocates: outputs are caller arrays (unit stride);
+    inputs borrowed and never modified; `v3<p>_wrap` sets incs to 1,
+    fields are public.
+- `openblas/v3blas.hpp` (C++ front-end): same signatures as real `inline`
+  overloads per precision (no macros under `__cplusplus`); `v3blas_hpp_test.cpp`
+  checks every op × precision bitwise (`memcmp`) against `cblas_*`.
+- `openblas/v3blas.f90` (Fortran front-end, F2003 `iso_c_binding` module):
+  generic interfaces `v1axpy ... v3dotxy_dotxz` over 52 `bind(C)` wrappers
+  (BLAS-style arg order, `n` first, unit stride only); `gfortran
+  -std=f2008 -Wall` clean; `v3blas_f90_test.f90` checks 13 generics ×
+  4 precisions against Fortran-recomputed equations (52 checks, 0 fail).
 - `benchmark/v3blas_test.c` (C99, long double reference): all 13 ops × 4 precisions
   + strided smoke case (v3cross_d inc=2) — all pass
   (d/z exact, s/c ≤ ~3e-7). C++ compile check passes.
-- Root `CMakeLists.txt`: installs `v3blas.h` next to `cblas.h`.
+- `openblas/CMakeLists.txt`: installs `v3blas.h`, `v3blas.hpp`, `v3blas.f90`
+  next to `cblas.h`.
 
 ## Conventions settled while doing #1
 

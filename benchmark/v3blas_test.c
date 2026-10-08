@@ -247,16 +247,15 @@ static void test_s(void)
     v3crossscal_s(x, y, 1.5f, cs0, cs1, cs2);
     v3crossdot_s(x, y, w, crd);
     v3crosssqr_s(x, y, crsq);
-    v3uvs p33 = v3crossxy_crossxz_s(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
-    v3urs p31 = v3crossxy_dotxz_s(x, y, w, pu0, pu1, pu2, pur);
-    rqs p11 = v3dotxy_dotxz_s(x, y, w, dxy_r, dxy_q);
-    (void)p33; (void)p31;
+    v3crossxy_crossxz_s(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
+    v3crossxy_dotxz_s(x, y, w, pu0, pu1, pu2, pur);
+    v3dotxy_dotxz_s(x, y, w, dxy_r, dxy_q);
 
     const void *g[28] = {
         ax, xy, dot, had0, had1, had2, sqr, norm,
         cr0, cr1, cr2, cs0, cs1, cs2, crd, crsq,
-        p33.u.x, p33.u.y, p33.u.z, p33.v.x, p33.v.y, p33.v.z,
-        p31.u.x, p31.u.y, p31.u.z, p31.r, p11.r, p11.q
+        uu0, uu1, uu2, vv0, vv1, vv2,
+        pu0, pu1, pu2, pur, dxy_r, dxy_q
     };
     cmp_all(4, 0, g, R, N, 1e-5L);
 }
@@ -295,16 +294,15 @@ static void test_d(void)
     v3crossscal_d(x, y, 1.5, cs0, cs1, cs2);
     v3crossdot_d(x, y, w, crd);
     v3crosssqr_d(x, y, crsq);
-    v3uvd p33 = v3crossxy_crossxz_d(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
-    v3urd p31 = v3crossxy_dotxz_d(x, y, w, pu0, pu1, pu2, pur);
-    rqd p11 = v3dotxy_dotxz_d(x, y, w, dxy_r, dxy_q);
-    (void)p33; (void)p31;
+    v3crossxy_crossxz_d(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
+    v3crossxy_dotxz_d(x, y, w, pu0, pu1, pu2, pur);
+    v3dotxy_dotxz_d(x, y, w, dxy_r, dxy_q);
 
     const void *g[28] = {
         ax, xy, dot, had0, had1, had2, sqr, norm,
         cr0, cr1, cr2, cs0, cs1, cs2, crd, crsq,
-        p33.u.x, p33.u.y, p33.u.z, p33.v.x, p33.v.y, p33.v.z,
-        p31.u.x, p31.u.y, p31.u.z, p31.r, p11.r, p11.q
+        uu0, uu1, uu2, vv0, vv1, vv2,
+        pu0, pu1, pu2, pur, dxy_r, dxy_q
     };
     cmp_all(8, 0, g, R, N, 1e-12L);
 
@@ -327,10 +325,10 @@ static void test_d(void)
         v3d sy = v3d_wrap(byx, byy, byz, N);
         sx.incx = 2; sx.incy = 2; sx.incz = 2;
         sy.incx = 2; sy.incy = 2; sy.incz = 2;
-        v3d sw = v3cross_d(sx, sy, sw0, sw1, sw2);
+        v3cross(sx, sy, sw0, sw1, sw2);  /* C11 _Generic name */
         for (int c = 0; c < 3; c++) {
             ld e = 0;
-            const double *a = (const double *[]){ sw.x, sw.y, sw.z }[c];
+            const double *a = (const double *[]){ sw0, sw1, sw2 }[c];
             for (int i = 0; i < N; i++) {
                 cr gv = { a[i], 0 }, rv = RS[i].crw[c];
                 if (relerr(gv, rv) > e) e = relerr(gv, rv);
@@ -375,16 +373,15 @@ static void test_c(void)
     v3crossscal_c(x, y, v3blas_cc(1.5f, 0.5f), cs0, cs1, cs2);
     v3crossdot_c(x, y, w, crd);
     v3crosssqr_c(x, y, crsq);
-    v3uvc p33 = v3crossxy_crossxz_c(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
-    v3urc p31 = v3crossxy_dotxz_c(x, y, w, pu0, pu1, pu2, pur);
-    rqc p11 = v3dotxy_dotxz_c(x, y, w, dxy_r, dxy_q);
-    (void)p33; (void)p31;
+    v3crossxy_crossxz_c(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
+    v3crossxy_dotxz_c(x, y, w, pu0, pu1, pu2, pur);
+    v3dotxy_dotxz_c(x, y, w, dxy_r, dxy_q);
 
     const void *g[28] = {
         ax, xy, dot, had0, had1, had2, sqr, norm,
         cr0, cr1, cr2, cs0, cs1, cs2, crd, crsq,
-        p33.u.x, p33.u.y, p33.u.z, p33.v.x, p33.v.y, p33.v.z,
-        p31.u.x, p31.u.y, p31.u.z, p31.r, p11.r, p11.q
+        uu0, uu1, uu2, vv0, vv1, vv2,
+        pu0, pu1, pu2, pur, dxy_r, dxy_q
     };
     cmp_all(8, 1, g, R, N, 1e-5L);
 }
@@ -424,16 +421,15 @@ static void test_z(void)
     v3crossscal_z(x, y, v3blas_zc(1.5, 0.5), cs0, cs1, cs2);
     v3crossdot_z(x, y, w, crd);
     v3crosssqr_z(x, y, crsq);
-    v3uvz p33 = v3crossxy_crossxz_z(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
-    v3urz p31 = v3crossxy_dotxz_z(x, y, w, pu0, pu1, pu2, pur);
-    rqz p11 = v3dotxy_dotxz_z(x, y, w, dxy_r, dxy_q);
-    (void)p33; (void)p31;
+    v3crossxy_crossxz_z(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
+    v3crossxy_dotxz_z(x, y, w, pu0, pu1, pu2, pur);
+    v3dotxy_dotxz_z(x, y, w, dxy_r, dxy_q);
 
     const void *g[28] = {
         ax, xy, dot, had0, had1, had2, sqr, norm,
         cr0, cr1, cr2, cs0, cs1, cs2, crd, crsq,
-        p33.u.x, p33.u.y, p33.u.z, p33.v.x, p33.v.y, p33.v.z,
-        p31.u.x, p31.u.y, p31.u.z, p31.r, p11.r, p11.q
+        uu0, uu1, uu2, vv0, vv1, vv2,
+        pu0, pu1, pu2, pur, dxy_r, dxy_q
     };
     cmp_all(16, 1, g, R, N, 1e-12L);
 }
