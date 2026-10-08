@@ -101,12 +101,12 @@ Each member is an independent owned vector (individually freeable with
 
 ## Verification
 
-`benchmark/pblas_test.c` (plain C, ad-hoc compile against the pre-built
+`benchmark/pblas_test.c` (plain C, ad-hoc compile against the installed
 `libopenblas.a`, not part of the OpenBLAS utest suite): runs all 13
 operations at all 4 precisions against a long-double reference, plus
 strided (inc ≠ 1) cases for `v3cross_d` and `v1xypa_c`.
 
 ```
-gcc -O2 -I openblas benchmark/pblas_test.c \
-    -L openblas/build/lib -lopenblas -lm -o /tmp/pblas_test && /tmp/pblas_test
+gcc -O2 -I pkgs/openblas/include/openblas benchmark/pblas_test.c \
+    -L pkgs/openblas/lib -lopenblas -lm -o /tmp/pblas_test && /tmp/pblas_test
 ```

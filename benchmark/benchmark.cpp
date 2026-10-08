@@ -21,7 +21,7 @@
 //
 // Add new kernels as new bench_*() functions and list them in main().
 //
-// Links against a pre-built OpenBLAS; this project does not build OpenBLAS.
+// Links against an installed OpenBLAS; this project does not build OpenBLAS.
 
 #include <chrono>
 #include <cmath>
@@ -137,11 +137,26 @@ double max_rel_err_c(const T *v, const ld *ref, int n)
     return m;
 }
 
+// murmur3 finalizer: well-avalanching 32-bit hash of two ints
+inline unsigned hash2(int a, int b)
+{
+    unsigned h = (unsigned)a * 0x9E3779B1u + (unsigned)b * 0x85EBCA6Bu;
+    h ^= h >> 16; h *= 0x7FEB352Du;
+    h ^= h >> 15; h *= 0x846CA68Bu;
+    h ^= h >> 16;
+    return h;
+}
+
+// hash value in [-0.5, 0.5); full avalanche, so neither elements nor
+// component seeds are correlated. deliberately no ramps/affine data:
+// with ramps, cross products become differences of nearly equal
+// products, cancelling catastrophically at float precision once the
+// products grow with the element index
 template <typename T>
 void seeded(std::vector<T> &v, int seed)
 {
     for (int i = 0; i < (int)v.size(); ++i)
-        v[i] = 1e-3 * ((i + seed) % 997 - 498);
+        v[i] = T(std::ldexp(double(hash2(seed, i)), -32) - 0.5);
 }
 
 // interleaved complex: re from seed, im from seed+7
@@ -150,8 +165,8 @@ void seeded_c(std::vector<T> &v, int seed)
 {
     int n = (int)v.size() / 2;
     for (int i = 0; i < n; ++i) {
-        v[2 * i]     = T(1e-3 * ((i + seed) % 997 - 498));
-        v[2 * i + 1] = T(1e-3 * ((i + seed + 7) % 997 - 498));
+        v[2 * i]     = T(std::ldexp(double(hash2(seed, i)), -32) - 0.5);
+        v[2 * i + 1] = T(std::ldexp(double(hash2(seed + 7, i)), -32) - 0.5);
     }
 }
 

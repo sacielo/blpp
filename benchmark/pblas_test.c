@@ -4,9 +4,9 @@
  * compares against a long double reference, plus strided smoke cases.
  * Plain C99 (proves the header compiles as C).
  *
- * Build against the pre-built OpenBLAS static library:
- *   gcc -O2 -I ../openblas pblas_test.c \
- *       -L ../openblas/build/lib -lopenblas -lm -o /tmp/pblas_test
+ * Build against an installed OpenBLAS (see CMakeLists.txt):
+ *   gcc -O2 -I ../pkgs/openblas/include/openblas pblas_test.c \
+ *       -L ../pkgs/openblas/lib -lopenblas -lm -o /tmp/pblas_test
  */
 #include "pblas.h"
 #include <stdio.h>

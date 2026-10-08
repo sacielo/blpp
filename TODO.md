@@ -81,3 +81,17 @@ MATLAB/Octave-style API over the 13 kernels, design in `PBLAS_API.md`.
 ## Oddjobs
 
 - fix the 1xypa kernel template so that scalar argument a comes after vector argument x and y (6 arguments each)
+
+## Benchmark data and linking
+
+- benchmark data is hash2(seed, element) in [-0.5, 0.5), full avalanche, no
+  ramps/affine structure: ramp data makes every cross product a difference of
+  nearly equal products, which cancels catastrophically at float precision as
+  n grows (the old (i+seed)%997 sawtooth was a ramp with equally spaced
+  components; LCG-from-seed is also affine and just hides it).
+- pblas_bench verifies pblas == cblas bitwise on identical inputs (its subject
+  is API overhead: call + result free vs raw call with pre-allocated outputs);
+  true-reference checks stay in pblas_test.c and the unit tests.
+- benchmark/ links only an *installed* OpenBLAS (cmake --install build
+  --prefix ../pkgs/openblas; headers in include/openblas/). Referencing the
+  source + build trees instead duplicates the same headers/macros.
