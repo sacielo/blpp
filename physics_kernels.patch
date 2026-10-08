@@ -1,3 +1,15 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 360bc44..b64eb11 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -776,6 +776,7 @@ if(NOT NO_CBLAS)
+ 
+   file(WRITE ${CBLAS_H} "${CBLAS_H_CONTENTS_NEW}")
+   install (FILES ${CBLAS_H} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
++  install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/pblas.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+ endif()
+ 
+ if(NOT NO_LAPACKE)
 diff --git a/cblas.h b/cblas.h
 index 9eb7028..f1631a2 100644
 --- a/cblas.h
@@ -7611,6 +7623,304 @@ index 107f1f4..1a27130 100644
  };
  
  #if (ARCH_ARM64)
+diff --git a/pblas.h b/pblas.h
+new file mode 100644
+index 0000000..158d234
+--- /dev/null
++++ b/pblas.h
+@@ -0,0 +1,292 @@
++/***************************************************************************
++ * Copyright (c) 2026, The OpenBLAS Project
++ * All rights reserved.
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ * 1. Redistributions of source code must retain the above copyright
++ * notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ * notice, this list of conditions and the following disclaimer in
++ * the documentation or other materials provided with the
++ * distribution.
++ * 3. Neither the name of the OpenBLAS project nor the names of
++ * its contributors may be used to endorse or promote products
++ * derived from this software without specific prior written permission.
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ * ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
++ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
++ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++ * POSSIBILITY OF SUCH DAMAGE.
++ * *****************************************************************************/
++
++/*
++ * pblas.h - header-only, MATLAB/Octave-style interface to the physics
++ * element-wise extension kernels (1norm, 1xypa, 3dot, 3had, 3sqr, 3cross,
++ * 3crossscal, 3crossdot, 3crosssqr, 3crossxy_crossxz, 3crossxy_dotxz,
++ * 3dotxy_dotxz, and axpy), at s, d, c, z precision.
++ *
++ * A 1-vector is a field of scalars (n elements, one stride); a 3-vector
++ * is a field of 3-component vectors: three component arrays, each with
++ * its own stride, matching the cblas extension calls (zero-copy).
++ * c/z precision uses the interleaved (re, im) layout consumed by the
++ * cblas c/z extension routines; re and im are always explicit.
++ *
++ * Ownership:
++ *  - operation results are heap-allocated (stride 1); release them with
++ *    the matching _free functions (v1/v3 _free take a pointer and
++ *    clear the struct, the combined v3uv/v3ur/v1rq _free take the result
++ *    by value).
++ *  - v1*_new/v3*_new allocate, v1*_view/v3*_view wrap user memory
++ *    (borrowed: never _free a view).
++ *
++ * Example (double precision):
++ *   v3d a = v3d_new(n), b = v3d_new(n);
++ *   v3d c = v3cross_d(a, b);        // c = a^b, MATLAB: z = cross(x, y)
++ *   v1d r = v3sqr_d(c);             // r = c1^2+c2^2+c3^2
++ *   v1d_free(r); v3d_free(&c); v3d_free(&a); v3d_free(&b);
++ *
++ * See PBLAS_API.md (blpp repo) for the full operation table.
++ */
++
++#ifndef PBLAS_H
++#define PBLAS_H
++
++#include "cblas.h"
++#include <stdlib.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif  /* __cplusplus */
++
++typedef struct { float  re, im; } pblas_floatcomplex;
++typedef struct { double re, im; } pblas_doublecomplex;
++
++static inline pblas_floatcomplex pblas_cc(float re, float im)
++{
++    pblas_floatcomplex z = { re, im };
++    return z;
++}
++
++static inline pblas_doublecomplex pblas_zc(double re, double im)
++{
++    pblas_doublecomplex z = { re, im };
++    return z;
++}
++
++/*
++ * One definition, four precisions. T is the element type (scalar for
++ * s/d, {re, im} struct for c/z); ALPHA / SCAL are the scalar arguments
++ * as passed to the cblas entry points (by value for real, as pointers
++ * for complex).
++ */
++#define PBLAS_DEFINE(P, T, ALPHA, SCAL)                                       \
++typedef struct { T *x;                       blasint inc, n; }           v1 ## P; \
++typedef struct { T *x, *y, *z;              blasint incx, incy, incz, n; }     v3 ## P; \
++typedef struct { v1 ## P r; v1 ## P q; }                              v1rq ## P; \
++typedef struct { v3 ## P u; v3 ## P v; }                              v3uv ## P; \
++typedef struct { v3 ## P u; v1 ## P r; }                              v3ur ## P; \
++                                                                          \
++static inline v1 ## P v1 ## P ## _new(blasint n)                               \
++{                                                                               \
++    v1 ## P v;                                                                  \
++    v.x = (T *) malloc((size_t) n * sizeof(T));                                 \
++    v.inc = 1;                                                                  \
++    v.n = n;                                                                    \
++    return v;                                                                   \
++}                                                                               \
++static inline void v1 ## P ## _free(v1 ## P *v)                                 \
++{                                                                               \
++    free(v->x);                                                                 \
++    v->x = 0; v->inc = 0; v->n = 0;                                             \
++}                                                                               \
++static inline v1 ## P v1 ## P ## _view(T *x, blasint inc, blasint n)          \
++{                                                                               \
++    v1 ## P v;                                                                  \
++    v.x = x; v.inc = inc; v.n = n;                                              \
++    return v;                                                                   \
++}                                                                               \
++static inline v3 ## P v3 ## P ## _new(blasint n)                               \
++{                                                                               \
++    v3 ## P v;                                                                  \
++    v.x = (T *) malloc((size_t) n * sizeof(T));                                 \
++    v.y = (T *) malloc((size_t) n * sizeof(T));                                 \
++    v.z = (T *) malloc((size_t) n * sizeof(T));                                 \
++    v.incx = 1; v.incy = 1; v.incz = 1;                                         \
++    v.n = n;                                                                    \
++    return v;                                                                   \
++}                                                                               \
++static inline void v3 ## P ## _free(v3 ## P *v)                                 \
++{                                                                               \
++    free(v->x); free(v->y); free(v->z);                                         \
++    v->x = 0; v->y = 0; v->z = 0;                                               \
++    v->incx = 0; v->incy = 0; v->incz = 0; v->n = 0;                            \
++}                                                                               \
++static inline v3 ## P v3 ## P ## _view(T *x, T *y, T *z,                        \
++    blasint incx, blasint incy, blasint incz, blasint n)                    \
++{                                                                               \
++    v3 ## P v;                                                                  \
++    v.x = x; v.y = y; v.z = z;                                                  \
++    v.incx = incx; v.incy = incy; v.incz = incz;                                \
++    v.n = n;                                                                    \
++    return v;                                                                   \
++}                                                                               \
++/* y' = alpha*x + y  (new vector) */                                            \
++static inline v1 ## P v1axpy_ ## P(v1 ## P x, v1 ## P y, T alpha)               \
++{                                                                               \
++    v1 ## P r = v1 ## P ## _new(x.n);                                           \
++    blasint i;                                                                 \
++    for (i = 0; i < x.n; i++) r.x[i] = y.x[i * y.inc];                          \
++    cblas_ ## P ## axpy(x.n, ALPHA, x.x, x.inc, r.x, 1);                        \
++    return r;                                                                   \
++}                                                                               \
++/* r = q.*t + a */                                                              \
++static inline v1 ## P v1xypa_ ## P(v1 ## P q, v1 ## P t, T a)                   \
++{                                                                               \
++    v1 ## P r = v1 ## P ## _new(q.n);                                           \
++    cblas_ ## P ## 1xypa(q.n, SCAL, q.x, q.inc, t.x, t.inc, r.x, 1);            \
++    return r;                                                                   \
++}                                                                               \
++/* r = x1y1 + x2y2 + x3y3 */                                                    \
++static inline v1 ## P v3dot_ ## P(v3 ## P x, v3 ## P y)                         \
++{                                                                               \
++    v1 ## P r = v1 ## P ## _new(x.n);                                           \
++    cblas_ ## P ## 3dot(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,             \
++                        y.x, y.incx, y.y, y.incy, y.z, y.incz, r.x, 1);         \
++    return r;                                                                   \
++}                                                                               \
++/* w = x.*y, per component */                                                   \
++static inline v3 ## P v3had_ ## P(v3 ## P x, v3 ## P y)                         \
++{                                                                               \
++    v3 ## P w = v3 ## P ## _new(x.n);                                           \
++    cblas_ ## P ## 3had(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,             \
++                        y.x, y.incx, y.y, y.incy, y.z, y.incz,                  \
++                        w.x, 1, w.y, 1, w.z, 1);                                \
++    return w;                                                                   \
++}                                                                               \
++/* r = x1^2 + x2^2 + x3^2 */                                                    \
++static inline v1 ## P v3sqr_ ## P(v3 ## P x)                                    \
++{                                                                               \
++    v1 ## P r = v1 ## P ## _new(x.n);                                           \
++    cblas_ ## P ## 3sqr(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz, r.x, 1);    \
++    return r;                                                                   \
++}                                                                               \
++/* r = sqrt(q.*q) */                                                            \
++static inline v1 ## P v1norm_ ## P(v1 ## P q)                                   \
++{                                                                               \
++    v1 ## P r = v1 ## P ## _new(q.n);                                           \
++    cblas_ ## P ## 1norm(q.n, q.x, q.inc, r.x, 1);                              \
++    return r;                                                                   \
++}                                                                               \
++/* w = x^y */                                                                   \
++static inline v3 ## P v3cross_ ## P(v3 ## P x, v3 ## P y)                       \
++{                                                                               \
++    v3 ## P w = v3 ## P ## _new(x.n);                                           \
++    cblas_ ## P ## 3cross(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,           \
++                          y.x, y.incx, y.y, y.incy, y.z, y.incz,                \
++                          w.x, 1, w.y, 1, w.z, 1);                              \
++    return w;                                                                   \
++}                                                                               \
++/* w = a*(x^y) */                                                               \
++static inline v3 ## P v3crossscal_ ## P(v3 ## P x, v3 ## P y, T a)              \
++{                                                                               \
++    v3 ## P w = v3 ## P ## _new(x.n);                                           \
++    cblas_ ## P ## 3crossscal(x.n, SCAL, x.x, x.incx, x.y, x.incy, x.z, x.incz, \
++                              y.x, y.incx, y.y, y.incy, y.z, y.incz,            \
++                              w.x, 1, w.y, 1, w.z, 1);                          \
++    return w;                                                                   \
++}                                                                               \
++/* r = (x^y).w */                                                               \
++static inline v1 ## P v3crossdot_ ## P(v3 ## P x, v3 ## P y, v3 ## P w)         \
++{                                                                               \
++    v1 ## P r = v1 ## P ## _new(x.n);                                           \
++    cblas_ ## P ## 3crossdot(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,        \
++                             y.x, y.incx, y.y, y.incy, y.z, y.incz,             \
++                             w.x, w.incx, w.y, w.incy, w.z, w.incz,             \
++                             r.x, 1);                                           \
++    return r;                                                                   \
++}                                                                               \
++/* r = (x^y).(x^y) */                                                           \
++static inline v1 ## P v3crosssqr_ ## P(v3 ## P x, v3 ## P y)                    \
++{                                                                               \
++    v1 ## P r = v1 ## P ## _new(x.n);                                           \
++    cblas_ ## P ## 3crosssqr(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,        \
++                             y.x, y.incx, y.y, y.incy, y.z, y.incz,             \
++                             r.x, 1);                                           \
++    return r;                                                                   \
++}                                                                               \
++/* u = x^y, v = x^w */                                                          \
++static inline v3uv ## P v3crossxy_crossxz_ ## P(v3 ## P x, v3 ## P y, v3 ## P w) \
++{                                                                               \
++    v3uv ## P p;                                                                \
++    p.u = v3 ## P ## _new(x.n);                                                 \
++    p.v = v3 ## P ## _new(x.n);                                                 \
++    cblas_ ## P ## 3crossxy_crossxz(x.n,                                        \
++        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                  \
++        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                  \
++        w.x, w.incx, w.y, w.incy, w.z, w.incz,                                  \
++        p.u.x, 1, p.u.y, 1, p.u.z, 1,                                           \
++        p.v.x, 1, p.v.y, 1, p.v.z, 1);                                          \
++    return p;                                                                   \
++}                                                                               \
++static inline void v3uv ## P ## _free(v3uv ## P p)                              \
++{                                                                               \
++    v3 ## P ## _free(&p.u);                                                     \
++    v3 ## P ## _free(&p.v);                                                     \
++}                                                                               \
++/* u = x^y, r = x.w */                                                          \
++static inline v3ur ## P v3crossxy_dotxz_ ## P(v3 ## P x, v3 ## P y, v3 ## P w)  \
++{                                                                               \
++    v3ur ## P p;                                                                \
++    p.u = v3 ## P ## _new(x.n);                                                 \
++    p.r = v1 ## P ## _new(x.n);                                                 \
++    cblas_ ## P ## 3crossxy_dotxz(x.n,                                          \
++        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                  \
++        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                  \
++        w.x, w.incx, w.y, w.incy, w.z, w.incz,                                  \
++        p.u.x, 1, p.u.y, 1, p.u.z, 1,                                           \
++        p.r.x, 1);                                                              \
++    return p;                                                                   \
++}                                                                               \
++static inline void v3ur ## P ## _free(v3ur ## P p)                              \
++{                                                                               \
++    v3 ## P ## _free(&p.u);                                                     \
++    v1 ## P ## _free(&p.r);                                                     \
++}                                                                               \
++/* r = x.y, q = x.w */                                                          \
++static inline v1rq ## P v3dotxy_dotxz_ ## P(v3 ## P x, v3 ## P y, v3 ## P w)    \
++{                                                                               \
++    v1rq ## P p;                                                                \
++    p.r = v1 ## P ## _new(x.n);                                                 \
++    p.q = v1 ## P ## _new(x.n);                                                 \
++    cblas_ ## P ## 3dotxy_dotxz(x.n,                                            \
++        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                  \
++        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                  \
++        w.x, w.incx, w.y, w.incy, w.z, w.incz,                                  \
++        p.r.x, 1, p.q.x, 1);                                                    \
++    return p;                                                                   \
++}                                                                               \
++static inline void v1rq ## P ## _free(v1rq ## P p)                              \
++{                                                                               \
++    v1 ## P ## _free(&p.r);                                                     \
++    v1 ## P ## _free(&p.q);                                                     \
++}
++
++PBLAS_DEFINE(s, float, alpha, a)
++PBLAS_DEFINE(d, double, alpha, a)
++PBLAS_DEFINE(c, pblas_floatcomplex, &alpha, &a)
++PBLAS_DEFINE(z, pblas_doublecomplex, &alpha, &a)
++
++#undef PBLAS_DEFINE
++
++#ifdef __cplusplus
++}
++#endif  /* __cplusplus */
++
++#endif /* PBLAS_H */
 diff --git a/utest/CMakeLists.txt b/utest/CMakeLists.txt
 index 1551cef..ad8ba4c 100644
 --- a/utest/CMakeLists.txt

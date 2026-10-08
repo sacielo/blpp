@@ -20,6 +20,27 @@ All work lives in `/home/sac/blpp/openblas`.
 | 11 | `<p>3dotxy_dotxz` | `r = x·y`, `q = x·w` | done 2026-10-07 — unit + cblas tests pass, bench 0.379 ms/run @ n=1000 |
 | 12 | `<p>1norm` | `r = √(q·q)` | done 2026-10-07 — unit + cblas tests pass, bench 0.084 ms/run @ n=1000 |
 
+## pblas.h — header-only higher-level interface (done 2026-10-08)
+
+MATLAB/Octave-style API over the 13 kernels, design in `PBLAS_API.md`.
+
+- `openblas/pblas.h` (plain C, C++-safe, single macro × 4 precisions):
+  - structs `v1<p> {T *x; blasint inc, n;}`, `v3<p> {T *x,*y,*z; blasint incx,incy,incz, n;}`
+    (`<p>` = s d c z; `blasint` = the cblas extension index type);
+  - complex element = `pblas_floatcomplex`/`pblas_doublecomplex` `{re, im}` — the
+    interleaved cblas c/z layout, zero-copy, re/im always explicit;
+  - ops named like the kernels: `v1axpy_<p>`, `v1xypa_<p>`, `v3dot_<p>`, `v3had_<p>`,
+    `v3sqr_<p>`, `v1norm_<p>`, `v3cross_<p>`, `v3crossscal_<p>`, `v3crossdot_<p>`,
+    `v3crosssqr_<p>`, `v3crossxy_crossxz_<p>`, `v3crossxy_dotxz_<p>`, `v3dotxy_dotxz_<p>`;
+  - multi-output result structs: `v3uv<p> {v3 u; v3 v;}`, `v3ur<p> {v3 u; v1 r;}`,
+    `v1rq<p> {v1 r; v1 q;}` (members named after the equation output tokens);
+  - results heap-allocated (inc 1) via `*_new`, released by the matching `_free`
+    (v1/v3 _free take a pointer, combined _free by value); inputs borrowed.
+- `benchmark/pblas_test.c` (C99, long double reference): all 13 ops × 4 precisions
+  + strided smoke cases (v3cross_d inc=2, v1xypa_c inc=2) — all pass
+  (d/z exact, s/c ≤ ~3e-7). C++ compile check passes.
+- Root `CMakeLists.txt`: installs `pblas.h` next to `cblas.h`.
+
 ## Conventions settled while doing #1
 
 - Symbols: `s1xypa`, `d1xypa`, `c1xypa`, `z1xypa`; cblas: `cblas_s1xypa` etc.
