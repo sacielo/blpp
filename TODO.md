@@ -97,6 +97,41 @@ MATLAB/Octave-style API over the 13 kernels, design in `V3BLAS_API.md`.
 
 - fix the 1xypa kernel template so that scalar argument a comes after vector argument x and y (6 arguments each)
 
+## Big iron (HPC target) — open, from the 1xypa threading bug (2026-10, commit a71d0d4)
+
+Context: `blas_level1_thread()` (driver/others/blas_l1_thread.c) strides A and B
+per thread-chunk but never C — fine for upstream (they all mutate A/B; C is a
+`NULL,0` dummy), fatal for `1xypa`, which outputs through C. Interim fix: the
+1xypa interface is single-threaded; all 13 v3blas ops are now single-threaded
+except `v1axpy` (inherits axpy's threading through the B slot).
+
+- [ ] Real threading fix, if wanted: add `cstride = width * ldc` (with the
+      output's calc-type shift) to the `blas_level1_thread()` chunk loop, then
+      restore the `#ifdef SMP` else-branch in `1xypa.c`/`z1xypa.c`. Harmless to
+      current callers (ldc=0 keeps NULL at NULL; zscal's `NULL,1` dummy is never
+      dereferenced). UNTESTABLE on the 1-core dev box — needs a multicore host:
+      naive-reference checks at n ∈ {9999, 10001, 100000} ×
+      OPENBLAS_NUM_THREADS ∈ {1, 2, 4, 8}, all precisions, incl. inc=0/2/-1.
+- [ ] Measure first whether L1 threading is even worth it: these are
+      bandwidth-bound streaming kernels; upstream itself disables L1 threading
+      below n=10000 for perf reasons. Bench on a real multicore box before
+      investing in the driver patch.
+- [ ] Think about who actually threads at scale. Typical HPC physics codes are
+      MPI × OpenMP with BLAS called *inside* the parallel region — intra-kernel
+      threading then oversubscribes (the classic NUMA footgun); for those the
+      single-threaded kernels are the right default and the element-wise ops
+      parallelize trivially at the caller level. Intra-BLAS threading mostly
+      matters for single-rank workloads.
+- [ ] Is OpenBLAS the right substrate for the HPC endgame? Options to weigh:
+      keep patching OpenBLAS (per-arch optimized kernels would be the next real
+      step — ours are generic-C only; threading + per-arch = upstreaming
+      territory); BLIS (explicitly built for adding kernels, has a kernel
+      framework and a threading layer, community says it extends more cleanly);
+      MKL (fast, has vector math libs, proprietary + no custom kernels); write
+      the ops as vendor-offload pragmas/kernels in the app (CUDA/HIP/SYCL) and
+      keep BLAS as the CPU fallback. Decide after the multicore bench above,
+      not before.
+
 ## Benchmark data and linking
 
 - benchmark data is hash2(seed, element) in [-0.5, 0.5), full avalanche, no
