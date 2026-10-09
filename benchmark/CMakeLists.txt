@@ -30,6 +30,10 @@ add_ob_target(benchmark benchmark.cpp)
 # raw cblas extension kernels with pre-allocated outputs.
 add_ob_target(v3blas_bench v3blas_bench.cpp)
 
+# v3blas_test: correctness of every op x precision vs a long-double
+# reference (also the strided smoke case). Needs C11 for _Generic names.
+add_ob_target(v3blas_test v3blas_test.c)
+
 # v3blas_example: minimal C11 example of the v3blas.h interface (the
 # precision-generic names need C11 _Generic).
 add_ob_target(v3blas_example v3blas_example.c)
@@ -44,5 +48,5 @@ add_ob_target(v3blas_f90_test
   ${OPENBLAS_PREFIX}/include/openblas/v3blas.f90 v3blas_f90_test.f90)
 
 set_target_properties(benchmark v3blas_bench PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
-set_target_properties(v3blas_example PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+set_target_properties(v3blas_example v3blas_test PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 set_target_properties(v3blas_hpp_test PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON)
