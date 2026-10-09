@@ -12,6 +12,14 @@ project(benchmark CXX C Fortran)
 set(OPENBLAS_PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/../pkgs/openblas
     CACHE PATH "OpenBLAS install prefix (include/openblas + lib)")
 
+# pkgs/ is not in git; it is what the install step puts there.
+if(NOT EXISTS ${OPENBLAS_PREFIX}/include/openblas/v3blas.f90)
+  message(FATAL_ERROR
+    "No patched OpenBLAS found under ${OPENBLAS_PREFIX}.\n"
+    "Build and install it first (README steps 1-2):\n"
+    "  cmake --install openblas/build --prefix <this repo>/pkgs/openblas")
+endif()
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
