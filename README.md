@@ -45,6 +45,30 @@ overloads in C++, generic module procedures in Fortran). The front-ends
 are headers/a source file only: `v3blas.h`, `v3blas.hpp`, `v3blas.f90`,
 installed next to `cblas.h`.
 
+## Roadmap — the actual goal: every BLAS, not this BLAS
+
+Every physics project re-implements cross products in its first week,
+forever. The fix is not one fast library; it is **one symbol name in
+every BLAS**, so users write `v3cross(A, B, W)`, link their local BLAS
+(mine, the cluster's, the vendor's) and go — no paradigm choice, no new
+dependency, nothing to install. Diffusion model: the `cblas_*` ABI,
+which became portable precisely because every provider emits the same
+names, not because of performance.
+
+The durable deliverable is therefore a **versioned ABI + semantics
+spec** (symbols, argument order, LP64/ILP64 variants, complex scalar
+convention, increment/aliasing/NaN rules) plus a **conformance suite
+runnable against any vendor library at runtime** (dlopen, no
+recompile). Providers adopt standards they can test against, not
+opinions they must trust. Order of attack: OpenBLAS (open, first
+mover — this repo is its working implementation), BLIS (framework
+built for extension; its group already added axpby), the BLAS
+Extensions standardisation effort (the front that cuBLAS/rocBLAS/MKL
+can follow once a standard exists), then vendor libraries on user
+demand. FOMO after the second adopter. The two-layer split is what
+keeps this portable: providers only ever implement the C ABI layer;
+users only ever write the front-end layer.
+
 ## Quickstart
 
 Requirements: git, CMake ≥ 3.16, a C compiler, and a Fortran compiler

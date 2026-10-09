@@ -132,6 +132,32 @@ except `v1axpy` (inherits axpy's threading through the B slot).
       keep BLAS as the CPU fallback. Decide after the multicore bench above,
       not before.
 
+## Standardization track (the endgame — see README "Roadmap")
+
+Goal: same op names in every BLAS; users write `v3cross(A,B,W)`, link
+their local BLAS, done. Providers adopt spec + conformance suite, not PRs
+they must trust.
+
+- [ ] Conformance runner: standalone binary, `dlopen`s an arbitrary BLAS
+      (shared or static MKL/ESSL), probes symbols (LP64 + ILP64 name
+      variants), runs the 13 ops × 4 precisions against the long-double
+      reference vectors from `v3blas_test.c`, prints a per-op pass/fail
+      table. Must run on a vendor lib with zero recompilation — this is
+      the outreach weapon ("your lib fails 12/12, here's the 2-page spec").
+- [ ] Versioned spec document: ABI (names, arg order, strides), ILP64
+      convention (`_ilp64` vs `_64` — providers will fight; propose one),
+      complex scalar = re/im pair like cblas, inc<=0 and aliasing rules,
+      NaN/Inf semantics, and the fused multi-output ops flagged as
+      beyond-classic-BLAS semantics (needs a Level-1 extension API).
+- [ ] OpenBLAS RFC discussion first (names + opt-in flag `PHYSICS_EXT`),
+      then the PR as a commit series (per-op kernel+interface+tests,
+      wiring split, DCO sign-off, rebase e016600 → master).
+- [ ] BLIS port of one kernel as feasibility probe (refk + kern structs;
+      their axpby precedent) — second adopter = FOMO lever.
+- [ ] BLAS Extensions forum proposal for the subset whose shape fits
+      their Level-1 grammar (1xypa/3had/3dot family); fused ops as a
+      separate API-extension request.
+
 ## Benchmark data and linking
 
 - benchmark data is hash2(seed, element) in [-0.5, 0.5), full avalanche, no
