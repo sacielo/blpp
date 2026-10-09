@@ -69,6 +69,22 @@ demand. FOMO after the second adopter. The two-layer split is what
 keeps this portable: providers only ever implement the C ABI layer;
 users only ever write the front-end layer.
 
+Committees ratify shipping practice, they do not invent it — so the
+spec and the forum pitch come AFTER the first open merges, not before.
+The cautionary precedent is XBLAS: reference implementation, test
+deck, no third-party callers — never adopted. What this ops set has
+that XBLAS lacked: near-zero per-vendor implementation cost, demand
+from a demographic BLAS never served, and a front-end usable without
+knowing BLAS exists. Two rules follow. Conformance is tiered:
+tolerance-based across providers (FMA/rounding differ; over-specified
+tests scare vendors), bitwise only within one library. And the
+binding constraint is not engineering but the demand base: this
+becomes a standard when strangers' physics code links these names in
+CI — so migrating real community codes is roadmap work of equal rank
+to any PR. The invariant throughout is the spec + conformance
+vectors; library linkage is one era's delivery vehicle, inline
+headers another — the equations are what must not change.
+
 ## Quickstart
 
 Requirements: git, CMake ≥ 3.16, a C compiler, and a Fortran compiler
