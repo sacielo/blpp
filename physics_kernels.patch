@@ -827,10 +827,10 @@ index 0000000..812ede6
 +}
 diff --git a/interface/1xypa.c b/interface/1xypa.c
 new file mode 100644
-index 0000000..647bf38
+index 0000000..bfe78c5
 --- /dev/null
 +++ b/interface/1xypa.c
-@@ -0,0 +1,113 @@
+@@ -0,0 +1,80 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -863,11 +863,7 @@ index 0000000..647bf38
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
-+#if  defined(Z13)
-+#define MULTI_THREAD_MINIMAL  200000
-+#else
-+#define MULTI_THREAD_MINIMAL  10000
-+#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *A, FLOAT *q, blasint *INCQ, FLOAT *t, blasint *INCT, FLOAT *r, blasint *INCR){
@@ -882,10 +878,6 @@ index 0000000..647bf38
 +
 +void CNAME(blasint n, FLOAT a, FLOAT *q, blasint incq, FLOAT *t, blasint inct, FLOAT *r, blasint incr){
 +
-+#endif
-+
-+#ifdef SMP
-+  int mode, nthreads;
 +#endif
 +
 +#ifndef CBLAS
@@ -904,38 +896,13 @@ index 0000000..647bf38
 +  if (inct < 0) t -= (n - 1) * inct;
 +  if (incr < 0) r -= (n - 1) * incr;
 +
-+#ifdef SMP
-+  //disable multi-thread when incq==0 or inct==0 or incr==0
-+  //In that case, the threads would be dependent.
-+  //
-+  //Temporarily work-around the low performance issue with small input size &
-+  //multithreads.
-+  if (incq == 0 || inct == 0 || incr == 0 || n <= MULTI_THREAD_MINIMAL)
-+	  nthreads = 1;
-+  else
-+	  nthreads = num_cpu_avail(1);
-+
-+  if (nthreads == 1) {
-+#endif
-+
++  /* Deliberately single-threaded: blas_level1_thread() only advances the
++     A and B pointers from chunk to chunk, the C pointer stays at its base
++     for every thread.  This kernel writes its output through C (r), so
++     threading it makes every thread overwrite r[0..] and leaves the tail
++     of r unwritten (seen as ~single-element errors for n > 10000 on
++     multicore).  None of the other physics kernels thread either. */
 +  XYPA_K(n, 0, 0, a, q, incq, t, inct, r, incr, NULL, 0);
-+
-+#ifdef SMP
-+  } else {
-+
-+#ifdef XDOUBLE
-+    mode  =  BLAS_XDOUBLE | BLAS_REAL;
-+#elif defined(DOUBLE)
-+    mode  =  BLAS_DOUBLE  | BLAS_REAL;
-+#else
-+    mode  =  BLAS_SINGLE  | BLAS_REAL;
-+#endif
-+
-+    blas_level1_thread(mode, n, 0, 0, &a,
-+		       q, incq, t, inct, r, incr, (int (*)(void))XYPA_K, nthreads);
-+
-+  }
-+#endif
 +
 +  FUNCTION_PROFILE_END(1, 3 * n, 3 * n);
 +
@@ -2420,10 +2387,10 @@ index 0000000..71c63f5
 +}
 diff --git a/interface/z1xypa.c b/interface/z1xypa.c
 new file mode 100644
-index 0000000..9d4e844
+index 0000000..a60793b
 --- /dev/null
 +++ b/interface/z1xypa.c
-@@ -0,0 +1,119 @@
+@@ -0,0 +1,83 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -2456,11 +2423,7 @@ index 0000000..9d4e844
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
-+#if  defined(Z13)
-+#define MULTI_THREAD_MINIMAL  200000
-+#else
-+#define MULTI_THREAD_MINIMAL  10000
-+#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *A, FLOAT *Q, blasint *INCQ, FLOAT *T, blasint *INCT, FLOAT *R, blasint *INCR){
@@ -2483,10 +2446,6 @@ index 0000000..9d4e844
 +  FLOAT ar = *(A + 0);
 +  FLOAT ai = *(A + 1);
 +
-+#ifdef SMP
-+  int mode, nthreads;
-+#endif
-+
 +#ifndef CBLAS
 +  PRINT_DEBUG_NAME;
 +#else
@@ -2503,38 +2462,10 @@ index 0000000..9d4e844
 +  if (inct < 0) T -= (n - 1) * inct * 2;
 +  if (incr < 0) R -= (n - 1) * incr * 2;
 +
-+#ifdef SMP
-+  //disable multi-thread when incq==0 or inct==0 or incr==0
-+  //In that case, the threads would be dependent.
-+  //
-+  //Temporarily work-around the low performance issue with small input size &
-+  //multithreads.
-+  if (incq == 0 || inct == 0 || incr == 0 || n <= MULTI_THREAD_MINIMAL)
-+	  nthreads = 1;
-+  else
-+	  nthreads = num_cpu_avail(1);
-+
-+  if (nthreads == 1) {
-+#endif
-+
++  /* Deliberately single-threaded; see the note in 1xypa.c: the shared L1
++     thread driver never advances the C pointer, and this kernel writes
++     its output through C (R). */
 +  XYPA_K(n, 0, 0, ar, ai, Q, incq, T, inct, R, incr, NULL, 0);
-+
-+#ifdef SMP
-+  } else {
-+
-+#ifdef XDOUBLE
-+    mode  =  BLAS_XDOUBLE | BLAS_COMPLEX;
-+#elif defined(DOUBLE)
-+    mode  =  BLAS_DOUBLE  | BLAS_COMPLEX;
-+#else
-+    mode  =  BLAS_SINGLE  | BLAS_COMPLEX;
-+#endif
-+
-+    blas_level1_thread(mode, n, 0, 0, A,
-+		       Q, incq, T, inct, R, incr, (int (*)(void))XYPA_K, nthreads);
-+
-+  }
-+#endif
 +
 +  FUNCTION_PROFILE_END(4, 3 * n, 3 * n);
 +
