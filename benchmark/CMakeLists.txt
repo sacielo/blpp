@@ -29,8 +29,9 @@ add_ob_target(benchmark benchmark.cpp)
 # raw cblas extension kernels with pre-allocated outputs.
 add_ob_target(v3blas_bench v3blas_bench.cpp)
 
-# v3blas_example: minimal C99 example of the v3blas.h interface.
+# v3blas_example: minimal C11 example of the v3blas.h interface (the
+# precision-generic names need C11 _Generic).
 add_ob_target(v3blas_example v3blas_example.c)
 
 set_target_properties(benchmark v3blas_bench PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
-set_target_properties(v3blas_example PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON)
+set_target_properties(v3blas_example PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
