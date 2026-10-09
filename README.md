@@ -59,7 +59,7 @@ benchmarks — is one paste:
 # 1. Clone with the OpenBLAS submodule and apply the physics-kernel patch
 git clone --recurse-submodules https://github.com/sacielo/blpp.git
 cd blpp
-git -C openblas apply physics_kernels.patch
+git -C openblas apply ../physics_kernels.patch
 
 # 2. Build OpenBLAS and install it to pkgs/openblas (benchmarks link only
 #    against this installed tree; use -j1 on small/low-RAM machines)
