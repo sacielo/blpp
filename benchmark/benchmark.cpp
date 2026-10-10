@@ -39,9 +39,18 @@ using ld = long double;
 
 namespace {
 
-constexpr double kMinTime = 0.5;   // seconds of runtime per kernel
-constexpr int kMinIters = 3;
-constexpr double kMaxTime = 10.0;  // cap for slow machines
+#ifndef K_MIN_TIME
+#define K_MIN_TIME 0.5
+#endif
+#ifndef K_MIN_ITERS
+#define K_MIN_ITERS 3
+#endif
+#ifndef K_MAX_TIME
+#define K_MAX_TIME 10.0
+#endif
+constexpr double kMinTime = K_MIN_TIME;   // seconds of runtime per kernel
+constexpr int kMinIters = K_MIN_ITERS;
+constexpr double kMaxTime = K_MAX_TIME;   // cap for slow machines
 constexpr double kEps = 1e-12;     // relative tolerance vs. the reference (d/z)
 constexpr double kEpsF = 1e-5;     // ditto for float precision (s/c)
 

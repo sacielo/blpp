@@ -3,3 +3,6 @@ benchmark/build*/
 benchmark/bl3/
 pkgs/
 *.mod
+benchmark/bench25/
+benchmark/runs/
+bench25_sweep.log
