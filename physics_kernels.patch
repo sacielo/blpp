@@ -10,6 +10,526 @@ index 360bc44..e5b87f5 100644
  endif()
  
  if(NOT NO_LAPACKE)
+diff --git a/benchmark/3crosscross.c b/benchmark/3crosscross.c
+new file mode 100644
+index 0000000..81059f3
+--- /dev/null
++++ b/benchmark/3crosscross.c
+@@ -0,0 +1,134 @@
++/***************************************************************************
++Copyright (c) 2025, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in binary form must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++
++/* r = (x ^ y) ^ z   (double cross product, fused, per-component arrays) */
++
++#include "bench.h"
++#include "../cblas.h"
++
++#define CAT_(a, b) a##b
++#define CAT(a, b) CAT_(a, b)
++
++#ifdef COMPLEX
++#ifdef DOUBLE
++#define PCH z
++#else
++#define PCH c
++#endif
++#define PTR(p) ((void *)(p))
++#else
++#ifdef DOUBLE
++#define PCH d
++#else
++#define PCH s
++#endif
++#define PTR(p) (p)
++#endif
++
++#define K3CROSSCAT(CROSSCAT) CAT(CAT(cblas_, PCH), CROSSCAT)
++#define KERNEL K3CROSSCAT(3crosscross)
++
++/* real flops per element: 2 cross products, 3 mul + 3 sub each */
++#define FLOPS_PER 12.
++
++static FLOAT *vnew(int n) {
++  FLOAT *p = (FLOAT *)malloc(sizeof(FLOAT) * n * COMPSIZE);
++  if (p == NULL) { fprintf(stderr, "Out of Memory!!\n"); exit(1); }
++  return p;
++}
++
++static void vrnd(FLOAT *p, int n) {
++  int i;
++  for (i = 0; i < n * COMPSIZE; i++)
++    p[i] = ((FLOAT)rand() / (FLOAT)RAND_MAX) - 0.5;
++}
++
++int main(int argc, char *argv[]) {
++
++  FLOAT *x[3], *y[3], *z[3], *r[3];
++  blasint m, i;
++  blasint inc_x = 1, inc_y = 1, inc_z = 1;
++  int loops = 1, l;
++  char *p;
++  int from = 1;
++  int to   = 200;
++  int step = 1;
++  double time1, timeg;
++
++  argc--; argv++;
++
++  if (argc > 0) { from = atol(*argv);       argc--; argv++; }
++  if (argc > 0) { to   = MAX(atol(*argv), from); argc--; argv++; }
++  if (argc > 0) { step = atol(*argv);       argc--; argv++; }
++
++  if ((p = getenv("OPENBLAS_LOOPS"))) loops = atoi(p);
++  if ((p = getenv("OPENBLAS_INCX")))  inc_x  = atoi(p);
++  if ((p = getenv("OPENBLAS_INCY")))  inc_y  = atoi(p);
++  if ((p = getenv("OPENBLAS_INCZ")))  inc_z  = atoi(p);
++
++  fprintf(stderr, "From : %3d  To : %3d Step = %3d Inc_x = %d Inc_y = %d Inc_z = %d Loops = %d\n",
++          from, to, step, inc_x, inc_y, inc_z, loops);
++
++  for (i = 0; i < 3; i++) {
++    x[i] = vnew(to); y[i] = vnew(to); z[i] = vnew(to); r[i] = vnew(to);
++  }
++
++#ifdef __linux
++  srandom(getpid());
++#endif
++
++  fprintf(stderr, "   SIZE       Flops\n");
++
++  for (m = from; m <= to; m += step) {
++
++    timeg = 0;
++    fprintf(stderr, " %6d : ", (int)m);
++
++    for (l = 0; l < loops; l++) {
++      for (i = 0; i < 3; i++) {
++        vrnd(x[i], m * abs(inc_x));
++        vrnd(y[i], m * abs(inc_y));
++        vrnd(z[i], m * abs(inc_z));
++      }
++      begin();
++      KERNEL(m, PTR(x[0]), inc_x, PTR(x[1]), inc_x, PTR(x[2]), inc_x,
++             PTR(y[0]), inc_y, PTR(y[1]), inc_y, PTR(y[2]), inc_y,
++             PTR(z[0]), inc_z, PTR(z[1]), inc_z, PTR(z[2]), inc_z,
++             PTR(r[0]), 1, PTR(r[1]), 1, PTR(r[2]), 1);
++      end();
++      time1 = getsec();
++      timeg += time1;
++    }
++
++    timeg /= loops;
++
++    fprintf(stderr, " %10.2f MFlops %10.9f sec\n",
++            COMPSIZE * COMPSIZE * FLOPS_PER * (double)m / timeg * 1.e-6, timeg);
++  }
++
++  return 0;
++}
+diff --git a/benchmark/3dot.c b/benchmark/3dot.c
+new file mode 100644
+index 0000000..96cc4e3
+--- /dev/null
++++ b/benchmark/3dot.c
+@@ -0,0 +1,129 @@
++/***************************************************************************
++Copyright (c) 2025, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in binary form must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++
++/* r[i] = x1[i]*y1[i] + x2[i]*y2[i] + x3[i]*y3[i]  (3-vector dot, no reduction) */
++
++#include "bench.h"
++#include "../cblas.h"
++
++#define CAT_(a, b) a##b
++#define CAT(a, b) CAT_(a, b)
++
++#ifdef COMPLEX
++#ifdef DOUBLE
++#define PCH z
++#else
++#define PCH c
++#endif
++#define PTR(p) ((void *)(p))
++#else
++#ifdef DOUBLE
++#define PCH d
++#else
++#define PCH s
++#endif
++#define PTR(p) (p)
++#endif
++
++#define K3DOT CAT(CAT(cblas_, PCH), 3dot)
++
++/* real flops per element: 3 mul + 2 add */
++#define FLOPS_PER 5.
++
++static FLOAT *vnew(int n) {
++  FLOAT *p = (FLOAT *)malloc(sizeof(FLOAT) * n * COMPSIZE);
++  if (p == NULL) { fprintf(stderr, "Out of Memory!!\n"); exit(1); }
++  return p;
++}
++
++static void vrnd(FLOAT *p, int n) {
++  int i;
++  for (i = 0; i < n * COMPSIZE; i++)
++    p[i] = ((FLOAT)rand() / (FLOAT)RAND_MAX) - 0.5;
++}
++
++int main(int argc, char *argv[]) {
++
++  FLOAT *x[3], *y[3], *r;
++  blasint m, i;
++  blasint inc_x = 1, inc_y = 1;
++  int loops = 1, l;
++  char *p;
++  int from = 1;
++  int to   = 200;
++  int step = 1;
++  double time1, timeg;
++
++  argc--; argv++;
++
++  if (argc > 0) { from = atol(*argv);       argc--; argv++; }
++  if (argc > 0) { to   = MAX(atol(*argv), from); argc--; argv++; }
++  if (argc > 0) { step = atol(*argv);       argc--; argv++; }
++
++  if ((p = getenv("OPENBLAS_LOOPS"))) loops = atoi(p);
++  if ((p = getenv("OPENBLAS_INCX")))  inc_x  = atoi(p);
++  if ((p = getenv("OPENBLAS_INCY")))  inc_y  = atoi(p);
++
++  fprintf(stderr, "From : %3d  To : %3d Step = %3d Inc_x = %d Inc_y = %d Loops = %d\n",
++          from, to, step, inc_x, inc_y, loops);
++
++  for (i = 0; i < 3; i++) { x[i] = vnew(to); y[i] = vnew(to); }
++  r = vnew(to);
++
++#ifdef __linux
++  srandom(getpid());
++#endif
++
++  fprintf(stderr, "   SIZE       Flops\n");
++
++  for (m = from; m <= to; m += step) {
++
++    timeg = 0;
++    fprintf(stderr, " %6d : ", (int)m);
++
++    for (l = 0; l < loops; l++) {
++      for (i = 0; i < 3; i++) {
++        vrnd(x[i], m * abs(inc_x));
++        vrnd(y[i], m * abs(inc_y));
++      }
++      begin();
++      K3DOT(m, PTR(x[0]), inc_x, PTR(x[1]), inc_x, PTR(x[2]), inc_x,
++            PTR(y[0]), inc_y, PTR(y[1]), inc_y, PTR(y[2]), inc_y,
++            PTR(r), 1);
++      end();
++      time1 = getsec();
++      timeg += time1;
++    }
++
++    timeg /= loops;
++
++    fprintf(stderr, " %10.2f MFlops %10.9f sec\n",
++            COMPSIZE * COMPSIZE * FLOPS_PER * (double)m / timeg * 1.e-6, timeg);
++  }
++
++  return 0;
++}
+diff --git a/benchmark/3dotxy_dotxz.c b/benchmark/3dotxy_dotxz.c
+new file mode 100644
+index 0000000..c4c3830
+--- /dev/null
++++ b/benchmark/3dotxy_dotxz.c
+@@ -0,0 +1,134 @@
++/***************************************************************************
++Copyright (c) 2025, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in binary form must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++
++/* r[i] = x[i] . y[i],  q[i] = x[i] . w[i]   (forked dot pair, fused) */
++
++#include "bench.h"
++#include "../cblas.h"
++
++#define CAT_(a, b) a##b
++#define CAT(a, b) CAT_(a, b)
++
++#ifdef COMPLEX
++#ifdef DOUBLE
++#define PCH z
++#else
++#define PCH c
++#endif
++#define PTR(p) ((void *)(p))
++#else
++#ifdef DOUBLE
++#define PCH d
++#else
++#define PCH s
++#endif
++#define PTR(p) (p)
++#endif
++
++#define K3DOTXY(DOTXY) CAT(CAT(cblas_, PCH), DOTXY)
++#define KERNEL K3DOTXY(3dotxy_dotxz)
++
++/* real flops per element: 2 dot products of 3 components */
++#define FLOPS_PER 10.
++
++static FLOAT *vnew(int n) {
++  FLOAT *p = (FLOAT *)malloc(sizeof(FLOAT) * n * COMPSIZE);
++  if (p == NULL) { fprintf(stderr, "Out of Memory!!\n"); exit(1); }
++  return p;
++}
++
++static void vrnd(FLOAT *p, int n) {
++  int i;
++  for (i = 0; i < n * COMPSIZE; i++)
++    p[i] = ((FLOAT)rand() / (FLOAT)RAND_MAX) - 0.5;
++}
++
++int main(int argc, char *argv[]) {
++
++  FLOAT *x[3], *y[3], *w[3], *r, *q;
++  blasint m, i;
++  blasint inc_x = 1, inc_y = 1, inc_w = 1;
++  int loops = 1, l;
++  char *p;
++  int from = 1;
++  int to   = 200;
++  int step = 1;
++  double time1, timeg;
++
++  argc--; argv++;
++
++  if (argc > 0) { from = atol(*argv);       argc--; argv++; }
++  if (argc > 0) { to   = MAX(atol(*argv), from); argc--; argv++; }
++  if (argc > 0) { step = atol(*argv);       argc--; argv++; }
++
++  if ((p = getenv("OPENBLAS_LOOPS"))) loops = atoi(p);
++  if ((p = getenv("OPENBLAS_INCX")))  inc_x  = atoi(p);
++  if ((p = getenv("OPENBLAS_INCY")))  inc_y  = atoi(p);
++  if ((p = getenv("OPENBLAS_INCW")))  inc_w  = atoi(p);
++
++  fprintf(stderr, "From : %3d  To : %3d Step = %3d Inc_x = %d Inc_y = %d Inc_w = %d Loops = %d\n",
++          from, to, step, inc_x, inc_y, inc_w, loops);
++
++  for (i = 0; i < 3; i++) { x[i] = vnew(to); y[i] = vnew(to); w[i] = vnew(to); }
++  r = vnew(to);
++  q = vnew(to);
++
++#ifdef __linux
++  srandom(getpid());
++#endif
++
++  fprintf(stderr, "   SIZE       Flops\n");
++
++  for (m = from; m <= to; m += step) {
++
++    timeg = 0;
++    fprintf(stderr, " %6d : ", (int)m);
++
++    for (l = 0; l < loops; l++) {
++      for (i = 0; i < 3; i++) {
++        vrnd(x[i], m * abs(inc_x));
++        vrnd(y[i], m * abs(inc_y));
++        vrnd(w[i], m * abs(inc_w));
++      }
++      begin();
++      KERNEL(m, PTR(x[0]), inc_x, PTR(x[1]), inc_x, PTR(x[2]), inc_x,
++             PTR(y[0]), inc_y, PTR(y[1]), inc_y, PTR(y[2]), inc_y,
++             PTR(w[0]), inc_w, PTR(w[1]), inc_w, PTR(w[2]), inc_w,
++             PTR(r), 1, PTR(q), 1);
++      end();
++      time1 = getsec();
++      timeg += time1;
++    }
++
++    timeg /= loops;
++
++    fprintf(stderr, " %10.2f MFlops %10.9f sec\n",
++            COMPSIZE * COMPSIZE * FLOPS_PER * (double)m / timeg * 1.e-6, timeg);
++  }
++
++  return 0;
++}
+diff --git a/benchmark/Makefile b/benchmark/Makefile
+index ec7930b..3884680 100644
+--- a/benchmark/Makefile
++++ b/benchmark/Makefile
+@@ -110,6 +110,9 @@ goto :: slinpack.goto dlinpack.goto clinpack.goto zlinpack.goto \
+        ssyr2k.goto dsyr2k.goto csyr2k.goto zsyr2k.goto \
+        sger.goto dger.goto cger.goto zger.goto \
+        sdot.goto ddot.goto \
++       s3dot.goto d3dot.goto c3dot.goto z3dot.goto \
++       s3crosscross.goto d3crosscross.goto c3crosscross.goto z3crosscross.goto \
++       s3dotxy_dotxz.goto d3dotxy_dotxz.goto c3dotxy_dotxz.goto z3dotxy_dotxz.goto \
+        srot.goto drot.goto csrot.goto zdrot.goto \
+        srotm.goto drotm.goto \
+        saxpy.goto daxpy.goto caxpy.goto zaxpy.goto \
+@@ -278,6 +281,9 @@ goto :: sgemm.goto dgemm.goto cgemm.goto zgemm.goto \
+        ssyr2k.goto dsyr2k.goto csyr2k.goto zsyr2k.goto \
+        sger.goto dger.goto cger.goto zger.goto \
+        sdot.goto ddot.goto cdot.goto zdot.goto \
++       s3dot.goto d3dot.goto c3dot.goto z3dot.goto \
++       s3crosscross.goto d3crosscross.goto c3crosscross.goto z3crosscross.goto \
++       s3dotxy_dotxz.goto d3dotxy_dotxz.goto c3dotxy_dotxz.goto z3dotxy_dotxz.goto \
+        srot.goto drot.goto csrot.goto zdrot.goto \
+        srotm.goto drotm.goto \
+        saxpy.goto daxpy.goto caxpy.goto zaxpy.goto \
+@@ -3532,6 +3538,80 @@ zomatcopy.$(SUFFIX) : omatcopy.c
+ 	$(CC) $(CFLAGS) -c -DCOMPLEX -DDOUBLE -o $(@F) $^
+ 
+ 
++##################################### Physics kernels #########################################
++
++s3dot.goto : s3dot.$(SUFFIX) ../$(LIBNAME)
++	$(CC) $(CFLAGS) -o $(@F) $^ $(CEXTRALIB) $(EXTRALIB) $(FEXTRALIB) -lm
++
++d3dot.goto : d3dot.$(SUFFIX) ../$(LIBNAME)
++	$(CC) $(CFLAGS) -o $(@F) $^ $(CEXTRALIB) $(EXTRALIB) $(FEXTRALIB) -lm
++
++c3dot.goto : c3dot.$(SUFFIX) ../$(LIBNAME)
++	$(CC) $(CFLAGS) -o $(@F) $^ $(CEXTRALIB) $(EXTRALIB) $(FEXTRALIB) -lm
++
++z3dot.goto : z3dot.$(SUFFIX) ../$(LIBNAME)
++	$(CC) $(CFLAGS) -o $(@F) $^ $(CEXTRALIB) $(EXTRALIB) $(FEXTRALIB) -lm
++
++s3crosscross.goto : s3crosscross.$(SUFFIX) ../$(LIBNAME)
++	$(CC) $(CFLAGS) -o $(@F) $^ $(CEXTRALIB) $(EXTRALIB) $(FEXTRALIB) -lm
++
++d3crosscross.goto : d3crosscross.$(SUFFIX) ../$(LIBNAME)
++	$(CC) $(CFLAGS) -o $(@F) $^ $(CEXTRALIB) $(EXTRALIB) $(FEXTRALIB) -lm
++
++c3crosscross.goto : c3crosscross.$(SUFFIX) ../$(LIBNAME)
++	$(CC) $(CFLAGS) -o $(@F) $^ $(CEXTRALIB) $(EXTRALIB) $(FEXTRALIB) -lm
++
++z3crosscross.goto : z3crosscross.$(SUFFIX) ../$(LIBNAME)
++	$(CC) $(CFLAGS) -o $(@F) $^ $(CEXTRALIB) $(EXTRALIB) $(FEXTRALIB) -lm
++
++s3dotxy_dotxz.goto : s3dotxy_dotxz.$(SUFFIX) ../$(LIBNAME)
++	$(CC) $(CFLAGS) -o $(@F) $^ $(CEXTRALIB) $(EXTRALIB) $(FEXTRALIB) -lm
++
++d3dotxy_dotxz.goto : d3dotxy_dotxz.$(SUFFIX) ../$(LIBNAME)
++	$(CC) $(CFLAGS) -o $(@F) $^ $(CEXTRALIB) $(EXTRALIB) $(FEXTRALIB) -lm
++
++c3dotxy_dotxz.goto : c3dotxy_dotxz.$(SUFFIX) ../$(LIBNAME)
++	$(CC) $(CFLAGS) -o $(@F) $^ $(CEXTRALIB) $(EXTRALIB) $(FEXTRALIB) -lm
++
++z3dotxy_dotxz.goto : z3dotxy_dotxz.$(SUFFIX) ../$(LIBNAME)
++	$(CC) $(CFLAGS) -o $(@F) $^ $(CEXTRALIB) $(EXTRALIB) $(FEXTRALIB) -lm
++
++s3dot.$(SUFFIX) : 3dot.c
++	$(CC) $(CFLAGS) -c -UCOMPLEX -UDOUBLE -o $(@F) $^
++
++d3dot.$(SUFFIX) : 3dot.c
++	$(CC) $(CFLAGS) -c -UCOMPLEX -DDOUBLE -o $(@F) $^
++
++c3dot.$(SUFFIX) : 3dot.c
++	$(CC) $(CFLAGS) -c -DCOMPLEX -UDOUBLE -o $(@F) $^
++
++z3dot.$(SUFFIX) : 3dot.c
++	$(CC) $(CFLAGS) -c -DCOMPLEX -DDOUBLE -o $(@F) $^
++
++s3crosscross.$(SUFFIX) : 3crosscross.c
++	$(CC) $(CFLAGS) -c -UCOMPLEX -UDOUBLE -o $(@F) $^
++
++d3crosscross.$(SUFFIX) : 3crosscross.c
++	$(CC) $(CFLAGS) -c -UCOMPLEX -DDOUBLE -o $(@F) $^
++
++c3crosscross.$(SUFFIX) : 3crosscross.c
++	$(CC) $(CFLAGS) -c -DCOMPLEX -UDOUBLE -o $(@F) $^
++
++z3crosscross.$(SUFFIX) : 3crosscross.c
++	$(CC) $(CFLAGS) -c -DCOMPLEX -DDOUBLE -o $(@F) $^
++
++s3dotxy_dotxz.$(SUFFIX) : 3dotxy_dotxz.c
++	$(CC) $(CFLAGS) -c -UCOMPLEX -UDOUBLE -o $(@F) $^
++
++d3dotxy_dotxz.$(SUFFIX) : 3dotxy_dotxz.c
++	$(CC) $(CFLAGS) -c -UCOMPLEX -DDOUBLE -o $(@F) $^
++
++c3dotxy_dotxz.$(SUFFIX) : 3dotxy_dotxz.c
++	$(CC) $(CFLAGS) -c -DCOMPLEX -UDOUBLE -o $(@F) $^
++
++z3dotxy_dotxz.$(SUFFIX) : 3dotxy_dotxz.c
++	$(CC) $(CFLAGS) -c -DCOMPLEX -DDOUBLE -o $(@F) $^
++
+ smallscaling: smallscaling.c ../$(LIBNAME)
+ 	$(CC) $(CFLAGS) -o $(@F) $^ $(EXTRALIB) -fopenmp -lm -lpthread
+ 
 diff --git a/cblas.h b/cblas.h
 index 9eb7028..36c7043 100644
 --- a/cblas.h

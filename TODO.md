@@ -167,6 +167,8 @@ they must trust.
 - [ ] OpenBLAS RFC discussion first (names + opt-in flag `PHYSICS_EXT`),
       then the PR as a commit series (per-op kernel+interface+tests,
       wiring split, DCO sign-off, rebase e016600 → master).
+      Ready: 3 representative `benchmark/` programs (3dot, 3crosscross,
+      3dotxy_dotxz × 4 prec, `.goto` only) already in the patch.
 - [ ] BLIS port of one kernel as feasibility probe (refk + kern structs;
       their axpby precedent) — second adopter = FOMO lever.
 - [ ] BLAS Extensions forum proposal for the subset whose shape fits
