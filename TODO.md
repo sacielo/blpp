@@ -1,5 +1,8 @@
 # Physics kernels in OpenBLAS — progress
 
+Big picture and what comes next (CFD layering, stencils, threading):
+[`grand_plan.md`](grand_plan.md).
+
 Order: user-specified first two (`1xypa`, then `3dot`), then the rest in the
 order written in `blasKernels.md`. Every kernel: `s d c z` precisions,
 Fortran + cblas interfaces, unit + cblas tests, generic kernel, plain C.
