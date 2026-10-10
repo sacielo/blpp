@@ -20,6 +20,21 @@ All work lives in `/home/sac/blpp/openblas`.
 | 11 | `<p>3dotxy_dotxz` | `r = x·y`, `q = x·w` | done 2026-10-07 — unit + cblas tests pass, bench 0.379 ms/run @ n=1000 |
 | 12 | `<p>1norm` | `r = √(q·q)` | done 2026-10-07 — unit + cblas tests pass, bench 0.084 ms/run @ n=1000 |
 
+## CFD menu ops — six 3-vector composites (done 2026-10-10)
+
+`3crosscross` `r=(x∧y)∧z`, `3norm_unit` `r=√(x·x+eps), u=x/r`,
+`3refl` `q=x−a(x·y)y/(y·y+eps)`, `3exb` `r=a(x∧y)/(y·y+eps)`,
+`3drag` `r=a·x·√(x·x+eps)`, `3mom_ke` `m=s·x, k=½·s·(x·x)` — full
+pipeline: generic kernels + interfaces + exports (24 symbols), ext
+utests (2645 checks), wrapper utests (212), v3blas.h/.hpp/.f90
+front-ends (19 ops), C/C++/F90 driver tests (195/80/76 checks),
+benchmark templates ×4 precisions. `3minmod`/`3sel` stay candidates
+(`cfd_kernel_candidates.md` was folded into the README and deleted).
+Gotchas fixed on the way: complex `sqrt` references must take the
+principal sqrt of the operand, not of its square (`cnorm1` semantics);
+Fortran test scratch must never be an output array (`q`) and comparison
+constants must match what the call actually passed (`al` vs `1.5`).
+
 ## v3blas — higher-level interface, three front-ends (done 2026-10-08)
 
 MATLAB/Octave-style API over the 13 kernels, design in `V3BLAS_API.md`.

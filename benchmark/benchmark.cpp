@@ -215,6 +215,22 @@ void cdot3(const T *x1, const T *x2, const T *x3,
     o1 = s1;
 }
 
+// complex division and principal complex sqrt on long double pairs
+inline void cdivld(ld a0, ld a1, ld b0, ld b1, ld &o0, ld &o1)
+{
+    ld d = b0 * b0 + b1 * b1;
+    o0 = (a0 * b0 + a1 * b1) / d;
+    o1 = (a1 * b0 - a0 * b1) / d;
+}
+
+/* principal complex sqrt of (a0, a1) */
+inline void csqrtld(ld a0, ld a1, ld &o0, ld &o1)
+{
+    ld m = sqrtl(a0 * a0 + a1 * a1);
+    o0 = sqrtl((m + a0) / 2.0L);
+    o1 = (a1 >= 0) ? sqrtl((m - a0) / 2.0L) : -sqrtl((m - a0) / 2.0L);
+}
+
 // y = alpha*x + y  (in place on y, restored from y0 before every run)
 template <typename T, typename Call>
 Result bench_axpy_t(int n, const char *nm, double eps, T alpha,
@@ -773,6 +789,259 @@ Result bench_3dotxy_dotxz_t(int n, const char *nm, double eps,
 #endif
 }
 
+
+// ------------- CFD menu ops: r = (x^y)^w, u = x/sqrt(x.x+eps), ...
+
+// r = (x^y)^w
+template <typename T, typename Call>
+Result bench_3crosscross_t(int n, const char *nm, double eps, Call call)
+{
+    std::vector<T> x1(n), x2(n), x3(n), y1(n), y2(n), y3(n);
+    std::vector<T> w1(n), w2(n), w3(n), r1(n), r2(n), r3(n);
+    std::vector<ld> r1r(n), r2r(n), r3r(n);
+    seeded(x1, 201); seeded(x2, 202); seeded(x3, 203);
+    seeded(y1, 204); seeded(y2, 205); seeded(y3, 206);
+    seeded(w1, 207); seeded(w2, 208); seeded(w3, 209);
+    for (int i = 0; i < n; ++i) {
+        ld t1 = (ld)x2[i] * y3[i] - (ld)x3[i] * y2[i];
+        ld t2 = (ld)x3[i] * y1[i] - (ld)x1[i] * y3[i];
+        ld t3 = (ld)x1[i] * y2[i] - (ld)x2[i] * y1[i];
+        r1r[i] = t2 * w3[i] - t3 * w2[i];
+        r2r[i] = t3 * w1[i] - t1 * w3[i];
+        r3r[i] = t1 * w2[i] - t2 * w1[i];
+    }
+    const double flops = 24.0, fcyc = 12.0;
+    const char *eq = "r=(x^y)^w";
+    double err;
+#define CC_CALL \
+    call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
+         y1.data(), 1, y2.data(), 1, y3.data(), 1, \
+         w1.data(), 1, w2.data(), 1, w3.data(), 1, \
+         r1.data(), 1, r2.data(), 1, r3.data(), 1)
+#define CC_ERR \
+    std::fmax(max_rel_err(r1.data(), r1r.data(), n), \
+              std::fmax(max_rel_err(r2.data(), r2r.data(), n), \
+                        max_rel_err(r3.data(), r3r.data(), n)))
+#ifndef NDEBUG
+    CC_CALL;
+    err = CC_ERR;
+    std::printf("%s[0]: r = (x^y)^w\nr = (%g %g %g)\n", nm,
+                (double)r1[0], (double)r2[0], (double)r3[0]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing t = timed_run([&] { CC_CALL; });
+    err = CC_ERR;
+    return make_result(nm, flops, fcyc, t.t_run / t.iters, n, t.iters, err, eps, eq);
+#endif
+#undef CC_CALL
+#undef CC_ERR
+}
+
+// r = sqrt(x.x + eps), u = x / r
+template <typename T, typename Call>
+Result bench_3norm_unit_t(int n, const char *nm, double eps, Call call)
+{
+    std::vector<T> x1(n), x2(n), x3(n);
+    std::vector<T> r(n), u1(n), u2(n), u3(n);
+    std::vector<ld> rr(n), u1r(n), u2r(n), u3r(n);
+    seeded(x1, 211); seeded(x2, 212); seeded(x3, 213);
+    for (int i = 0; i < n; ++i) {
+        ld d = (ld)x1[i] * x1[i] + (ld)x2[i] * x2[i]
+             + (ld)x3[i] * x3[i] + (ld)0.25;
+        ld s = sqrtl(d);
+        rr[i] = s;
+        u1r[i] = (ld)x1[i] / s;
+        u2r[i] = (ld)x2[i] / s;
+        u3r[i] = (ld)x3[i] / s;
+    }
+    const double flops = 24.0, fcyc = 12.0;
+    const char *eq = "r=sqrt(x.x+eps),u=x/r";
+    double err;
+#define CC_CALL \
+    call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, (T)0.25, \
+         r.data(), 1, u1.data(), 1, u2.data(), 1, u3.data(), 1)
+#define CC_ERR \
+    std::fmax(max_rel_err(r.data(), rr.data(), n), \
+              std::fmax(max_rel_err(u1.data(), u1r.data(), n), \
+                        std::fmax(max_rel_err(u2.data(), u2r.data(), n), \
+                                  max_rel_err(u3.data(), u3r.data(), n))))
+#ifndef NDEBUG
+    CC_CALL;
+    err = CC_ERR;
+    std::printf("%s[0]: r = sqrt(x.x+eps), u = x/r\n" "r = %g  u = (%g %g %g)\n", nm,
+                (double)r[0], (double)u1[0], (double)u2[0], (double)u3[0]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing t = timed_run([&] { CC_CALL; });
+    err = CC_ERR;
+    return make_result(nm, flops, fcyc, t.t_run / t.iters, n, t.iters, err, eps, eq);
+#endif
+#undef CC_CALL
+#undef CC_ERR
+}
+
+// q = x - a*(x.y)/(y.y+eps) * y   (refl) and r = a/(y.y+eps) * (x^y) (exb)
+template <typename T, typename Call>
+Result bench_3refl_t(int n, const char *nm, double eps, Call call)
+{
+    std::vector<T> x1(n), x2(n), x3(n), y1(n), y2(n), y3(n);
+    std::vector<T> q1(n), q2(n), q3(n);
+    std::vector<ld> q1r(n), q2r(n), q3r(n);
+    seeded(x1, 221); seeded(x2, 222); seeded(x3, 223);
+    seeded(y1, 224); seeded(y2, 225); seeded(y3, 226);
+    for (int i = 0; i < n; ++i) {
+        ld dxy = (ld)x1[i] * y1[i] + (ld)x2[i] * y2[i] + (ld)x3[i] * y3[i];
+        ld dyy = (ld)y1[i] * y1[i] + (ld)y2[i] * y2[i] + (ld)y3[i] * y3[i] + (ld)0.25;
+        ld f = (ld)1.5 * dxy / dyy;
+        q1r[i] = (ld)x1[i] - f * y1[i];
+        q2r[i] = (ld)x2[i] - f * y2[i];
+        q3r[i] = (ld)x3[i] - f * y3[i];
+    }
+    const double flops = 20.0, fcyc = 10.0;
+    const char *eq = "q=x-a(x.y)/(y.y+eps)y";
+    double err;
+#define CC_CALL \
+    call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
+         y1.data(), 1, y2.data(), 1, y3.data(), 1, (T)1.5, (T)0.25, \
+         q1.data(), 1, q2.data(), 1, q3.data(), 1)
+#define CC_ERR \
+    std::fmax(max_rel_err(q1.data(), q1r.data(), n), \
+              std::fmax(max_rel_err(q2.data(), q2r.data(), n), \
+                        max_rel_err(q3.data(), q3r.data(), n)))
+#ifndef NDEBUG
+    CC_CALL;
+    err = CC_ERR;
+    std::printf("%s[0]: q = x-a(x.y)/(y.y+eps)y\nq = (%g %g %g)\n", nm,
+                (double)q1[0], (double)q2[0], (double)q3[0]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing t = timed_run([&] { CC_CALL; });
+    err = CC_ERR;
+    return make_result(nm, flops, fcyc, t.t_run / t.iters, n, t.iters, err, eps, eq);
+#endif
+#undef CC_CALL
+#undef CC_ERR
+}
+
+template <typename T, typename Call>
+Result bench_3exb_t(int n, const char *nm, double eps, Call call)
+{
+    std::vector<T> x1(n), x2(n), x3(n), y1(n), y2(n), y3(n);
+    std::vector<T> r1(n), r2(n), r3(n);
+    std::vector<ld> r1r(n), r2r(n), r3r(n);
+    seeded(x1, 221); seeded(x2, 222); seeded(x3, 223);
+    seeded(y1, 224); seeded(y2, 225); seeded(y3, 226);
+    for (int i = 0; i < n; ++i) {
+        ld c1 = (ld)x2[i] * y3[i] - (ld)x3[i] * y2[i];
+        ld c2 = (ld)x3[i] * y1[i] - (ld)x1[i] * y3[i];
+        ld c3 = (ld)x1[i] * y2[i] - (ld)x2[i] * y1[i];
+        ld dyy = (ld)y1[i] * y1[i] + (ld)y2[i] * y2[i] + (ld)y3[i] * y3[i] + (ld)0.25;
+        ld f = (ld)1.5 / dyy;
+        r1r[i] = f * c1; r2r[i] = f * c2; r3r[i] = f * c3;
+    }
+    const double flops = 20.0, fcyc = 10.0;
+    const char *eq = "r=a(x^y)/(y.y+eps)";
+    double err;
+#define CC_CALL \
+    call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
+         y1.data(), 1, y2.data(), 1, y3.data(), 1, (T)1.5, (T)0.25, \
+         r1.data(), 1, r2.data(), 1, r3.data(), 1)
+#define CC_ERR \
+    std::fmax(max_rel_err(r1.data(), r1r.data(), n), \
+              std::fmax(max_rel_err(r2.data(), r2r.data(), n), \
+                        max_rel_err(r3.data(), r3r.data(), n)))
+#ifndef NDEBUG
+    CC_CALL;
+    err = CC_ERR;
+    std::printf("%s[0]: r = a(x^y)/(y.y+eps)\nr = (%g %g %g)\n", nm,
+                (double)r1[0], (double)r2[0], (double)r3[0]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing t = timed_run([&] { CC_CALL; });
+    err = CC_ERR;
+    return make_result(nm, flops, fcyc, t.t_run / t.iters, n, t.iters, err, eps, eq);
+#endif
+#undef CC_CALL
+#undef CC_ERR
+}
+
+// r = a * x * sqrt(x.x + eps)   (drag)
+template <typename T, typename Call>
+Result bench_3drag_t(int n, const char *nm, double eps, Call call)
+{
+    std::vector<T> x1(n), x2(n), x3(n), r1(n), r2(n), r3(n);
+    std::vector<ld> r1r(n), r2r(n), r3r(n);
+    seeded(x1, 231); seeded(x2, 232); seeded(x3, 233);
+    for (int i = 0; i < n; ++i) {
+        ld d = (ld)x1[i] * x1[i] + (ld)x2[i] * x2[i] + (ld)x3[i] * x3[i] + (ld)0.25;
+        ld s = (ld)1.5 * sqrtl(d);
+        r1r[i] = s * x1[i]; r2r[i] = s * x2[i]; r3r[i] = s * x3[i];
+    }
+    const double flops = 27.0, fcyc = 14.0;
+    const char *eq = "r=a*x*sqrt(x.x+eps)";
+    double err;
+#define CC_CALL \
+    call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, (T)1.5, (T)0.25, \
+         r1.data(), 1, r2.data(), 1, r3.data(), 1)
+#define CC_ERR \
+    std::fmax(max_rel_err(r1.data(), r1r.data(), n), \
+              std::fmax(max_rel_err(r2.data(), r2r.data(), n), \
+                        max_rel_err(r3.data(), r3r.data(), n)))
+#ifndef NDEBUG
+    CC_CALL;
+    err = CC_ERR;
+    std::printf("%s[0]: r = a*x*sqrt(x.x+eps)\nr = (%g %g %g)\n", nm,
+                (double)r1[0], (double)r2[0], (double)r3[0]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing t = timed_run([&] { CC_CALL; });
+    err = CC_ERR;
+    return make_result(nm, flops, fcyc, t.t_run / t.iters, n, t.iters, err, eps, eq);
+#endif
+#undef CC_CALL
+#undef CC_ERR
+}
+
+// m = s*x, k = 0.5*s*(x.x)   (momentum + kinetic energy)
+template <typename T, typename Call>
+Result bench_3mom_ke_t(int n, const char *nm, double eps, Call call)
+{
+    std::vector<T> s(n), x1(n), x2(n), x3(n);
+    std::vector<T> m1(n), m2(n), m3(n), k(n);
+    std::vector<ld> m1r(n), m2r(n), m3r(n), kr(n);
+    seeded(s, 241); seeded(x1, 242); seeded(x2, 243); seeded(x3, 244);
+    for (int i = 0; i < n; ++i) {
+        m1r[i] = (ld)s[i] * x1[i];
+        m2r[i] = (ld)s[i] * x2[i];
+        m3r[i] = (ld)s[i] * x3[i];
+        ld d = (ld)x1[i] * x1[i] + (ld)x2[i] * x2[i] + (ld)x3[i] * x3[i];
+        kr[i] = (ld)0.5 * s[i] * d;
+    }
+    const double flops = 10.0, fcyc = 5.0;
+    const char *eq = "m=s*x,k=0.5*s*(x.x)";
+    double err;
+#define CC_CALL \
+    call(n, s.data(), 1, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
+         m1.data(), 1, m2.data(), 1, m3.data(), 1, k.data(), 1)
+#define CC_ERR \
+    std::fmax(max_rel_err(m1.data(), m1r.data(), n), \
+              std::fmax(max_rel_err(m2.data(), m2r.data(), n), \
+                        std::fmax(max_rel_err(m3.data(), m3r.data(), n), \
+                                  max_rel_err(k.data(), kr.data(), n))))
+#ifndef NDEBUG
+    CC_CALL;
+    err = CC_ERR;
+    std::printf("%s[0]: m = s*x, k = 0.5*s*(x.x)\n" "m = (%g %g %g)  k = %g\n", nm,
+                (double)m1[0], (double)m2[0], (double)m3[0], (double)k[0]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing t = timed_run([&] { CC_CALL; });
+    err = CC_ERR;
+    return make_result(nm, flops, fcyc, t.t_run / t.iters, n, t.iters, err, eps, eq);
+#endif
+#undef CC_CALL
+#undef CC_ERR
+}
 
 // ---------------- complex (c/z) kernels, interleaved storage ----------------
 // T is the scalar type (float for c, double for z); arrays hold 2n elements,
@@ -1406,6 +1675,307 @@ Result bench_3dotxy_dotxz_x(int n, const char *nm, double eps, Call call)
 #endif
 }
 
+// ------------- CFD menu ops (c/z) -------------
+
+// r = (x^y)^w
+template <typename T, typename Call>
+Result bench_3crosscross_x(int n, const char *nm, double eps, Call call)
+{
+    std::vector<T> x1(2 * n), x2(2 * n), x3(2 * n);
+    std::vector<T> y1(2 * n), y2(2 * n), y3(2 * n);
+    std::vector<T> w1(2 * n), w2(2 * n), w3(2 * n);
+    std::vector<T> r1(2 * n), r2(2 * n), r3(2 * n);
+    std::vector<ld> t1(2 * n), t2(2 * n), t3(2 * n);
+    std::vector<ld> zw1(2 * n), zw2(2 * n), zw3(2 * n);
+    std::vector<ld> r1r(2 * n), r2r(2 * n), r3r(2 * n);
+    seeded_c(x1, 201); seeded_c(x2, 202); seeded_c(x3, 203);
+    seeded_c(y1, 204); seeded_c(y2, 205); seeded_c(y3, 206);
+    seeded_c(w1, 207); seeded_c(w2, 208); seeded_c(w3, 209);
+    for (int i = 0; i < 2 * n; ++i) {
+        zw1[i] = (ld)w1[i]; zw2[i] = (ld)w2[i]; zw3[i] = (ld)w3[i];
+    }
+    for (int i = 0; i < n; ++i) {
+        ccross(x1.data(), x2.data(), x3.data(),
+               y1.data(), y2.data(), y3.data(),
+               t1.data(), t2.data(), t3.data(), i);
+        ccross(t1.data(), t2.data(), t3.data(),
+               zw1.data(), zw2.data(), zw3.data(),
+               r1r.data(), r2r.data(), r3r.data(), i);
+    }
+    const double flops = 72.0, fcyc = 40.0;
+    const char *eq = "r=(x^y)^w";
+    double err;
+#define CC_CALL \
+    call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
+         y1.data(), 1, y2.data(), 1, y3.data(), 1, \
+         w1.data(), 1, w2.data(), 1, w3.data(), 1, \
+         r1.data(), 1, r2.data(), 1, r3.data(), 1)
+#define CC_ERR \
+    std::fmax(max_rel_err_c(r1.data(), r1r.data(), n), \
+              std::fmax(max_rel_err_c(r2.data(), r2r.data(), n), \
+                        max_rel_err_c(r3.data(), r3r.data(), n)))
+#ifndef NDEBUG
+    CC_CALL;
+    err = CC_ERR;
+    std::printf("%s[0]: r = (x^y)^w\nr1 = (%g %g)\n", nm,
+                (double)r1[0], (double)r1[1]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing t = timed_run([&] { CC_CALL; });
+    err = CC_ERR;
+    return make_result(nm, flops, fcyc, t.t_run / t.iters, n, t.iters, err, eps, eq);
+#endif
+#undef CC_CALL
+#undef CC_ERR
+}
+
+// r = sqrt(x.x + eps), u = x / r   (bilinear dot, principal csqrt)
+template <typename T, typename Call>
+Result bench_3norm_unit_x(int n, const char *nm, double eps, Call call)
+{
+    std::vector<T> x1(2 * n), x2(2 * n), x3(2 * n);
+    std::vector<T> r(2 * n), u1(2 * n), u2(2 * n), u3(2 * n);
+    std::vector<ld> rr(2 * n), u1r(2 * n), u2r(2 * n), u3r(2 * n);
+    seeded_c(x1, 211); seeded_c(x2, 212); seeded_c(x3, 213);
+    for (int i = 0; i < n; ++i) {
+        ld d0, d1;
+        cdot3(x1.data(), x2.data(), x3.data(),
+              x1.data(), x2.data(), x3.data(), d0, d1, i);
+        d0 += (ld)0.25;
+        csqrtld(d0, d1, rr[2 * i], rr[2 * i + 1]);
+        cdivld((ld)x1[2 * i], (ld)x1[2 * i + 1], rr[2 * i], rr[2 * i + 1],
+               u1r[2 * i], u1r[2 * i + 1]);
+        cdivld((ld)x2[2 * i], (ld)x2[2 * i + 1], rr[2 * i], rr[2 * i + 1],
+               u2r[2 * i], u2r[2 * i + 1]);
+        cdivld((ld)x3[2 * i], (ld)x3[2 * i + 1], rr[2 * i], rr[2 * i + 1],
+               u3r[2 * i], u3r[2 * i + 1]);
+    }
+    const double flops = 56.0, fcyc = 32.0;
+    const char *eq = "r=sqrt(x.x+eps),u=x/r";
+    double err;
+#define CC_CALL \
+    call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, (T)0.25, \
+         r.data(), 1, u1.data(), 1, u2.data(), 1, u3.data(), 1)
+#define CC_ERR \
+    std::fmax(max_rel_err_c(r.data(), rr.data(), n), \
+              std::fmax(max_rel_err_c(u1.data(), u1r.data(), n), \
+                        std::fmax(max_rel_err_c(u2.data(), u2r.data(), n), \
+                                  max_rel_err_c(u3.data(), u3r.data(), n))))
+#ifndef NDEBUG
+    CC_CALL;
+    err = CC_ERR;
+    std::printf("%s[0]: r = sqrt(x.x+eps), u = x/r\n" "r = (%g %g)  u1 = (%g %g)\n", nm,
+                (double)r[0], (double)r[1], (double)u1[0], (double)u1[1]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing t = timed_run([&] { CC_CALL; });
+    err = CC_ERR;
+    return make_result(nm, flops, fcyc, t.t_run / t.iters, n, t.iters, err, eps, eq);
+#endif
+#undef CC_CALL
+#undef CC_ERR
+}
+
+// q = x - a*(x.y)/(y.y+eps) * y
+ template <typename T, typename Call>
+Result bench_3refl_x(int n, const char *nm, double eps, Call call)
+{
+    std::vector<T> x1(2 * n), x2(2 * n), x3(2 * n);
+    std::vector<T> y1(2 * n), y2(2 * n), y3(2 * n);
+    std::vector<T> q1(2 * n), q2(2 * n), q3(2 * n);
+    std::vector<ld> q1r(2 * n), q2r(2 * n), q3r(2 * n);
+    seeded_c(x1, 221); seeded_c(x2, 222); seeded_c(x3, 223);
+    seeded_c(y1, 224); seeded_c(y2, 225); seeded_c(y3, 226);
+    for (int i = 0; i < n; ++i) {
+        ld d0, d1, e0, e1, f0, f1, p0, p1;
+        cdot3(x1.data(), x2.data(), x3.data(),
+              y1.data(), y2.data(), y3.data(), d0, d1, i);
+        cdot3(y1.data(), y2.data(), y3.data(),
+              y1.data(), y2.data(), y3.data(), e0, e1, i);
+        e0 += (ld)0.25;
+        cprod(d0, d1, (ld)1.5, (ld)0.0, p0, p1);
+        cdivld(p0, p1, e0, e1, f0, f1);
+        const T *xc[3] = { x1.data(), x2.data(), x3.data() };
+        const T *yc[3] = { y1.data(), y2.data(), y3.data() };
+        ld *oc[3] = { q1r.data(), q2r.data(), q3r.data() };
+        for (int c = 0; c < 3; ++c) {
+            cprod(f0, f1, (ld)yc[c][2 * i], (ld)yc[c][2 * i + 1], p0, p1);
+            oc[c][2 * i] = (ld)xc[c][2 * i] - p0;
+            oc[c][2 * i + 1] = (ld)xc[c][2 * i + 1] - p1;
+        }
+    }
+    const double flops = 44.0, fcyc = 26.0;
+    const char *eq = "q=x-a(x.y)/(y.y+eps)y";
+    double err;
+#define CC_CALL \
+    call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
+         y1.data(), 1, y2.data(), 1, y3.data(), 1, (T)1.5, (T)0.25, \
+         q1.data(), 1, q2.data(), 1, q3.data(), 1)
+#define CC_ERR \
+    std::fmax(max_rel_err_c(q1.data(), q1r.data(), n), \
+              std::fmax(max_rel_err_c(q2.data(), q2r.data(), n), \
+                        max_rel_err_c(q3.data(), q3r.data(), n)))
+#ifndef NDEBUG
+    CC_CALL;
+    err = CC_ERR;
+    std::printf("%s[0]: q = x-a(x.y)/(y.y+eps)y\nq1 = (%g %g)\n", nm,
+                (double)q1[0], (double)q1[1]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing t = timed_run([&] { CC_CALL; });
+    err = CC_ERR;
+    return make_result(nm, flops, fcyc, t.t_run / t.iters, n, t.iters, err, eps, eq);
+#endif
+#undef CC_CALL
+#undef CC_ERR
+}
+
+// r = a/(y.y+eps) * (x^y)
+template <typename T, typename Call>
+Result bench_3exb_x(int n, const char *nm, double eps, Call call)
+{
+    std::vector<T> x1(2 * n), x2(2 * n), x3(2 * n);
+    std::vector<T> y1(2 * n), y2(2 * n), y3(2 * n);
+    std::vector<T> r1(2 * n), r2(2 * n), r3(2 * n);
+    std::vector<ld> c1(2 * n), c2(2 * n), c3(2 * n);
+    std::vector<ld> r1r(2 * n), r2r(2 * n), r3r(2 * n);
+    seeded_c(x1, 221); seeded_c(x2, 222); seeded_c(x3, 223);
+    seeded_c(y1, 224); seeded_c(y2, 225); seeded_c(y3, 226);
+    for (int i = 0; i < n; ++i) {
+        ld e0, e1, p0, p1;
+        ccross(x1.data(), x2.data(), x3.data(),
+               y1.data(), y2.data(), y3.data(),
+               c1.data(), c2.data(), c3.data(), i);
+        cdot3(y1.data(), y2.data(), y3.data(),
+              y1.data(), y2.data(), y3.data(), e0, e1, i);
+        e0 += (ld)0.25;
+        const ld *cc[3] = { c1.data(), c2.data(), c3.data() };
+        ld *oc[3] = { r1r.data(), r2r.data(), r3r.data() };
+        for (int c = 0; c < 3; ++c) {
+            cprod((ld)cc[c][2 * i], (ld)cc[c][2 * i + 1], (ld)1.5, (ld)0.0, p0, p1);
+            cdivld(p0, p1, e0, e1, oc[c][2 * i], oc[c][2 * i + 1]);
+        }
+    }
+    const double flops = 52.0, fcyc = 30.0;
+    const char *eq = "r=a(x^y)/(y.y+eps)";
+    double err;
+#define CC_CALL \
+    call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
+         y1.data(), 1, y2.data(), 1, y3.data(), 1, (T)1.5, (T)0.25, \
+         r1.data(), 1, r2.data(), 1, r3.data(), 1)
+#define CC_ERR \
+    std::fmax(max_rel_err_c(r1.data(), r1r.data(), n), \
+              std::fmax(max_rel_err_c(r2.data(), r2r.data(), n), \
+                        max_rel_err_c(r3.data(), r3r.data(), n)))
+#ifndef NDEBUG
+    CC_CALL;
+    err = CC_ERR;
+    std::printf("%s[0]: r = a(x^y)/(y.y+eps)\nr1 = (%g %g)\n", nm,
+                (double)r1[0], (double)r1[1]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing t = timed_run([&] { CC_CALL; });
+    err = CC_ERR;
+    return make_result(nm, flops, fcyc, t.t_run / t.iters, n, t.iters, err, eps, eq);
+#endif
+#undef CC_CALL
+#undef CC_ERR
+}
+
+// r = a * x * sqrt(x.x + eps)
+template <typename T, typename Call>
+Result bench_3drag_x(int n, const char *nm, double eps, Call call)
+{
+    std::vector<T> x1(2 * n), x2(2 * n), x3(2 * n);
+    std::vector<T> r1(2 * n), r2(2 * n), r3(2 * n);
+    std::vector<ld> r1r(2 * n), r2r(2 * n), r3r(2 * n);
+    seeded_c(x1, 231); seeded_c(x2, 232); seeded_c(x3, 233);
+    for (int i = 0; i < n; ++i) {
+        ld d0, d1, m0, m1, s0, s1;
+        cdot3(x1.data(), x2.data(), x3.data(),
+              x1.data(), x2.data(), x3.data(), d0, d1, i);
+        d0 += (ld)0.25;
+        csqrtld(d0, d1, m0, m1);
+        cprod(m0, m1, (ld)1.5, (ld)0.0, s0, s1);
+        const T *xc[3] = { x1.data(), x2.data(), x3.data() };
+        ld *oc[3] = { r1r.data(), r2r.data(), r3r.data() };
+        for (int c = 0; c < 3; ++c)
+            cprod((ld)xc[c][2 * i], (ld)xc[c][2 * i + 1], s0, s1,
+                  oc[c][2 * i], oc[c][2 * i + 1]);
+    }
+    const double flops = 48.0, fcyc = 28.0;
+    const char *eq = "r=a*x*sqrt(x.x+eps)";
+    double err;
+#define CC_CALL \
+    call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, (T)1.5, (T)0.25, \
+         r1.data(), 1, r2.data(), 1, r3.data(), 1)
+#define CC_ERR \
+    std::fmax(max_rel_err_c(r1.data(), r1r.data(), n), \
+              std::fmax(max_rel_err_c(r2.data(), r2r.data(), n), \
+                        max_rel_err_c(r3.data(), r3r.data(), n)))
+#ifndef NDEBUG
+    CC_CALL;
+    err = CC_ERR;
+    std::printf("%s[0]: r = a*x*sqrt(x.x+eps)\nr1 = (%g %g)\n", nm,
+                (double)r1[0], (double)r1[1]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing t = timed_run([&] { CC_CALL; });
+    err = CC_ERR;
+    return make_result(nm, flops, fcyc, t.t_run / t.iters, n, t.iters, err, eps, eq);
+#endif
+#undef CC_CALL
+#undef CC_ERR
+}
+
+// m = s*x, k = 0.5*s*(x.x)
+template <typename T, typename Call>
+Result bench_3mom_ke_x(int n, const char *nm, double eps, Call call)
+{
+    std::vector<T> s(2 * n), x1(2 * n), x2(2 * n), x3(2 * n);
+    std::vector<T> m1(2 * n), m2(2 * n), m3(2 * n), k(2 * n);
+    std::vector<ld> m1r(2 * n), m2r(2 * n), m3r(2 * n), kr(2 * n);
+    seeded_c(s, 241); seeded_c(x1, 242); seeded_c(x2, 243); seeded_c(x3, 244);
+    for (int i = 0; i < n; ++i) {
+        const T *xc[3] = { x1.data(), x2.data(), x3.data() };
+        ld *oc[3] = { m1r.data(), m2r.data(), m3r.data() };
+        for (int c = 0; c < 3; ++c)
+            cprod((ld)s[2 * i], (ld)s[2 * i + 1],
+                  (ld)xc[c][2 * i], (ld)xc[c][2 * i + 1],
+                  oc[c][2 * i], oc[c][2 * i + 1]);
+        ld d0, d1;
+        cdot3(x1.data(), x2.data(), x3.data(),
+              x1.data(), x2.data(), x3.data(), d0, d1, i);
+        cprod((ld)s[2 * i], (ld)s[2 * i + 1], d0, d1, kr[2 * i], kr[2 * i + 1]);
+        kr[2 * i] *= (ld)0.5;
+        kr[2 * i + 1] *= (ld)0.5;
+    }
+    const double flops = 28.0, fcyc = 16.0;
+    const char *eq = "m=s*x,k=0.5*s*(x.x)";
+    double err;
+#define CC_CALL \
+    call(n, s.data(), 1, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
+         m1.data(), 1, m2.data(), 1, m3.data(), 1, k.data(), 1)
+#define CC_ERR \
+    std::fmax(max_rel_err_c(m1.data(), m1r.data(), n), \
+              std::fmax(max_rel_err_c(m2.data(), m2r.data(), n), \
+                        std::fmax(max_rel_err_c(m3.data(), m3r.data(), n), \
+                                  max_rel_err_c(k.data(), kr.data(), n))))
+#ifndef NDEBUG
+    CC_CALL;
+    err = CC_ERR;
+    std::printf("%s[0]: m = s*x, k = 0.5*s*(x.x)\n" "m1 = (%g %g)  k = (%g %g)\n", nm,
+                (double)m1[0], (double)m1[1], (double)k[0], (double)k[1]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing t = timed_run([&] { CC_CALL; });
+    err = CC_ERR;
+    return make_result(nm, flops, fcyc, t.t_run / t.iters, n, t.iters, err, eps, eq);
+#endif
+#undef CC_CALL
+#undef CC_ERR
+}
+
 // ---------------- precision dispatchers ----------------
 
 Result bench_axpy(int n, char prec)
@@ -1560,6 +2130,75 @@ Result bench_3dotxy_dotxz(int n, char prec)
     }
 }
 
+Result bench_3crosscross(int n, char prec)
+{
+    switch (prec) {
+    case 's': return bench_3crosscross_t<float>(n, "s3crosscross", kEpsF,
+                                                cblas_s3crosscross);
+    case 'd': return bench_3crosscross_t<double>(n, "d3crosscross", kEps,
+                                                 cblas_d3crosscross);
+    case 'c': return bench_3crosscross_x<float>(n, "c3crosscross", kEpsF,
+                                                cblas_c3crosscross);
+    default:  return bench_3crosscross_x<double>(n, "z3crosscross", kEps,
+                                                 cblas_z3crosscross);
+    }
+}
+
+Result bench_3norm_unit(int n, char prec)
+{
+    switch (prec) {
+    case 's': return bench_3norm_unit_t<float>(n, "s3norm_unit", kEpsF,
+                                               cblas_s3norm_unit);
+    case 'd': return bench_3norm_unit_t<double>(n, "d3norm_unit", kEps,
+                                                cblas_d3norm_unit);
+    case 'c': return bench_3norm_unit_x<float>(n, "c3norm_unit", kEpsF,
+                                               cblas_c3norm_unit);
+    default:  return bench_3norm_unit_x<double>(n, "z3norm_unit", kEps,
+                                                cblas_z3norm_unit);
+    }
+}
+
+Result bench_3refl(int n, char prec)
+{
+    switch (prec) {
+    case 's': return bench_3refl_t<float>(n, "s3refl", kEpsF, cblas_s3refl);
+    case 'd': return bench_3refl_t<double>(n, "d3refl", kEps, cblas_d3refl);
+    case 'c': return bench_3refl_x<float>(n, "c3refl", kEpsF, cblas_c3refl);
+    default:  return bench_3refl_x<double>(n, "z3refl", kEps, cblas_z3refl);
+    }
+}
+
+Result bench_3exb(int n, char prec)
+{
+    switch (prec) {
+    case 's': return bench_3exb_t<float>(n, "s3exb", kEpsF, cblas_s3exb);
+    case 'd': return bench_3exb_t<double>(n, "d3exb", kEps, cblas_d3exb);
+    case 'c': return bench_3exb_x<float>(n, "c3exb", kEpsF, cblas_c3exb);
+    default:  return bench_3exb_x<double>(n, "z3exb", kEps, cblas_z3exb);
+    }
+}
+
+Result bench_3drag(int n, char prec)
+{
+    switch (prec) {
+    case 's': return bench_3drag_t<float>(n, "s3drag", kEpsF, cblas_s3drag);
+    case 'd': return bench_3drag_t<double>(n, "d3drag", kEps, cblas_d3drag);
+    case 'c': return bench_3drag_x<float>(n, "c3drag", kEpsF, cblas_c3drag);
+    default:  return bench_3drag_x<double>(n, "z3drag", kEps, cblas_z3drag);
+    }
+}
+
+Result bench_3mom_ke(int n, char prec)
+{
+    switch (prec) {
+    case 's': return bench_3mom_ke_t<float>(n, "s3mom_ke", kEpsF, cblas_s3mom_ke);
+    case 'd': return bench_3mom_ke_t<double>(n, "d3mom_ke", kEps, cblas_d3mom_ke);
+    case 'c': return bench_3mom_ke_x<float>(n, "c3mom_ke", kEpsF, cblas_c3mom_ke);
+    default:  return bench_3mom_ke_x<double>(n, "z3mom_ke", kEps,
+                                             cblas_z3mom_ke);
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -1593,6 +2232,12 @@ int main(int argc, char **argv)
     results.push_back(bench_3crossxy_crossxz(n, prec));
     results.push_back(bench_3crossxy_dotxz(n, prec));
     results.push_back(bench_3dotxy_dotxz(n, prec));
+    results.push_back(bench_3crosscross(n, prec));
+    results.push_back(bench_3norm_unit(n, prec));
+    results.push_back(bench_3refl(n, prec));
+    results.push_back(bench_3exb(n, prec));
+    results.push_back(bench_3drag(n, prec));
+    results.push_back(bench_3mom_ke(n, prec));
 
     std::printf("%-19s %10s %12s %12s %6s %13s %7s  %s  %s\n",
                 "kernel", "ms/run", "FLOP/s", "Melem/s", "F/cyc",

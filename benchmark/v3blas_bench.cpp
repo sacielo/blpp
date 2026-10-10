@@ -341,6 +341,97 @@ static void bench_all_ ## P(int n)                                         \
       add_result("v3dotxy_dotxz_" #P, tp, tc, e,                           \
                  (ICX ? 44.0 : 10.0), n, "r=x·y,q=x·w"); }                 \
                                                                            \
+    { cblas_ ## P ## 3crosscross(n, x.x, 1, x.y, 1, x.z, 1,                \
+                                 y.x, 1, y.y, 1, y.z, 1,                    \
+                                 w.x, 1, w.y, 1, w.z, 1,                    \
+                                 ro[0], 1, ro[1], 1, ro[2], 1);             \
+      v3crosscross_ ## P(x, y, w, wo[0], wo[1], wo[2]);                    \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[1], ro[1], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[2], ro[2], n));                \
+      Timing tp = timed_run([&]{ v3crosscross_ ## P(x, y, w,               \
+          wo[0], wo[1], wo[2]); });                                        \
+      Timing tc = timed_run([&]{ cblas_ ## P ## 3crosscross(n,             \
+          x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1,                  \
+          w.x, 1, w.y, 1, w.z, 1,                                          \
+          ro[0], 1, ro[1], 1, ro[2], 1); });                               \
+      add_result("v3crosscross_" #P, tp, tc, e,                            \
+                 (ICX ? 72.0 : 24.0), n, "r=(x∧y)∧w"); }                  \
+                                                                           \
+    { cblas_ ## P ## 3norm_unit(n, x.x, 1, x.y, 1, x.z, 1, 0.25,           \
+                                ro[0], 1, ro[1], 1, ro[2], 1, ro[3], 1);   \
+      v3norm_unit_ ## P(x, 0.25, wo[0], wo[1], wo[2], wo[3]);              \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[1], ro[1], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[2], ro[2], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[3], ro[3], n));                \
+      Timing tp = timed_run([&]{ v3norm_unit_ ## P(x, 0.25,                \
+          wo[0], wo[1], wo[2], wo[3]); });                                 \
+      Timing tc = timed_run([&]{ cblas_ ## P ## 3norm_unit(n,              \
+          x.x, 1, x.y, 1, x.z, 1, 0.25,                                    \
+          ro[0], 1, ro[1], 1, ro[2], 1, ro[3], 1); });                     \
+      add_result("v3norm_unit_" #P, tp, tc, e,                             \
+                 (ICX ? 56.0 : 24.0), n, "r=sqrt(x·x+eps),u=x/r"); }       \
+                                                                           \
+    { cblas_ ## P ## 3refl(n, x.x, 1, x.y, 1, x.z, 1,                      \
+                           y.x, 1, y.y, 1, y.z, 1, 1.5, 0.25,              \
+                           ro[0], 1, ro[1], 1, ro[2], 1);                  \
+      v3refl_ ## P(x, y, 1.5, 0.25, wo[0], wo[1], wo[2]);                  \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[1], ro[1], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[2], ro[2], n));                \
+      Timing tp = timed_run([&]{ v3refl_ ## P(x, y, 1.5, 0.25,             \
+          wo[0], wo[1], wo[2]); });                                        \
+      Timing tc = timed_run([&]{ cblas_ ## P ## 3refl(n,                   \
+          x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1, 1.5, 0.25,       \
+          ro[0], 1, ro[1], 1, ro[2], 1); });                               \
+      add_result("v3refl_" #P, tp, tc, e,                                  \
+                 (ICX ? 44.0 : 20.0), n, "q=x-a(x·y)/(y·y+eps)y"); }       \
+                                                                           \
+    { cblas_ ## P ## 3exb(n, x.x, 1, x.y, 1, x.z, 1,                       \
+                          y.x, 1, y.y, 1, y.z, 1, 1.5, 0.25,               \
+                          ro[0], 1, ro[1], 1, ro[2], 1);                   \
+      v3exb_ ## P(x, y, 1.5, 0.25, wo[0], wo[1], wo[2]);                   \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[1], ro[1], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[2], ro[2], n));                \
+      Timing tp = timed_run([&]{ v3exb_ ## P(x, y, 1.5, 0.25,              \
+          wo[0], wo[1], wo[2]); });                                        \
+      Timing tc = timed_run([&]{ cblas_ ## P ## 3exb(n,                    \
+          x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1, 1.5, 0.25,       \
+          ro[0], 1, ro[1], 1, ro[2], 1); });                               \
+      add_result("v3exb_" #P, tp, tc, e,                                   \
+                 (ICX ? 52.0 : 20.0), n, "r=a(x∧y)/(y·y+eps)"); }          \
+                                                                           \
+    { cblas_ ## P ## 3drag(n, x.x, 1, x.y, 1, x.z, 1, 1.5, 0.25,           \
+                           ro[0], 1, ro[1], 1, ro[2], 1);                  \
+      v3drag_ ## P(x, 1.5, 0.25, wo[0], wo[1], wo[2]);                     \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[1], ro[1], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[2], ro[2], n));                \
+      Timing tp = timed_run([&]{ v3drag_ ## P(x, 1.5, 0.25,                \
+          wo[0], wo[1], wo[2]); });                                        \
+      Timing tc = timed_run([&]{ cblas_ ## P ## 3drag(n,                   \
+          x.x, 1, x.y, 1, x.z, 1, 1.5, 0.25,                               \
+          ro[0], 1, ro[1], 1, ro[2], 1); });                               \
+      add_result("v3drag_" #P, tp, tc, e,                                  \
+                 (ICX ? 48.0 : 27.0), n, "r=a*x*sqrt(x·x+eps)"); }         \
+                                                                           \
+    { cblas_ ## P ## 3mom_ke(n, bq, 1, x.x, 1, x.y, 1, x.z, 1,             \
+                             ro[0], 1, ro[1], 1, ro[2], 1, ro[3], 1);      \
+      v3mom_ke_ ## P(bq, x, wo[0], wo[1], wo[2], wo[3]);                   \
+      double e = max_rel_diff(esz, ICX, wo[0], ro[0], n);                  \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[1], ro[1], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[2], ro[2], n));                \
+      e = fmax(e, max_rel_diff(esz, ICX, wo[3], ro[3], n));                \
+      Timing tp = timed_run([&]{ v3mom_ke_ ## P(bq, x,                     \
+          wo[0], wo[1], wo[2], wo[3]); });                                 \
+      Timing tc = timed_run([&]{ cblas_ ## P ## 3mom_ke(n, bq, 1,          \
+          x.x, 1, x.y, 1, x.z, 1,                                          \
+          ro[0], 1, ro[1], 1, ro[2], 1, ro[3], 1); });                     \
+      add_result("v3mom_ke_" #P, tp, tc, e,                                \
+                 (ICX ? 28.0 : 10.0), n, "m=s*x,k=0.5*s*(x·x)"); }         \
+                                                                           \
     free(in);                                                              \
     free(scratch);                                                         \
 }

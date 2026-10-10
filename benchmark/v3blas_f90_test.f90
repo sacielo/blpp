@@ -139,6 +139,59 @@ contains
     call chk('v3dotxy_dotxz ('//"s"//')', real(max(&
              maxval(abs(r - (x1*y1 + x2*y2 + x3*y3))), &
              maxval(abs(q - (x1*w1 + x2*w2 + x3*w3))))), 1.0E-5)
+
+    call setup9_s(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3crosscross(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r, q, t)
+    cx = x2*y3 - x3*y2; cy = x3*y1 - x1*y3; cz = x1*y2 - x2*y1
+    e1 = max(maxval(abs(r - (cy*w3 - cz*w2))), &
+             max(maxval(abs(q - (cz*w1 - cx*w3))), &
+                 maxval(abs(t - (cx*w2 - cy*w1)))))
+    call chk('v3crosscross (s)', real(e1), 1.0E-5)
+
+    call setup9_s(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3norm_unit(n, x1, x2, x3, real(0.25, kind(u1)), r, u1, u2, u3)
+    cx = sqrt(x1*x1 + x2*x2 + x3*x3 + real(0.25, kind(u1)))
+    e1 = max(maxval(abs(r - cx)), max(maxval(abs(u1 - x1/cx)), &
+             max(maxval(abs(u2 - x2/cx)), maxval(abs(u3 - x3/cx)))))
+    call chk('v3norm_unit (s)', real(e1), 1.0E-5)
+
+    call setup9_s(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3refl(n, x1, x2, x3, y1, y2, y3, real(1.5, kind(u1)), &
+                real(0.25, kind(u1)), r, q, t)
+    cx = (y1*y1 + y2*y2 + y3*y3 + real(0.25, kind(u1)))
+    e1 = max(maxval(abs(r - (x1 - real(1.5, kind(u1)) * &
+             (x1*y1 + x2*y2 + x3*y3)/cx*y1))), &
+             max(maxval(abs(q - (x2 - real(1.5, kind(u1)) * &
+             (x1*y1 + x2*y2 + x3*y3)/cx*y2))), &
+             maxval(abs(t - (x3 - real(1.5, kind(u1)) * &
+             (x1*y1 + x2*y2 + x3*y3)/cx*y3)))))
+    call chk('v3refl (s)', real(e1), 1.0E-5)
+
+    call setup9_s(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3exb(n, x1, x2, x3, y1, y2, y3, real(1.5, kind(u1)), &
+               real(0.25, kind(u1)), r, q, t)
+    cx = y1*y1 + y2*y2 + y3*y3 + real(0.25, kind(u1))
+    e1 = max(maxval(abs(r - real(1.5, kind(u1))*(x2*y3 - x3*y2)/cx)), &
+             max(maxval(abs(q - real(1.5, kind(u1))*(x3*y1 - x1*y3)/cx)), &
+                 maxval(abs(t - real(1.5, kind(u1))*(x1*y2 - x2*y1)/cx))))
+    call chk('v3exb (s)', real(e1), 1.0E-5)
+
+    call setup9_s(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3drag(n, x1, x2, x3, real(1.5, kind(u1)), real(0.25, kind(u1)), &
+                r, q, t)
+    cx = sqrt(x1*x1 + x2*x2 + x3*x3 + real(0.25, kind(u1)))
+    e1 = max(maxval(abs(r - real(1.5, kind(u1))*x1*cx)), &
+             max(maxval(abs(q - real(1.5, kind(u1))*x2*cx)), &
+                 maxval(abs(t - real(1.5, kind(u1))*x3*cx))))
+    call chk('v3drag (s)', real(e1), 1.0E-5)
+
+    call setup9_s(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call rfill_s(real(0.3, kind(t)), t)
+    call v3mom_ke(n, t, x1, x2, x3, u1, u2, u3, r)
+    e1 = max(maxval(abs(u1 - t*x1)), max(maxval(abs(u2 - t*x2)), &
+             max(maxval(abs(u3 - t*x3)), &
+                 maxval(abs(r - real(0.5, kind(r))*t*(x1*x1 + x2*x2 + x3*x3))))))
+    call chk('v3mom_ke (s)', real(e1), 1.0E-5)
   end subroutine test_real_s
 
 ! Included from v3blas_f90_test.f90 with real(8) (type), TAG (name suffix),
@@ -252,6 +305,59 @@ contains
     call chk('v3dotxy_dotxz ('//"d"//')', real(max(&
              maxval(abs(r - (x1*y1 + x2*y2 + x3*y3))), &
              maxval(abs(q - (x1*w1 + x2*w2 + x3*w3))))), 1.0E-12)
+
+    call setup9_d(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3crosscross(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r, q, t)
+    cx = x2*y3 - x3*y2; cy = x3*y1 - x1*y3; cz = x1*y2 - x2*y1
+    e1 = max(maxval(abs(r - (cy*w3 - cz*w2))), &
+             max(maxval(abs(q - (cz*w1 - cx*w3))), &
+                 maxval(abs(t - (cx*w2 - cy*w1)))))
+    call chk('v3crosscross (d)', real(e1), 1.0E-12)
+
+    call setup9_d(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3norm_unit(n, x1, x2, x3, real(0.25, kind(u1)), r, u1, u2, u3)
+    cx = sqrt(x1*x1 + x2*x2 + x3*x3 + real(0.25, kind(u1)))
+    e1 = max(maxval(abs(r - cx)), max(maxval(abs(u1 - x1/cx)), &
+             max(maxval(abs(u2 - x2/cx)), maxval(abs(u3 - x3/cx)))))
+    call chk('v3norm_unit (d)', real(e1), 1.0E-12)
+
+    call setup9_d(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3refl(n, x1, x2, x3, y1, y2, y3, real(1.5, kind(u1)), &
+                real(0.25, kind(u1)), r, q, t)
+    cx = (y1*y1 + y2*y2 + y3*y3 + real(0.25, kind(u1)))
+    e1 = max(maxval(abs(r - (x1 - real(1.5, kind(u1)) * &
+             (x1*y1 + x2*y2 + x3*y3)/cx*y1))), &
+             max(maxval(abs(q - (x2 - real(1.5, kind(u1)) * &
+             (x1*y1 + x2*y2 + x3*y3)/cx*y2))), &
+             maxval(abs(t - (x3 - real(1.5, kind(u1)) * &
+             (x1*y1 + x2*y2 + x3*y3)/cx*y3)))))
+    call chk('v3refl (d)', real(e1), 1.0E-12)
+
+    call setup9_d(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3exb(n, x1, x2, x3, y1, y2, y3, real(1.5, kind(u1)), &
+               real(0.25, kind(u1)), r, q, t)
+    cx = y1*y1 + y2*y2 + y3*y3 + real(0.25, kind(u1))
+    e1 = max(maxval(abs(r - real(1.5, kind(u1))*(x2*y3 - x3*y2)/cx)), &
+             max(maxval(abs(q - real(1.5, kind(u1))*(x3*y1 - x1*y3)/cx)), &
+                 maxval(abs(t - real(1.5, kind(u1))*(x1*y2 - x2*y1)/cx))))
+    call chk('v3exb (d)', real(e1), 1.0E-12)
+
+    call setup9_d(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3drag(n, x1, x2, x3, real(1.5, kind(u1)), real(0.25, kind(u1)), &
+                r, q, t)
+    cx = sqrt(x1*x1 + x2*x2 + x3*x3 + real(0.25, kind(u1)))
+    e1 = max(maxval(abs(r - real(1.5, kind(u1))*x1*cx)), &
+             max(maxval(abs(q - real(1.5, kind(u1))*x2*cx)), &
+                 maxval(abs(t - real(1.5, kind(u1))*x3*cx))))
+    call chk('v3drag (d)', real(e1), 1.0E-12)
+
+    call setup9_d(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call rfill_d(real(0.3, kind(t)), t)
+    call v3mom_ke(n, t, x1, x2, x3, u1, u2, u3, r)
+    e1 = max(maxval(abs(u1 - t*x1)), max(maxval(abs(u2 - t*x2)), &
+             max(maxval(abs(u3 - t*x3)), &
+                 maxval(abs(r - real(0.5, kind(r))*t*(x1*x1 + x2*x2 + x3*x3))))))
+    call chk('v3mom_ke (d)', real(e1), 1.0E-12)
   end subroutine test_real_d
 
 
@@ -369,6 +475,56 @@ contains
     call chk('v3dotxy_dotxz ('//"c"//')', real(max(&
              maxval(abs(r - (x1*y1 + x2*y2 + x3*y3))), &
              maxval(abs(q - (x1*w1 + x2*w2 + x3*w3))))), 1.0E-5)
+
+    call setup9c_c(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3crosscross(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r, q, t)
+    cx = x2*y3 - x3*y2; cy = x3*y1 - x1*y3; cz = x1*y2 - x2*y1
+    e1 = max(maxval(abs(r - (cy*w3 - cz*w2))), &
+             max(maxval(abs(q - (cz*w1 - cx*w3))), &
+                 maxval(abs(t - (cx*w2 - cy*w1)))))
+    call chk('v3crosscross (c)', real(e1), 1.0E-5)
+
+    call setup9c_c(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3norm_unit(n, x1, x2, x3, real(0.25, kind(u1)), r, u1, u2, u3)
+    cx = sqrt(x1*x1 + x2*x2 + x3*x3 + cmplx(real(0.25, kind(u1)), 0.0, kind(u1)))
+    e1 = max(maxval(abs(r - cx)), max(maxval(abs(u1 - x1/cx)), &
+             max(maxval(abs(u2 - x2/cx)), maxval(abs(u3 - x3/cx)))))
+    call chk('v3norm_unit (c)', real(e1), 1.0E-5)
+
+    call setup9c_c(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3refl(n, x1, x2, x3, y1, y2, y3, real(1.5, kind(u1)), &
+                real(0.25, kind(u1)), r, q, t)
+    cx = real(1.5, kind(u1))*(x1*y1 + x2*y2 + x3*y3) / &
+         (y1*y1 + y2*y2 + y3*y3 + cmplx(real(0.25, kind(u1)), 0.0, kind(u1)))
+    e1 = max(maxval(abs(r - (x1 - cx*y1))), &
+             max(maxval(abs(q - (x2 - cx*y2))), maxval(abs(t - (x3 - cx*y3)))))
+    call chk('v3refl (c)', real(e1), 1.0E-5)
+
+    call setup9c_c(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3exb(n, x1, x2, x3, y1, y2, y3, real(1.5, kind(u1)), &
+               real(0.25, kind(u1)), r, q, t)
+    cx = y1*y1 + y2*y2 + y3*y3 + cmplx(real(0.25, kind(u1)), 0.0, kind(u1))
+    e1 = max(maxval(abs(r - real(1.5, kind(u1))*(x2*y3 - x3*y2)/cx)), &
+             max(maxval(abs(q - real(1.5, kind(u1))*(x3*y1 - x1*y3)/cx)), &
+                 maxval(abs(t - real(1.5, kind(u1))*(x1*y2 - x2*y1)/cx))))
+    call chk('v3exb (c)', real(e1), 1.0E-5)
+
+    call setup9c_c(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3drag(n, x1, x2, x3, real(1.5, kind(u1)), real(0.25, kind(u1)), &
+                r, q, t)
+    cx = sqrt(x1*x1 + x2*x2 + x3*x3 + cmplx(real(0.25, kind(u1)), 0.0, kind(u1)))
+    e1 = max(maxval(abs(r - real(1.5, kind(u1))*x1*cx)), max(maxval(abs(q - real(1.5, kind(u1))*x2*cx)), &
+             maxval(abs(t - real(1.5, kind(u1))*x3*cx))))
+    call chk('v3drag (c)', real(e1), 1.0E-5)
+
+    call setup9c_c(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call cfill_c(real(0.3, kind(t)), real(-0.2, kind(t)), t)
+    call v3mom_ke(n, t, x1, x2, x3, u1, u2, u3, r)
+    e1 = max(maxval(abs(u1 - t*x1)), max(maxval(abs(u2 - t*x2)), &
+             max(maxval(abs(u3 - t*x3)), &
+                 maxval(abs(r - cmplx(0.5, 0.0, kind(r))*t* &
+                 (x1*x1 + x2*x2 + x3*x3))))))
+    call chk('v3mom_ke (c)', real(e1), 1.0E-5)
   end subroutine test_cplx_c
 
 
@@ -486,6 +642,56 @@ contains
     call chk('v3dotxy_dotxz ('//"z"//')', real(max(&
              maxval(abs(r - (x1*y1 + x2*y2 + x3*y3))), &
              maxval(abs(q - (x1*w1 + x2*w2 + x3*w3))))), 1.0E-12)
+
+    call setup9c_z(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3crosscross(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r, q, t)
+    cx = x2*y3 - x3*y2; cy = x3*y1 - x1*y3; cz = x1*y2 - x2*y1
+    e1 = max(maxval(abs(r - (cy*w3 - cz*w2))), &
+             max(maxval(abs(q - (cz*w1 - cx*w3))), &
+                 maxval(abs(t - (cx*w2 - cy*w1)))))
+    call chk('v3crosscross (z)', real(e1), 1.0E-12)
+
+    call setup9c_z(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3norm_unit(n, x1, x2, x3, real(0.25, kind(u1)), r, u1, u2, u3)
+    cx = sqrt(x1*x1 + x2*x2 + x3*x3 + cmplx(real(0.25, kind(u1)), 0.0, kind(u1)))
+    e1 = max(maxval(abs(r - cx)), max(maxval(abs(u1 - x1/cx)), &
+             max(maxval(abs(u2 - x2/cx)), maxval(abs(u3 - x3/cx)))))
+    call chk('v3norm_unit (z)', real(e1), 1.0E-12)
+
+    call setup9c_z(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3refl(n, x1, x2, x3, y1, y2, y3, real(1.5, kind(u1)), &
+                real(0.25, kind(u1)), r, q, t)
+    cx = real(1.5, kind(u1))*(x1*y1 + x2*y2 + x3*y3) / &
+         (y1*y1 + y2*y2 + y3*y3 + cmplx(real(0.25, kind(u1)), 0.0, kind(u1)))
+    e1 = max(maxval(abs(r - (x1 - cx*y1))), &
+             max(maxval(abs(q - (x2 - cx*y2))), maxval(abs(t - (x3 - cx*y3)))))
+    call chk('v3refl (z)', real(e1), 1.0E-12)
+
+    call setup9c_z(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3exb(n, x1, x2, x3, y1, y2, y3, real(1.5, kind(u1)), &
+               real(0.25, kind(u1)), r, q, t)
+    cx = y1*y1 + y2*y2 + y3*y3 + cmplx(real(0.25, kind(u1)), 0.0, kind(u1))
+    e1 = max(maxval(abs(r - real(1.5, kind(u1))*(x2*y3 - x3*y2)/cx)), &
+             max(maxval(abs(q - real(1.5, kind(u1))*(x3*y1 - x1*y3)/cx)), &
+                 maxval(abs(t - real(1.5, kind(u1))*(x1*y2 - x2*y1)/cx))))
+    call chk('v3exb (z)', real(e1), 1.0E-12)
+
+    call setup9c_z(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call v3drag(n, x1, x2, x3, real(1.5, kind(u1)), real(0.25, kind(u1)), &
+                r, q, t)
+    cx = sqrt(x1*x1 + x2*x2 + x3*x3 + cmplx(real(0.25, kind(u1)), 0.0, kind(u1)))
+    e1 = max(maxval(abs(r - real(1.5, kind(u1))*x1*cx)), max(maxval(abs(q - real(1.5, kind(u1))*x2*cx)), &
+             maxval(abs(t - real(1.5, kind(u1))*x3*cx))))
+    call chk('v3drag (z)', real(e1), 1.0E-12)
+
+    call setup9c_z(x1, x2, x3, y1, y2, y3, w1, w2, w3)
+    call cfill_z(real(0.3, kind(t)), real(-0.2, kind(t)), t)
+    call v3mom_ke(n, t, x1, x2, x3, u1, u2, u3, r)
+    e1 = max(maxval(abs(u1 - t*x1)), max(maxval(abs(u2 - t*x2)), &
+             max(maxval(abs(u3 - t*x3)), &
+                 maxval(abs(r - cmplx(0.5, 0.0, kind(r))*t* &
+                 (x1*x1 + x2*x2 + x3*x3))))))
+    call chk('v3mom_ke (z)', real(e1), 1.0E-12)
   end subroutine test_cplx_z
 end module v3blas_f90_cases
 

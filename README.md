@@ -18,7 +18,8 @@ loops that a BLAS kernel could do better (blocking, vectorization,
 threading) — if BLAS exposed them.
 
 This repo adds the twelve kernels of [`blasKernels.md`](blasKernels.md)
-to OpenBLAS — plain-C **generic** kernels (no per-arch assembly, so they
+plus six CFD/plasma menu ops to OpenBLAS — plain-C **generic** kernels
+(no per-arch assembly, so they
 stay portable and reviewable), for all four precisions (`s d c z`), each
 with the usual Fortran 77 / cblas interfaces, wired into the build and
 export lists, and covered by unit + cblas tests in OpenBLAS' own utest
@@ -32,8 +33,20 @@ suite:
 | `3sqr` | `r = x·x` | `3crossxy_dotxz` | `u = x∧y, r = x·w` |
 | `1norm` | `r = √(q·q)` | `3dotxy_dotxz` | `r = x·y, q = x·w` |
 | `3cross` | `w = x∧y` | `3crossscal` | `w = a·(x∧y)` |
+| `3crosscross` | `r = (x∧y)∧z` | `3norm_unit` | `r = √(x·x+eps), û = x/r` |
+| `3refl` | `q = x − a(x·y)y/(y·y+eps)` | `3exb` | `r = a(x∧y)/(y·y+eps)` |
+| `3drag` | `r = a·x·√(x·x+eps)` | `3mom_ke` | `m = s·x, k = ½s(x·x)` |
 
-(13 operations in the API: the thirteenth reuses `cblas_*axpy`.)
+(19 operations in the API: one reuses `cblas_*axpy`; the last six are
+the CFD menu — unit vectors, `(u∧B)∧B` Lorentz/MHD terms, E∧B/B²
+drifts, wall reflection, quadratic drag, the primitive→conservative
+map. They inherit the whole pipeline: 4 precisions, `v3blas`
+front-ends, utests, the cblas ABI. Guarded divisions take `eps` as an
+explicit argument (0 = exact). Constant fields (gravity, rotation
+axis, `B̂₀`) need no special op: pass them at `inc = 0`. Still
+candidates, not implemented: `3minmod` (TVD slope limiter), `3sel`
+(branchless upwind selection); curl/div/grad are stencils and belong
+to a different, later ABI.)
 
 On top of the raw `cblas_<p><kernel>` entry points sits **`v3blas`**, a
 thin front-end with MATLAB-flavoured names ([`V3BLAS_API.md`](V3BLAS_API.md)):
@@ -109,13 +122,13 @@ cmake --build openblas/build -j"$(nproc)"
 cmake --install openblas/build --prefix "$PWD/pkgs/openblas"
 
 # 3. OpenBLAS' own test suites (the *_ext suite holds the cblas tests of
-#    the 12 new kernels; both suites must end with 0 failures)
+#    the 18 new kernels; both suites must end with 0 failures)
 ./openblas/build/utest/openblas_utest
 ./openblas/build/utest/openblas_utest_ext
 
 # 4. Build the v3blas tests/examples/benchmarks against the installed
-#    tree and run them (every line must say OK; 188 + 2285 + 115 + 52 +
-#    57 checks in total)
+#    tree and run them (every line must say OK; 212 + 2645 + 195 + 80 +
+#    76 checks in total)
 cmake -S benchmark -B benchmark/build
 cmake --build benchmark/build -j"$(nproc)"
 ./benchmark/build/v3blas_test                     # all ops x 4 precisions vs long-double ref
@@ -140,5 +153,5 @@ itself); numbers in [`TODO.md`](TODO.md).
 | `pkgs/openblas/` | install prefix for the patched build |
 | `benchmark/` | v3blas tests, examples and benchmarks (standalone CMake, links only the installed tree) |
 | `blasKernels.md` | the kernel spec this implements |
-| `V3BLAS_API.md` | front-end design: vectors, ownership, the 13 ops, three languages |
+| `V3BLAS_API.md` | front-end design: vectors, ownership, the 19 ops, three languages |
 | `TODO.md` | progress log, wiring points per kernel, benchmark data notes |

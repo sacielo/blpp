@@ -1,6 +1,6 @@
 # v3blas — higher-level interface for the physics extension kernels
 
-A header-only, MATLAB/Octave-style API on top of the 13 element-wise
+A header-only, MATLAB/Octave-style API on top of the 19 element-wise
 extension kernels (`s`/`d`/`c`/`z`), in three front-ends over one set of
 `cblas_*` entry points:
 
@@ -54,7 +54,7 @@ is allocated, nothing is freed, nothing is returned. Outputs may alias
 the inputs. Vector outputs are written unit stride (that is what the
 kernels write).
 
-## The 13 operations (C / C++)
+## The 19 operations (C / C++)
 
 Equation → call (shown for `d`; the generic name selects the precision
 from an output pointer type under C11 `_Generic`, or just suffix the
@@ -78,6 +78,17 @@ input is a `v3<P>`.
 | `u = x∧y,  v = x∧w`               | `v3crossxy_crossxz(x, y, w, ux,uy,uz, vx,vy,vz);` |
 | `u = x∧y,  r = x·w`               | `v3crossxy_dotxz(x, y, w, ux,uy,uz, r);`      |
 | `r = x·y,  q = x·w`               | `v3dotxy_dotxz(x, y, w, r, q);`               |
+| `r = (x∧y)∧z`                     | `v3crosscross(x, y, z, rx,ry,rz);`            |
+| `r = sqrt(x·x+eps), u = x/r`      | `v3norm_unit(x, eps, r, ux,uy,uz);`           |
+| `q = x − a(x·y)y/(y·y+eps)`       | `v3refl(x, y, a, eps, qx,qy,qz);`             |
+| `r = a(x∧y)/(y·y+eps)`            | `v3exb(x, y, a, eps, rx,ry,rz);`              |
+| `r = a*x*sqrt(x·x+eps)`           | `v3drag(x, a, eps, rx,ry,rz);`                |
+| `m = s*x,  k = 0.5*s*(x·x)`       | `v3mom_ke(s, x, mx,my,mz, k);`                |
+
+The six CFD-menu ops take their guard `eps` and coefficient `a` as
+**real** scalars by value in every precision (`float` for `s`/`c`,
+`double` for `d`/`z`); `s` in `v3mom_ke` is a field (a per-element
+scalar array, e.g. density), not a scalar.
 
 Under C++ include `<v3blas.hpp>` instead — same signatures, resolved by
 overload (no `_Generic`, no suffixes, and the macros are not defined).
@@ -95,6 +106,7 @@ use v3blas
 call v3cross(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)  ! w = x∧y
 call v3dot(n, x1, x2, x3, y1, y2, y3, r)             ! r = x·y
 call v1axpy(n, alpha, x, y)                          ! y = alpha*x + y
+call v3norm_unit(n, x1, x2, x3, eps, r, u1, u2, u3)  ! r = sqrt(x·x+eps), u = x/r
 ```
 
 `v1axpy` is the in-place BLAS one here (y is updated); the C front-end
@@ -111,22 +123,22 @@ complex data is the principal complex `sqrt(q·q)`, on real data `|q|`.
 - The C header is one macro (`V3BLAS_DEFINE`) instantiated four times —
   real scalars by value, complex scalars as pointers to the two-
   component struct, exactly matching the cblas prototypes.
-- The Fortran module is generated (52 bind(C) wrappers) but is ordinary
+- The Fortran module is generated (76 bind(C) wrappers) but is ordinary
   F2003 source; `gfortran -std=f2008 -Wall` clean.
 
 ## Verification
 
-`benchmark/v3blas_test.c` (plain C): all 13 operations at all 4
+`benchmark/v3blas_test.c` (plain C): all 19 operations at all 4
 precisions against a long-double reference, generic and suffixed names,
 plus a strided (inc = 2) `v3cross_d` smoke case.
 
 `benchmark/v3blas_example.c` tours the API; `v3blas_bench.cpp` times all
-13 × 4 precisions against the raw `cblas_*` calls (err must be 0).
+19 × 4 precisions against the raw `cblas_*` calls (err must be 0).
 
 `benchmark/v3blas_hpp_test.cpp`: C++ overloads, bitwise (`memcmp`)
 against `cblas_*` for every op × precision.
 
-`benchmark/v3blas_f90_test.f90`: all 13 generics × 4 precisions through
+`benchmark/v3blas_f90_test.f90`: all 19 generics × 4 precisions through
 the module, checked against the equations recomputed with Fortran array
 expressions.
 
