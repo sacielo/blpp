@@ -5,18 +5,20 @@ Menu draft in the `blasKernels.md` idiom: element-wise over fields of
 generic kernel + `cblas_<p><stem>` ABI, fused multi-output where it
 saves a memory pass. `∧` = cross (right-hand rule), `·` = dot.
 Scalar parameters follow the `1xypa` precedent (real argument beside
-the arrays). `e` is a small guard supplied by the caller.
+the arrays). `eps` is a small nonnegative guard supplied by the caller
+(0 when exactness is wanted; it keeps `sqrt` and divisions finite on
+zero / near-zero vectors).
 
 ## Proposed ops
 
 | stem | equation | why CFD/plasma codes want it |
 |---|---|---|
-| `3unitnorm` | `r = sqrt(x·x + e)`, `e = x/r` (2 outputs) | unit vectors everywhere: cell-face normals n̂, magnetic direction b̂ = B/|B|, velocity direction in Riemann data; fusing norm+division halves traffic vs two passes |
+| `3unitnorm` | `r = sqrt(x·x + eps)`, `û = x/r` (2 outputs) | unit vectors everywhere: cell-face normals n̂, magnetic direction b̂ = B/|B|, velocity direction in Riemann data; fusing norm+division halves traffic vs two passes |
 | `3triple` | `s = x·(y∧z)` | mapping Jacobian J = ∂x/∂ξ · (∂y/∂ξ ∧ ∂z/∂ξ) in every curvilinear/ALE metric computation; signed tet/hex volumes; discrete de Rham / mimetic Hodge star ingredients |
 | `3crossabxc` | `v = (x∧y)∧z` | Lorentz/MHD force (u∧B)∧B, magnetic pressure/tension split, rotating-frame inertial terms; Lagrange identity `(x·z)y − (y·z)x` gives a cheaper fused path (2 dots + scaled adds) no naive code takes |
-| `3refl` | `q = x − a·(x·y)·y/(y·y + e)` | one kernel, three uses: a=2 → reflection off walls (slip walls, IBM, DSMC/particle BCs); a=1 → tangential component ⟂ b̂ (Braginskii perpendicular transport, mirror/actuator-disk models; parallel part then `p = x − q` via axpy) |
-| `3exb` | `r = a·(x∧y)/(y·y + e)` | E∧B/B² drift velocity — the single most-used term in edge-plasma turbulence (BOUT++, TOKAM3K, GENE-adjacent); sign/coeff flips give grad-B and curvature drifts |
-| `3drag` | `r = a·x·sqrt(x·x + e)` | quadratic drag |u|u: wind loading, Forchheimer porous drag, shallow-water bottom friction, outflow damping; fuses sqrt-norm+scale, saves one full read of x |
+| `3refl` | `q = x − a·(x·y)·y/(y·y + eps)` | one kernel, three uses: a=2 → reflection off walls (slip walls, IBM, DSMC/particle BCs); a=1 → tangential component ⟂ b̂ (Braginskii perpendicular transport, mirror/actuator-disk models; parallel part then `p = x − q` via axpy) |
+| `3exb` | `r = a·(x∧y)/(y·y + eps)` | E∧B/B² drift velocity — the single most-used term in edge-plasma turbulence (BOUT++, TOKAM3K, GENE-adjacent); sign/coeff flips give grad-B and curvature drifts |
+| `3drag` | `r = a·x·sqrt(x·x + eps)` | quadratic drag |u|u: wind loading, Forchheimer porous drag, shallow-water bottom friction, outflow damping; fuses sqrt-norm+scale, saves one full read of x |
 | `3momke` | `m = s·x`, `k = ½·s·(x·x)` (2 outputs) | primitive→conservative map per cell (momentum + kinetic energy from density s and velocity x); the k output feeds pressure p = (γ−1)(E−k) and Mach/sound-speed diagnostics |
 
 Close relatives, same ABI shape but acting component-wise on three
@@ -46,9 +48,9 @@ generic scalar fields (still our layout, not "3-vectors" physically):
 
 ## Design notes
 
-- Division kernels (`3refl`, `3exb`) carry the guard `e` as an explicit
+- Division kernels (`3refl`, `3exb`) carry the guard `eps` as an explicit
   argument rather than a hardcoded `+1e-30`: callers choose between
-  exactness (e=0) and robustness, and the conformance vectors can pin
+  exactness (eps=0) and robustness, and the conformance vectors can pin
   both behaviors.
 - `3crossabxc` should be written to pick whichever of the double-cross
   / Lagrange-identity forms the compiler can't beat, but results must
