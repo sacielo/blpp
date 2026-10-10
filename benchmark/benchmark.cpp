@@ -799,9 +799,9 @@ Result bench_3dotxy_dotxz_t(int n, const char *nm, double eps,
 }
 
 
-// ------------- CFD menu ops: r = (x^y)^w, u = x/sqrt(x.x+eps), ...
+// ------------- CFD menu ops: r = (x∧y)∧w, u = x/sqrt(x·x+eps), ...
 
-// r = (x^y)^w
+// r = (x∧y)∧w
 template <typename T, typename Call>
 Result bench_3crosscross_t(int n, const char *nm, double eps, Call call)
 {
@@ -820,7 +820,7 @@ Result bench_3crosscross_t(int n, const char *nm, double eps, Call call)
         r3r[i] = t1 * w2[i] - t2 * w1[i];
     }
     const double flops = 24.0, fcyc = 12.0;
-    const char *eq = "r=(x^y)^w";
+    const char *eq = "r=(x∧y)∧w";
     double err;
 #define CC_CALL \
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
@@ -834,7 +834,7 @@ Result bench_3crosscross_t(int n, const char *nm, double eps, Call call)
 #ifndef NDEBUG
     CC_CALL;
     err = CC_ERR;
-    std::printf("%s[0]: r = (x^y)^w\nr = (%g %g %g)\n", nm,
+    std::printf("%s[0]: r = (x∧y)∧w\nr = (%g %g %g)\n", nm,
                 (double)r1[0], (double)r2[0], (double)r3[0]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
@@ -846,7 +846,7 @@ Result bench_3crosscross_t(int n, const char *nm, double eps, Call call)
 #undef CC_ERR
 }
 
-// r = sqrt(x.x + eps), u = x / r
+// r = sqrt(x·x + eps), u = x / r
 template <typename T, typename Call>
 Result bench_3norm_unit_t(int n, const char *nm, double eps, Call call)
 {
@@ -864,7 +864,7 @@ Result bench_3norm_unit_t(int n, const char *nm, double eps, Call call)
         u3r[i] = (ld)x3[i] / s;
     }
     const double flops = 24.0, fcyc = 12.0;
-    const char *eq = "r=sqrt(x.x+eps),u=x/r";
+    const char *eq = "r=sqrt(x·x+eps),u=x/r";
     double err;
 #define CC_CALL \
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, (T)0.25, \
@@ -877,7 +877,7 @@ Result bench_3norm_unit_t(int n, const char *nm, double eps, Call call)
 #ifndef NDEBUG
     CC_CALL;
     err = CC_ERR;
-    std::printf("%s[0]: r = sqrt(x.x+eps), u = x/r\n" "r = %g  u = (%g %g %g)\n", nm,
+    std::printf("%s[0]: r = sqrt(x·x+eps), u = x/r\n" "r = %g  u = (%g %g %g)\n", nm,
                 (double)r[0], (double)u1[0], (double)u2[0], (double)u3[0]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
@@ -889,7 +889,7 @@ Result bench_3norm_unit_t(int n, const char *nm, double eps, Call call)
 #undef CC_ERR
 }
 
-// q = x - a*(x.y)/(y.y+eps) * y   (refl) and r = a/(y.y+eps) * (x^y) (exb)
+// q = x - a*(x·y)/(y·y+eps) * y   (refl) and r = a/(y·y+eps) * (x∧y) (exb)
 template <typename T, typename Call>
 Result bench_3refl_t(int n, const char *nm, double eps, Call call)
 {
@@ -907,7 +907,7 @@ Result bench_3refl_t(int n, const char *nm, double eps, Call call)
         q3r[i] = (ld)x3[i] - f * y3[i];
     }
     const double flops = 20.0, fcyc = 10.0;
-    const char *eq = "q=x-a(x.y)/(y.y+eps)y";
+    const char *eq = "q=x-a(x·y)/(y·y+eps)y";
     double err;
 #define CC_CALL \
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
@@ -920,7 +920,7 @@ Result bench_3refl_t(int n, const char *nm, double eps, Call call)
 #ifndef NDEBUG
     CC_CALL;
     err = CC_ERR;
-    std::printf("%s[0]: q = x-a(x.y)/(y.y+eps)y\nq = (%g %g %g)\n", nm,
+    std::printf("%s[0]: q = x-a(x·y)/(y·y+eps)y\nq = (%g %g %g)\n", nm,
                 (double)q1[0], (double)q2[0], (double)q3[0]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
@@ -949,7 +949,7 @@ Result bench_3exb_t(int n, const char *nm, double eps, Call call)
         r1r[i] = f * c1; r2r[i] = f * c2; r3r[i] = f * c3;
     }
     const double flops = 20.0, fcyc = 10.0;
-    const char *eq = "r=a(x^y)/(y.y+eps)";
+    const char *eq = "r=a(x∧y)/(y·y+eps)";
     double err;
 #define CC_CALL \
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
@@ -962,7 +962,7 @@ Result bench_3exb_t(int n, const char *nm, double eps, Call call)
 #ifndef NDEBUG
     CC_CALL;
     err = CC_ERR;
-    std::printf("%s[0]: r = a(x^y)/(y.y+eps)\nr = (%g %g %g)\n", nm,
+    std::printf("%s[0]: r = a(x∧y)/(y·y+eps)\nr = (%g %g %g)\n", nm,
                 (double)r1[0], (double)r2[0], (double)r3[0]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
@@ -974,7 +974,7 @@ Result bench_3exb_t(int n, const char *nm, double eps, Call call)
 #undef CC_ERR
 }
 
-// r = a * x * sqrt(x.x + eps)   (drag)
+// r = a * x * sqrt(x·x + eps)   (drag)
 template <typename T, typename Call>
 Result bench_3drag_t(int n, const char *nm, double eps, Call call)
 {
@@ -987,7 +987,7 @@ Result bench_3drag_t(int n, const char *nm, double eps, Call call)
         r1r[i] = s * x1[i]; r2r[i] = s * x2[i]; r3r[i] = s * x3[i];
     }
     const double flops = 27.0, fcyc = 14.0;
-    const char *eq = "r=a*x*sqrt(x.x+eps)";
+    const char *eq = "r=a*x*sqrt(x·x+eps)";
     double err;
 #define CC_CALL \
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, (T)1.5, (T)0.25, \
@@ -999,7 +999,7 @@ Result bench_3drag_t(int n, const char *nm, double eps, Call call)
 #ifndef NDEBUG
     CC_CALL;
     err = CC_ERR;
-    std::printf("%s[0]: r = a*x*sqrt(x.x+eps)\nr = (%g %g %g)\n", nm,
+    std::printf("%s[0]: r = a*x*sqrt(x·x+eps)\nr = (%g %g %g)\n", nm,
                 (double)r1[0], (double)r2[0], (double)r3[0]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
@@ -1011,7 +1011,7 @@ Result bench_3drag_t(int n, const char *nm, double eps, Call call)
 #undef CC_ERR
 }
 
-// m = s*x, k = 0.5*s*(x.x)   (momentum + kinetic energy)
+// m = s*x, k = 0.5*s*(x·x)   (momentum + kinetic energy)
 template <typename T, typename Call>
 Result bench_3mom_ke_t(int n, const char *nm, double eps, Call call)
 {
@@ -1027,7 +1027,7 @@ Result bench_3mom_ke_t(int n, const char *nm, double eps, Call call)
         kr[i] = (ld)0.5 * s[i] * d;
     }
     const double flops = 10.0, fcyc = 5.0;
-    const char *eq = "m=s*x,k=0.5*s*(x.x)";
+    const char *eq = "m=s*x,k=0.5*s*(x·x)";
     double err;
 #define CC_CALL \
     call(n, s.data(), 1, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
@@ -1040,7 +1040,7 @@ Result bench_3mom_ke_t(int n, const char *nm, double eps, Call call)
 #ifndef NDEBUG
     CC_CALL;
     err = CC_ERR;
-    std::printf("%s[0]: m = s*x, k = 0.5*s*(x.x)\n" "m = (%g %g %g)  k = %g\n", nm,
+    std::printf("%s[0]: m = s*x, k = 0.5*s*(x·x)\n" "m = (%g %g %g)  k = %g\n", nm,
                 (double)m1[0], (double)m2[0], (double)m3[0], (double)k[0]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
@@ -1686,7 +1686,7 @@ Result bench_3dotxy_dotxz_x(int n, const char *nm, double eps, Call call)
 
 // ------------- CFD menu ops (c/z) -------------
 
-// r = (x^y)^w
+// r = (x∧y)∧w
 template <typename T, typename Call>
 Result bench_3crosscross_x(int n, const char *nm, double eps, Call call)
 {
@@ -1712,7 +1712,7 @@ Result bench_3crosscross_x(int n, const char *nm, double eps, Call call)
                r1r.data(), r2r.data(), r3r.data(), i);
     }
     const double flops = 72.0, fcyc = 40.0;
-    const char *eq = "r=(x^y)^w";
+    const char *eq = "r=(x∧y)∧w";
     double err;
 #define CC_CALL \
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
@@ -1726,7 +1726,7 @@ Result bench_3crosscross_x(int n, const char *nm, double eps, Call call)
 #ifndef NDEBUG
     CC_CALL;
     err = CC_ERR;
-    std::printf("%s[0]: r = (x^y)^w\nr1 = (%g %g)\n", nm,
+    std::printf("%s[0]: r = (x∧y)∧w\nr1 = (%g %g)\n", nm,
                 (double)r1[0], (double)r1[1]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
@@ -1738,7 +1738,7 @@ Result bench_3crosscross_x(int n, const char *nm, double eps, Call call)
 #undef CC_ERR
 }
 
-// r = sqrt(x.x + eps), u = x / r   (bilinear dot, principal csqrt)
+// r = sqrt(x·x + eps), u = x / r   (bilinear dot, principal csqrt)
 template <typename T, typename Call>
 Result bench_3norm_unit_x(int n, const char *nm, double eps, Call call)
 {
@@ -1760,7 +1760,7 @@ Result bench_3norm_unit_x(int n, const char *nm, double eps, Call call)
                u3r[2 * i], u3r[2 * i + 1]);
     }
     const double flops = 56.0, fcyc = 32.0;
-    const char *eq = "r=sqrt(x.x+eps),u=x/r";
+    const char *eq = "r=sqrt(x·x+eps),u=x/r";
     double err;
 #define CC_CALL \
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, (T)0.25, \
@@ -1773,7 +1773,7 @@ Result bench_3norm_unit_x(int n, const char *nm, double eps, Call call)
 #ifndef NDEBUG
     CC_CALL;
     err = CC_ERR;
-    std::printf("%s[0]: r = sqrt(x.x+eps), u = x/r\n" "r = (%g %g)  u1 = (%g %g)\n", nm,
+    std::printf("%s[0]: r = sqrt(x·x+eps), u = x/r\n" "r = (%g %g)  u1 = (%g %g)\n", nm,
                 (double)r[0], (double)r[1], (double)u1[0], (double)u1[1]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
@@ -1785,7 +1785,7 @@ Result bench_3norm_unit_x(int n, const char *nm, double eps, Call call)
 #undef CC_ERR
 }
 
-// q = x - a*(x.y)/(y.y+eps) * y
+// q = x - a*(x·y)/(y·y+eps) * y
  template <typename T, typename Call>
 Result bench_3refl_x(int n, const char *nm, double eps, Call call)
 {
@@ -1814,7 +1814,7 @@ Result bench_3refl_x(int n, const char *nm, double eps, Call call)
         }
     }
     const double flops = 44.0, fcyc = 26.0;
-    const char *eq = "q=x-a(x.y)/(y.y+eps)y";
+    const char *eq = "q=x-a(x·y)/(y·y+eps)y";
     double err;
 #define CC_CALL \
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
@@ -1827,7 +1827,7 @@ Result bench_3refl_x(int n, const char *nm, double eps, Call call)
 #ifndef NDEBUG
     CC_CALL;
     err = CC_ERR;
-    std::printf("%s[0]: q = x-a(x.y)/(y.y+eps)y\nq1 = (%g %g)\n", nm,
+    std::printf("%s[0]: q = x-a(x·y)/(y·y+eps)y\nq1 = (%g %g)\n", nm,
                 (double)q1[0], (double)q1[1]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
@@ -1839,7 +1839,7 @@ Result bench_3refl_x(int n, const char *nm, double eps, Call call)
 #undef CC_ERR
 }
 
-// r = a/(y.y+eps) * (x^y)
+// r = a/(y·y+eps) * (x∧y)
 template <typename T, typename Call>
 Result bench_3exb_x(int n, const char *nm, double eps, Call call)
 {
@@ -1866,7 +1866,7 @@ Result bench_3exb_x(int n, const char *nm, double eps, Call call)
         }
     }
     const double flops = 52.0, fcyc = 30.0;
-    const char *eq = "r=a(x^y)/(y.y+eps)";
+    const char *eq = "r=a(x∧y)/(y·y+eps)";
     double err;
 #define CC_CALL \
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
@@ -1879,7 +1879,7 @@ Result bench_3exb_x(int n, const char *nm, double eps, Call call)
 #ifndef NDEBUG
     CC_CALL;
     err = CC_ERR;
-    std::printf("%s[0]: r = a(x^y)/(y.y+eps)\nr1 = (%g %g)\n", nm,
+    std::printf("%s[0]: r = a(x∧y)/(y·y+eps)\nr1 = (%g %g)\n", nm,
                 (double)r1[0], (double)r1[1]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
@@ -1891,7 +1891,7 @@ Result bench_3exb_x(int n, const char *nm, double eps, Call call)
 #undef CC_ERR
 }
 
-// r = a * x * sqrt(x.x + eps)
+// r = a * x * sqrt(x·x + eps)
 template <typename T, typename Call>
 Result bench_3drag_x(int n, const char *nm, double eps, Call call)
 {
@@ -1913,7 +1913,7 @@ Result bench_3drag_x(int n, const char *nm, double eps, Call call)
                   oc[c][2 * i], oc[c][2 * i + 1]);
     }
     const double flops = 48.0, fcyc = 28.0;
-    const char *eq = "r=a*x*sqrt(x.x+eps)";
+    const char *eq = "r=a*x*sqrt(x·x+eps)";
     double err;
 #define CC_CALL \
     call(n, x1.data(), 1, x2.data(), 1, x3.data(), 1, (T)1.5, (T)0.25, \
@@ -1925,7 +1925,7 @@ Result bench_3drag_x(int n, const char *nm, double eps, Call call)
 #ifndef NDEBUG
     CC_CALL;
     err = CC_ERR;
-    std::printf("%s[0]: r = a*x*sqrt(x.x+eps)\nr1 = (%g %g)\n", nm,
+    std::printf("%s[0]: r = a*x*sqrt(x·x+eps)\nr1 = (%g %g)\n", nm,
                 (double)r1[0], (double)r1[1]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else
@@ -1937,7 +1937,7 @@ Result bench_3drag_x(int n, const char *nm, double eps, Call call)
 #undef CC_ERR
 }
 
-// m = s*x, k = 0.5*s*(x.x)
+// m = s*x, k = 0.5*s*(x·x)
 template <typename T, typename Call>
 Result bench_3mom_ke_x(int n, const char *nm, double eps, Call call)
 {
@@ -1960,7 +1960,7 @@ Result bench_3mom_ke_x(int n, const char *nm, double eps, Call call)
         kr[2 * i + 1] *= (ld)0.5;
     }
     const double flops = 28.0, fcyc = 16.0;
-    const char *eq = "m=s*x,k=0.5*s*(x.x)";
+    const char *eq = "m=s*x,k=0.5*s*(x·x)";
     double err;
 #define CC_CALL \
     call(n, s.data(), 1, x1.data(), 1, x2.data(), 1, x3.data(), 1, \
@@ -1973,7 +1973,7 @@ Result bench_3mom_ke_x(int n, const char *nm, double eps, Call call)
 #ifndef NDEBUG
     CC_CALL;
     err = CC_ERR;
-    std::printf("%s[0]: m = s*x, k = 0.5*s*(x.x)\n" "m1 = (%g %g)  k = (%g %g)\n", nm,
+    std::printf("%s[0]: m = s*x, k = 0.5*s*(x·x)\n" "m1 = (%g %g)  k = (%g %g)\n", nm,
                 (double)m1[0], (double)m1[1], (double)k[0], (double)k[1]);
     return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
 #else

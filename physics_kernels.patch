@@ -9354,7 +9354,7 @@ index 0000000..93e1a44
 +}
 diff --git a/kernel/generic/z3drag.c b/kernel/generic/z3drag.c
 new file mode 100644
-index 0000000..21b3502
+index 0000000..0bf1ccc
 --- /dev/null
 +++ b/kernel/generic/z3drag.c
 @@ -0,0 +1,148 @@
@@ -9396,7 +9396,7 @@ index 0000000..21b3502
 +	do { (rr) = (ar) + (br); (ri) = (ai) + (bi); } while (0)
 +#endif
 +
-+/* r = a*x*sqrt(x.x + eps); bilinear dot as in 3dot, complex sqrt as in 1norm */
++/* r = a*x*sqrt(x·x + eps); bilinear dot as in 3dot, complex sqrt as in 1norm */
 +int CNAME(BLASLONG n, BLASLONG dummy0, BLASLONG dummy1, FLOAT a, FLOAT eps,
 +          FLOAT *x1, BLASLONG incx1, FLOAT *x2, BLASLONG incx2, FLOAT *x3, BLASLONG incx3,
 +          FLOAT *r1, BLASLONG incr1, FLOAT *r2, BLASLONG incr2, FLOAT *r3, BLASLONG incr3)
@@ -9508,7 +9508,7 @@ index 0000000..21b3502
 +}
 diff --git a/kernel/generic/z3exb.c b/kernel/generic/z3exb.c
 new file mode 100644
-index 0000000..a2b8487
+index 0000000..2b2782c
 --- /dev/null
 +++ b/kernel/generic/z3exb.c
 @@ -0,0 +1,172 @@
@@ -9550,7 +9550,7 @@ index 0000000..a2b8487
 +	do { (rr) = (ar) + (br); (ri) = (ai) + (bi); } while (0)
 +#endif
 +
-+/* r = a*(x^y)/(y.y + eps); bilinear cross/dot as in 3cross/3dot;
++/* r = a*(x∧y)/(y·y + eps); bilinear cross/dot as in 3cross/3dot;
 +   complex division p/d fixed as p*conj(d)/|d|^2 */
 +int CNAME(BLASLONG n, BLASLONG dummy0, BLASLONG dummy1, FLOAT a, FLOAT eps,
 +          FLOAT *x1, BLASLONG incx1, FLOAT *x2, BLASLONG incx2, FLOAT *x3, BLASLONG incx3,
@@ -9847,7 +9847,7 @@ index 0000000..185d67e
 +}
 diff --git a/kernel/generic/z3mom_ke.c b/kernel/generic/z3mom_ke.c
 new file mode 100644
-index 0000000..82baec6
+index 0000000..4e58728
 --- /dev/null
 +++ b/kernel/generic/z3mom_ke.c
 @@ -0,0 +1,120 @@
@@ -9889,7 +9889,7 @@ index 0000000..82baec6
 +	do { (rr) = (ar) + (br); (ri) = (ai) + (bi); } while (0)
 +#endif
 +
-+/* m = s*x (complex scalar field times complex vector), k = (0.5*s)*(x.x)
++/* m = s*x (complex scalar field times complex vector), k = (0.5*s)*(x·x)
 +   with bilinear (unconjugated) dot as in 3dot */
 +int CNAME(BLASLONG n, BLASLONG dummy0, BLASLONG dummy1,
 +          FLOAT *s, BLASLONG incs,
@@ -10119,7 +10119,7 @@ index 0000000..0bda9b7
 +}
 diff --git a/kernel/generic/z3refl.c b/kernel/generic/z3refl.c
 new file mode 100644
-index 0000000..fcc6ada
+index 0000000..bdd5ff2
 --- /dev/null
 +++ b/kernel/generic/z3refl.c
 @@ -0,0 +1,155 @@
@@ -10165,7 +10165,7 @@ index 0000000..fcc6ada
 +	do { (rr) = (ar) - (br); (ri) = (ai) - (bi); } while (0)
 +#endif
 +
-+/* q = x - a*(x.y)*y / (y.y + eps), bilinear (unconjugated) dots as in 3dot;
++/* q = x - a*(x·y)*y / (y·y + eps), bilinear (unconjugated) dots as in 3dot;
 +   complex division p/d fixed as p*conj(d)/|d|^2 */
 +int CNAME(BLASLONG n, BLASLONG dummy0, BLASLONG dummy1, FLOAT a, FLOAT eps,
 +          FLOAT *x1, BLASLONG incx1, FLOAT *x2, BLASLONG incx2, FLOAT *x3, BLASLONG incx3,
