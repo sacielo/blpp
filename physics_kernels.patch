@@ -1,3 +1,15 @@
+diff --git a/.gitignore b/.gitignore
+index 53d4941..cb165b8 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -114,6 +114,7 @@ build.*
+ *.swp
+ benchmark/*.goto
+ benchmark/smallscaling
++benchmark/sweep25*/
+ .vscode
+ CMakeCache.txt
+ CMakeFiles/*
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 360bc44..e5b87f5 100644
 --- a/CMakeLists.txt
@@ -530,6 +542,164 @@ index ec7930b..3884680 100644
  smallscaling: smallscaling.c ../$(LIBNAME)
  	$(CC) $(CFLAGS) -o $(@F) $^ $(EXTRALIB) -fopenmp -lm -lpthread
  
+diff --git a/benchmark/sizemap25.py b/benchmark/sizemap25.py
+new file mode 100644
+index 0000000..f2c1742
+--- /dev/null
++++ b/benchmark/sizemap25.py
+@@ -0,0 +1,105 @@
++#!/usr/bin/env python3
++"""sizemap25.py — percentile sizemaps from sweep25.sh raw runs.
++
++usage: sizemap25.py [OUTDIR]     (default: ./sweep25)
++
++Reads  OUTDIR/runs/rep_NN.tsv  rows of "rep op n mflops".
++Per (op, n): median + 4th/96th percentile over reps.
++One panel per precision, same kernels, shared x and y axes.
++Writes OUTDIR/stats.csv, OUTDIR/sizemap25.pdf, OUTDIR/sizemap25.png.
++"""
++import csv
++import os
++import socket
++import sys
++from collections import defaultdict
++
++import numpy as np
++
++import matplotlib
++matplotlib.use("Agg")
++import matplotlib.pyplot as plt
++
++OUT = sys.argv[1] if len(sys.argv) > 1 else "sweep25"
++HOST = socket.gethostname().split(".")[0]
++RUNS = os.path.join(OUT, "runs")
++
++samples = defaultdict(list)  # (op, n) -> [mflops]
++for fn in sorted(os.listdir(RUNS)):
++    if not fn.endswith(".tsv"):
++        continue
++    for line in open(os.path.join(RUNS, fn)):
++        parts = line.split()
++        if len(parts) != 4:
++            continue
++        op, n, m = parts[1], int(parts[2]), float(parts[3])
++        samples[(op, n)].append(m)
++
++ops = sorted({op for op, _ in samples})
++print(f"{sum(len(v) for v in samples.values())} samples, {len(ops)} ops")
++
++stats = []
++for (op, n), vals in sorted(samples.items(), key=lambda kv: (kv[0][0], kv[0][1])):
++    med, lo, hi = np.percentile(vals, [50, 4, 96])
++    stats.append([op, n, med, lo, hi, len(vals)])
++
++with open(os.path.join(OUT, "stats.csv"), "w", newline="") as fh:
++    w = csv.writer(fh)
++    w.writerow(["op", "n", "median", "p4", "p96", "runs"])
++    w.writerows(stats)
++
++# one panel per precision
++PRECS = ["s", "d", "c", "z"]
++STYLE = {  # op suffix -> (label, color)
++    "dot": ("3dot", "tab:blue"),
++    "crosscross": ("3crosscross", "tab:red"),
++    "dotxy_dotxz": ("3dotxy_dotxz", "tab:green"),
++}
++
++def kind(op):
++    for k in ("dotxy_dotxz", "crosscross", "dot"):
++        if op.endswith(k):
++            return k
++    return None
++
++panels = []
++for p in PRECS:
++    curves = []
++    for op in ops:
++        if op[0] == p and kind(op):
++            pts = sorted((n, op) for (o, n) in samples if o == op)
++            if not pts:
++                continue
++            xs, meds, los, his = [], [], [], []
++            for n, o in pts:
++                row = next(r for r in stats if r[0] == o and r[1] == n)
++                xs.append(n)
++                meds.append(row[2])
++                los.append(row[3])
++                his.append(row[4])
++            curves.append((kind(op), xs, meds, los, his))
++    panels.append((p, curves))
++
++alive = [pp for pp in panels if pp[1]]
++fig, axes = plt.subplots(1, len(alive), figsize=(5.6 * len(alive), 5.0),
++                         sharex=True, sharey=True)
++if len(alive) == 1:
++    axes = [axes]
++for ax, (p, curves) in zip(axes, alive):
++    for k, xs, meds, los, his in curves:
++        label, color = STYLE[k]
++        ax.plot(xs, meds, "-o", ms=3, color=color, label=label)
++        ax.fill_between(xs, los, his, color=color, alpha=0.18)
++    ax.set_title(f"{'single' if p=='s' else 'double' if p=='d' else 'single-complex' if p=='c' else 'double-complex'} ({p})")
++    ax.set_xscale("log", base=2)
++    ax.set_yscale("log")
++    ax.set_xlabel("n (elements per component)")
++    ax.grid(True, which="both", ls=":", lw=0.4)
++    ax.legend(fontsize=8, loc="lower left")
++axes[0].set_ylabel("MFlops (median, p4–p96 band)")
++
++fig.suptitle("physics kernels: 25 reps, median line, 4th–96th percentile band", y=1.02)
++fig.tight_layout()
++fig.savefig(os.path.join(OUT, f"sizemap25-{HOST}.pdf"), bbox_inches="tight")
++fig.savefig(os.path.join(OUT, f"sizemap25-{HOST}.png"), dpi=150, bbox_inches="tight")
++print("wrote", os.path.join(OUT, f"sizemap25-{HOST}.pdf/.png"), "and stats.csv")
+diff --git a/benchmark/sweep25.sh b/benchmark/sweep25.sh
+new file mode 100755
+index 0000000..e685a43
+--- /dev/null
++++ b/benchmark/sweep25.sh
+@@ -0,0 +1,41 @@
++#!/bin/sh
++# sweep25.sh — run bench .goto programs NREP times over a power-of-two size
++# grid and collect raw timings for percentile sizemaps (see sizemap25.py).
++#
++#   usage:  make <op>.goto ...        (or drop .goto binaries in $BINDIR)
++#           BINDIR=. NREP=25 ./sweep25.sh
++#
++# env:  BINDIR   where *.goto live            (default: script dir)
++#       OPS      space-separated op names     (default: the physics kernels)
++#       NREP     repetitions per size         (default: 25)
++#       OUT      output dir (runs/, plots)    (default: $BINDIR/sweep25-<host>)
++#       PY       python with numpy+matplotlib (default: python3)
++#
++# Raw rows:  rep  op  n  mflops
++set -e
++HERE=$(dirname "$0")
++BINDIR=${BINDIR:-$HERE}
++OUT=${OUT:-$BINDIR/sweep25-$(hostname | cut -d. -f1)}
++NREP=${NREP:-25}
++PY=${PY:-python3}
++OPS=${OPS:-"s3dot d3dot c3dot z3dot s3crosscross d3crosscross c3crosscross z3crosscross s3dotxy_dotxz d3dotxy_dotxz c3dotxy_dotxz z3dotxy_dotxz"}
++SIZES="16 32 64 128 256 512 1024 2048 4096 8192 16384 32768 65536 131072 262144 524288 1048576"
++
++mkdir -p "$OUT/runs"
++r=1
++while [ "$r" -le "$NREP" ]; do
++  f="$OUT/runs/rep_$(printf '%02d' "$r").tsv"
++  : > "$f"
++  for op in $OPS; do
++    bin="$BINDIR/$op.goto"
++    [ -x "$bin" ] || { echo "skip $op (no $bin)"; continue; }
++    for n in $SIZES; do
++      "$bin" "$n" "$n" 1 2>&1 1>/dev/null \
++        | awk -v r="$r" -v op="$op" '/MFlops/ { gsub(/:/, " "); if ($2 + 0 > 0) print r, op, $1, $2 }' >> "$f"
++    done
++  done
++  echo "rep $r done $(date +%H:%M:%S)"
++  r=$((r + 1))
++done
++
++"$PY" "$HERE/sizemap25.py" "$OUT"
 diff --git a/cblas.h b/cblas.h
 index 9eb7028..36c7043 100644
 --- a/cblas.h
