@@ -13,19 +13,25 @@ zero / near-zero vectors).
 
 | stem | equation | why CFD/plasma codes want it |
 |---|---|---|
-| `3unitnorm` | `r = sqrt(x·x + eps)`, `û = x/r` (2 outputs) | unit vectors everywhere: cell-face normals n̂, magnetic direction b̂ = B/|B|, velocity direction in Riemann data; fusing norm+division halves traffic vs two passes |
-| `3triple` | `s = x·(y∧z)` | mapping Jacobian J = ∂x/∂ξ · (∂y/∂ξ ∧ ∂z/∂ξ) in every curvilinear/ALE metric computation; signed tet/hex volumes; discrete de Rham / mimetic Hodge star ingredients |
-| `3crossabxc` | `v = (x∧y)∧z` | Lorentz/MHD force (u∧B)∧B, magnetic pressure/tension split, rotating-frame inertial terms; Lagrange identity `(x·z)y − (y·z)x` gives a cheaper fused path (2 dots + scaled adds) no naive code takes |
+| `3norm_unit` | `r = sqrt(x·x + eps)`, `û = x/r` (fork, 2 outputs) | unit vectors everywhere: cell-face normals n̂, magnetic direction b̂ = B/|B|, velocity direction in Riemann data; fusing norm+division halves traffic vs two passes |
+| `3crosscross` | `r = (x∧y)∧z` | Lorentz/MHD force (u∧B)∧B, magnetic pressure/tension split, rotating-frame inertial terms; Lagrange identity `(x·z)y − (y·z)x` gives a cheaper fused path (2 dots + scaled adds) no naive code takes; right association needs no second kernel: `3crosscross(z, y, x) = x∧(y∧z)` bitwise (BAC–CAD, IEEE-commutative products) |
 | `3refl` | `q = x − a·(x·y)·y/(y·y + eps)` | one kernel, three uses: a=2 → reflection off walls (slip walls, IBM, DSMC/particle BCs); a=1 → tangential component ⟂ b̂ (Braginskii perpendicular transport, mirror/actuator-disk models; parallel part then `p = x − q` via axpy) |
 | `3exb` | `r = a·(x∧y)/(y·y + eps)` | E∧B/B² drift velocity — the single most-used term in edge-plasma turbulence (BOUT++, TOKAM3K, GENE-adjacent); sign/coeff flips give grad-B and curvature drifts |
 | `3drag` | `r = a·x·sqrt(x·x + eps)` | quadratic drag |u|u: wind loading, Forchheimer porous drag, shallow-water bottom friction, outflow damping; fuses sqrt-norm+scale, saves one full read of x |
-| `3momke` | `m = s·x`, `k = ½·s·(x·x)` (2 outputs) | primitive→conservative map per cell (momentum + kinetic energy from density s and velocity x); the k output feeds pressure p = (γ−1)(E−k) and Mach/sound-speed diagnostics |
+| `3mom_ke` | `m = s·x`, `k = ½·s·(x·x)` (fork, 2 outputs) | primitive→conservative map per cell (momentum + kinetic energy from density s and velocity x); the k output feeds pressure p = (γ−1)(E−k) and Mach/sound-speed diagnostics |
 
 Close relatives, same ABI shape but acting component-wise on three
 generic scalar fields (still our layout, not "3-vectors" physically):
 
 - `3minmod`: `r = minmod(x, y, z)` — TVD slope limiters (left/right/centered candidates).
 - `3sel`: `r = (s > 0) ? x : y` — branchless upwind selection in flux assembly.
+
+## Already in the menu (duplicates caught by name review)
+
+- The scalar triple product `x·(y∧z)` is the existing `3crossdot`
+  (`r = (x∧y)·w`): composites name the inner op first, which pins the
+  evaluation order the conformance vectors fix. "Triple product" stays
+  the human alias, as the spec already states.
 
 ## Deliberately NOT in this grammar (next tiers)
 
@@ -52,10 +58,12 @@ generic scalar fields (still our layout, not "3-vectors" physically):
   argument rather than a hardcoded `+1e-30`: callers choose between
   exactness (eps=0) and robustness, and the conformance vectors can pin
   both behaviors.
-- `3crossabxc` should be written to pick whichever of the double-cross
+- `3crosscross` should be written to pick whichever of the double-cross
   / Lagrange-identity forms the compiler can't beat, but results must
   fix one — pick the double-cross evaluation order for the spec and
   keep tolerance tiers for backends that take the identity shortcut.
+  Association is fixed leftward, `(x∧y)∧z`; the swap `3crosscross(z,y,x)`
+  yields `x∧(y∧z)` bitwise, so no right-associated variant is defined.
 - New ops inherit everything: 4 precisions, `v3blas` front-ends, utest
   template, cblas ABI, conformance vectors. Cost per op ≈ one generic
   kernel + one interface file + tests, same pipeline as the first 13.
