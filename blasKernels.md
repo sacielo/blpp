@@ -133,6 +133,25 @@ registers.
 | `<p>1xypa` | `r= q.*t+a`| none |
 | `<p>1norm` | `r= √(q·q)` | none |
 
+### Layer 0 — stencils (2)
+
+| symbol | mathematics | stock equivalent |
+|---|---|---|
+| `<p>lap5` | `lap = a*((u(±jx) + u(±jy)) − 4u)` | none |
+| `<p>lap7` | `lap = a*((u(±jx) + u(±jy) + u(±jz)) − 6u)` | none |
+
+`u(±j)` means `u(i−j)+u(i+j)` summed pairwise, the two pairs added outermost
+last; the summation order is part of the contract so bit-level conformance
+stays possible. `lap5` takes `jx, jy`, `lap7` also `jz`: signed element
+offsets carried as the scalar type (like `a`), so a strided row of a 2-D or
+3-D array is one call: the caller passes `jy = ld*incy` and walks rows
+itself. Bounds are the caller's responsibility: the kernel reads `u(i±j)`
+unconditionally, so `n` elements of `u` on both sides of the walked range
+must exist (periodic or boundary-folded rows are a caller-side choice).
+`a` folds `1/h²`. One output, so `lap` may alias anything except that it is
+never written before all its `u` reads for that element; in practice keep
+them disjoint. Complex is the plain componentwise Laplacian — linear, no
+conjugates; `a` stays real for `c`/`z`.
 
 ## Naming
 
@@ -140,6 +159,9 @@ registers.
 |---|---|
 | `s` `d` `c` `z` | precision |
 | `r` `q` `t` | arrays of scalars |
+| `u` | stencil input (array of scalars) |
+| `lap` | stencil output |
+| `jx` `jy` `jz` | signed stencil element offsets, scalar type |
 | `u` `v`  `x` `y` `w`  | vectors (logically, 3 separate arrays) |
 | `cross` `dot` `had` `sqr` `sqrt` | element operation |
 | juxtaposition | composition, inner op first |

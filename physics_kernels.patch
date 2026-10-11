@@ -701,10 +701,10 @@ index 0000000..e685a43
 +
 +"$PY" "$HERE/sizemap25.py" "$OUT"
 diff --git a/cblas.h b/cblas.h
-index 9eb7028..36c7043 100644
+index 9eb7028..783987a 100644
 --- a/cblas.h
 +++ b/cblas.h
-@@ -431,6 +431,86 @@ void cblas_caxpby(OPENBLAS_CONST blasint n, OPENBLAS_CONST void *alpha, OPENBLAS
+@@ -431,6 +431,94 @@ void cblas_caxpby(OPENBLAS_CONST blasint n, OPENBLAS_CONST void *alpha, OPENBLAS
  
  void cblas_zaxpby(OPENBLAS_CONST blasint n, OPENBLAS_CONST void *alpha, OPENBLAS_CONST void *x, OPENBLAS_CONST blasint incx,OPENBLAS_CONST void *beta, void *y, OPENBLAS_CONST blasint incy);
  
@@ -787,15 +787,23 @@ index 9eb7028..36c7043 100644
 +void cblas_d3mom_ke(OPENBLAS_CONST blasint n, OPENBLAS_CONST double * s, OPENBLAS_CONST blasint incs, OPENBLAS_CONST double * x1, OPENBLAS_CONST blasint incx1, OPENBLAS_CONST double * x2, OPENBLAS_CONST blasint incx2, OPENBLAS_CONST double * x3, OPENBLAS_CONST blasint incx3, double * m1, OPENBLAS_CONST blasint incm1, double * m2, OPENBLAS_CONST blasint incm2, double * m3, OPENBLAS_CONST blasint incm3, double * k, OPENBLAS_CONST blasint inck);
 +void cblas_c3mom_ke(OPENBLAS_CONST blasint n, OPENBLAS_CONST void * s, OPENBLAS_CONST blasint incs, OPENBLAS_CONST void * x1, OPENBLAS_CONST blasint incx1, OPENBLAS_CONST void * x2, OPENBLAS_CONST blasint incx2, OPENBLAS_CONST void * x3, OPENBLAS_CONST blasint incx3, void * m1, OPENBLAS_CONST blasint incm1, void * m2, OPENBLAS_CONST blasint incm2, void * m3, OPENBLAS_CONST blasint incm3, void * k, OPENBLAS_CONST blasint inck);
 +void cblas_z3mom_ke(OPENBLAS_CONST blasint n, OPENBLAS_CONST void * s, OPENBLAS_CONST blasint incs, OPENBLAS_CONST void * x1, OPENBLAS_CONST blasint incx1, OPENBLAS_CONST void * x2, OPENBLAS_CONST blasint incx2, OPENBLAS_CONST void * x3, OPENBLAS_CONST blasint incx3, void * m1, OPENBLAS_CONST blasint incm1, void * m2, OPENBLAS_CONST blasint incm2, void * m3, OPENBLAS_CONST blasint incm3, void * k, OPENBLAS_CONST blasint inck);
++void cblas_slap5(OPENBLAS_CONST blasint n, OPENBLAS_CONST float alpha, OPENBLAS_CONST float * u, OPENBLAS_CONST blasint incu, OPENBLAS_CONST float jx, OPENBLAS_CONST float jy, float * lap, OPENBLAS_CONST blasint incl);
++void cblas_dlap5(OPENBLAS_CONST blasint n, OPENBLAS_CONST double alpha, OPENBLAS_CONST double * u, OPENBLAS_CONST blasint incu, OPENBLAS_CONST double jx, OPENBLAS_CONST double jy, double * lap, OPENBLAS_CONST blasint incl);
++void cblas_clap5(OPENBLAS_CONST blasint n, float alpha, OPENBLAS_CONST void * u, OPENBLAS_CONST blasint incu, float jx, float jy, void * lap, OPENBLAS_CONST blasint incl);
++void cblas_zlap5(OPENBLAS_CONST blasint n, double alpha, OPENBLAS_CONST void * u, OPENBLAS_CONST blasint incu, double jx, double jy, void * lap, OPENBLAS_CONST blasint incl);
++void cblas_slap7(OPENBLAS_CONST blasint n, OPENBLAS_CONST float alpha, OPENBLAS_CONST float * u, OPENBLAS_CONST blasint incu, OPENBLAS_CONST float jx, OPENBLAS_CONST float jy, OPENBLAS_CONST float jz, float * lap, OPENBLAS_CONST blasint incl);
++void cblas_dlap7(OPENBLAS_CONST blasint n, OPENBLAS_CONST double alpha, OPENBLAS_CONST double * u, OPENBLAS_CONST blasint incu, OPENBLAS_CONST double jx, OPENBLAS_CONST double jy, OPENBLAS_CONST double jz, double * lap, OPENBLAS_CONST blasint incl);
++void cblas_clap7(OPENBLAS_CONST blasint n, float alpha, OPENBLAS_CONST void * u, OPENBLAS_CONST blasint incu, float jx, float jy, float jz, void * lap, OPENBLAS_CONST blasint incl);
++void cblas_zlap7(OPENBLAS_CONST blasint n, double alpha, OPENBLAS_CONST void * u, OPENBLAS_CONST blasint incu, double jx, double jy, double jz, void * lap, OPENBLAS_CONST blasint incl);
 +
  void cblas_somatcopy(OPENBLAS_CONST enum CBLAS_ORDER CORDER, OPENBLAS_CONST enum CBLAS_TRANSPOSE CTRANS, OPENBLAS_CONST blasint crows, OPENBLAS_CONST blasint ccols, OPENBLAS_CONST float calpha, OPENBLAS_CONST float *a, 
  		     OPENBLAS_CONST blasint clda, float *b, OPENBLAS_CONST blasint cldb); 
  void cblas_domatcopy(OPENBLAS_CONST enum CBLAS_ORDER CORDER, OPENBLAS_CONST enum CBLAS_TRANSPOSE CTRANS, OPENBLAS_CONST blasint crows, OPENBLAS_CONST blasint ccols, OPENBLAS_CONST double calpha, OPENBLAS_CONST double *a,
 diff --git a/cmake/kernel.cmake b/cmake/kernel.cmake
-index 3b9e384..f7ed09c 100644
+index 3b9e384..6c6543d 100644
 --- a/cmake/kernel.cmake
 +++ b/cmake/kernel.cmake
-@@ -143,6 +143,78 @@ macro(SetDefaultL1)
+@@ -143,6 +143,86 @@ macro(SetDefaultL1)
    SetFallback(DAXPBYKERNEL ../arm/axpby.c)
    SetFallback(CAXPBYKERNEL ../arm/zaxpby.c)
    SetFallback(ZAXPBYKERNEL ../arm/zaxpby.c)
@@ -871,14 +879,22 @@ index 3b9e384..f7ed09c 100644
 +  SetFallback(D3MOM_KEKERNEL ../generic/3mom_ke.c)
 +  SetFallback(C3MOM_KEKERNEL ../generic/z3mom_ke.c)
 +  SetFallback(Z3MOM_KEKERNEL ../generic/z3mom_ke.c)
++  SetFallback(SLAP5KERNEL ../generic/lap5.c)
++  SetFallback(DLAP5KERNEL ../generic/lap5.c)
++  SetFallback(CLAP5KERNEL ../generic/zlap5.c)
++  SetFallback(ZLAP5KERNEL ../generic/zlap5.c)
++  SetFallback(SLAP7KERNEL ../generic/lap7.c)
++  SetFallback(DLAP7KERNEL ../generic/lap7.c)
++  SetFallback(CLAP7KERNEL ../generic/zlap7.c)
++  SetFallback(ZLAP7KERNEL ../generic/zlap7.c)
    SetFallback(SSUMKERNEL sum.S)
    SetFallback(DSUMKERNEL sum.S)
    SetFallback(CSUMKERNEL zsum.S)
 diff --git a/common_c.h b/common_c.h
-index 6cff610..210a538 100644
+index 6cff610..5ed9d30 100644
 --- a/common_c.h
 +++ b/common_c.h
-@@ -231,6 +231,24 @@
+@@ -231,6 +231,26 @@
  #define CIMATCOPY_K_RTC         cimatcopy_k_rtc
  
  #define CGEADD_K                cgeadd_k 
@@ -900,10 +916,12 @@ index 6cff610..210a538 100644
 +#define C3EXB_K                c3exb_k
 +#define C3DRAG_K                c3drag_k
 +#define C3MOM_KE_K                c3mom_ke_k
++#define CLAP5_K                 clap5_k
++#define CLAP7_K                 clap7_k
  
  #define CGEMM_SMALL_MATRIX_PERMIT	cgemm_small_matrix_permit
  
-@@ -427,6 +445,24 @@
+@@ -427,6 +447,26 @@
  #define CIMATCOPY_K_RTC         gotoblas -> cimatcopy_k_rtc
  
  #define CGEADD_K                gotoblas -> cgeadd_k 
@@ -925,14 +943,16 @@ index 6cff610..210a538 100644
 +#define	C3EXB_K			gotoblas -> c3exb_k
 +#define	C3DRAG_K			gotoblas -> c3drag_k
 +#define	C3MOM_KE_K			gotoblas -> c3mom_ke_k
++#define	CLAP5_K			gotoblas -> clap5_k
++#define	CLAP7_K			gotoblas -> clap7_k
  
  #define CGEMM_SMALL_MATRIX_PERMIT	gotoblas -> cgemm_small_matrix_permit
  
 diff --git a/common_d.h b/common_d.h
-index 1e8c33d..0ea0f6d 100644
+index 1e8c33d..cc6fac3 100644
 --- a/common_d.h
 +++ b/common_d.h
-@@ -157,6 +157,24 @@
+@@ -157,6 +157,26 @@
  #define DIMATCOPY_K_CT      dimatcopy_k_ct
  #define DIMATCOPY_K_RT      dimatcopy_k_rt
  #define DGEADD_K                dgeadd_k 
@@ -954,10 +974,12 @@ index 1e8c33d..0ea0f6d 100644
 +#define D3EXB_K                d3exb_k
 +#define D3DRAG_K                d3drag_k
 +#define D3MOM_KE_K                d3mom_ke_k
++#define DLAP5_K                 dlap5_k
++#define DLAP7_K                 dlap7_k
  
  #define DGEMM_SMALL_MATRIX_PERMIT	dgemm_small_matrix_permit
  
-@@ -284,6 +302,24 @@
+@@ -284,6 +304,26 @@
  #define DIMATCOPY_K_RT		gotoblas -> dimatcopy_k_rt
  
  #define DGEADD_K                gotoblas -> dgeadd_k 
@@ -979,14 +1001,16 @@ index 1e8c33d..0ea0f6d 100644
 +#define	D3EXB_K			gotoblas -> d3exb_k
 +#define	D3DRAG_K			gotoblas -> d3drag_k
 +#define	D3MOM_KE_K			gotoblas -> d3mom_ke_k
++#define	DLAP5_K			gotoblas -> dlap5_k
++#define	DLAP7_K			gotoblas -> dlap7_k
  
  #define DGEMM_SMALL_MATRIX_PERMIT	gotoblas -> dgemm_small_matrix_permit
  
 diff --git a/common_interface.h b/common_interface.h
-index 2610763..0410ce7 100644
+index 2610763..3b0d5ca 100644
 --- a/common_interface.h
 +++ b/common_interface.h
-@@ -112,6 +112,78 @@ void    BLASFUNC(xaxpy) (blasint *, xdouble *, xdouble *, blasint *, xdouble *,
+@@ -112,6 +112,86 @@ void    BLASFUNC(xaxpy) (blasint *, xdouble *, xdouble *, blasint *, xdouble *,
  void    BLASFUNC(caxpyc)(blasint *, float  *, float  *, blasint *, float  *, blasint *);
  void    BLASFUNC(zaxpyc)(blasint *, double *, double *, blasint *, double *, blasint *);
  void    BLASFUNC(xaxpyc)(blasint *, xdouble *, xdouble *, blasint *, xdouble *, blasint *);
@@ -1062,14 +1086,22 @@ index 2610763..0410ce7 100644
 +void    BLASFUNC(d3mom_ke)(blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *);
 +void    BLASFUNC(c3mom_ke)(blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *);
 +void    BLASFUNC(z3mom_ke)(blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *);
++void    BLASFUNC(slap5)(blasint *, float  *, float  *, blasint *, float  *, float  *, float  *, blasint *);
++void    BLASFUNC(dlap5)(blasint *, double *, double *, blasint *, double *, double *, double *, blasint *);
++void    BLASFUNC(clap5)(blasint *, float  *, float  *, blasint *, float  *, float  *, float  *, blasint *);
++void    BLASFUNC(zlap5)(blasint *, double *, double *, blasint *, double *, double *, double *, blasint *);
++void    BLASFUNC(slap7)(blasint *, float  *, float  *, blasint *, float  *, float  *, float  *, float  *, blasint *);
++void    BLASFUNC(dlap7)(blasint *, double *, double *, blasint *, double *, double *, double *, double *, blasint *);
++void    BLASFUNC(clap7)(blasint *, float  *, float  *, blasint *, float  *, float  *, float  *, float  *, blasint *);
++void    BLASFUNC(zlap7)(blasint *, double *, double *, blasint *, double *, double *, double *, double *, blasint *);
  
  void    BLASFUNC(scopy) (blasint *, float  *, blasint *, float  *, blasint *);
  void    BLASFUNC(dcopy) (blasint *, double *, blasint *, double *, blasint *);
 diff --git a/common_level1.h b/common_level1.h
-index 7ab45a4..8f30241 100644
+index 7ab45a4..a587160 100644
 --- a/common_level1.h
 +++ b/common_level1.h
-@@ -80,7 +80,173 @@ int    zaxpyc_k (BLASLONG, BLASLONG, BLASLONG, double, double,
+@@ -80,7 +80,181 @@ int    zaxpyc_k (BLASLONG, BLASLONG, BLASLONG, double, double,
  int    xaxpyc_k (BLASLONG, BLASLONG, BLASLONG, xdouble, xdouble,
  	       xdouble *, BLASLONG, xdouble *, BLASLONG, xdouble *, BLASLONG);
  
@@ -1240,14 +1272,22 @@ index 7ab45a4..8f30241 100644
 +int    d3mom_ke_k (BLASLONG, BLASLONG, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG);
 +int    z3norm_unit_k (BLASLONG, BLASLONG, BLASLONG, double, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG);
 +int    z3mom_ke_k (BLASLONG, BLASLONG, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG);
++int    slap5_k (BLASLONG, BLASLONG, BLASLONG, float, float, float, float *, BLASLONG, float *, BLASLONG);
++int    dlap5_k (BLASLONG, BLASLONG, BLASLONG, double, double, double, double *, BLASLONG, double *, BLASLONG);
++int    clap5_k (BLASLONG, BLASLONG, BLASLONG, float, float, float, float *, BLASLONG, float *, BLASLONG);
++int    zlap5_k (BLASLONG, BLASLONG, BLASLONG, double, double, double, double *, BLASLONG, double *, BLASLONG);
++int    slap7_k (BLASLONG, BLASLONG, BLASLONG, float, float, float, float, float *, BLASLONG, float *, BLASLONG);
++int    dlap7_k (BLASLONG, BLASLONG, BLASLONG, double, double, double, double, double *, BLASLONG, double *, BLASLONG);
++int    clap7_k (BLASLONG, BLASLONG, BLASLONG, float, float, float, float, float *, BLASLONG, float *, BLASLONG);
++int    zlap7_k (BLASLONG, BLASLONG, BLASLONG, double, double, double, double, double *, BLASLONG, double *, BLASLONG);
  int    dcopy_k(BLASLONG, double *, BLASLONG, double *, BLASLONG);
  int    qcopy_k(BLASLONG, xdouble *, BLASLONG, xdouble *, BLASLONG);
  int    ccopy_k(BLASLONG, float  *, BLASLONG, float  *, BLASLONG);
 diff --git a/common_macro.h b/common_macro.h
-index ea2cf5e..73d8c87 100644
+index ea2cf5e..52efedc 100644
 --- a/common_macro.h
 +++ b/common_macro.h
-@@ -648,6 +648,24 @@
+@@ -648,6 +648,26 @@
  #define IMATCOPY_K_RT		DIMATCOPY_K_RT
  
  #define GEADD_K                 DGEADD_K
@@ -1268,11 +1308,13 @@ index ea2cf5e..73d8c87 100644
 +#define REFL3_K                         D3REFL_K
 +#define EXB3_K                          D3EXB_K
 +#define DRAG3_K                         D3DRAG_K
++#define LAP5_K                          DLAP5_K
++#define LAP7_K                          DLAP7_K
 +#define MOM_KE_K                        D3MOM_KE_K
  
  #define GEMM_SMALL_MATRIX_PERMIT	DGEMM_SMALL_MATRIX_PERMIT
  
-@@ -1359,6 +1377,24 @@
+@@ -1359,6 +1379,26 @@
  #define IMATCOPY_K_RT		SIMATCOPY_K_RT
  
  #define GEADD_K 		SGEADD_K
@@ -1293,11 +1335,13 @@ index ea2cf5e..73d8c87 100644
 +#define REFL3_K                         S3REFL_K
 +#define EXB3_K                          S3EXB_K
 +#define DRAG3_K                         S3DRAG_K
++#define LAP5_K                          SLAP5_K
++#define LAP7_K                          SLAP7_K
 +#define MOM_KE_K                        S3MOM_KE_K
  
  #define GEMM_SMALL_MATRIX_PERMIT	SGEMM_SMALL_MATRIX_PERMIT
  
-@@ -2198,6 +2234,24 @@
+@@ -2198,6 +2238,26 @@
  #define IMATCOPY_K_RTC		ZIMATCOPY_K_RTC
  
  #define GEADD_K                 ZGEADD_K
@@ -1318,11 +1362,13 @@ index ea2cf5e..73d8c87 100644
 +#define REFL3_K                         Z3REFL_K
 +#define EXB3_K                          Z3EXB_K
 +#define DRAG3_K                         Z3DRAG_K
++#define LAP5_K                          ZLAP5_K
++#define LAP7_K                          ZLAP7_K
 +#define MOM_KE_K                        Z3MOM_KE_K
  
  #define GEMM_SMALL_MATRIX_PERMIT	ZGEMM_SMALL_MATRIX_PERMIT
  
-@@ -2663,6 +2717,24 @@
+@@ -2663,6 +2723,26 @@
  #define IMATCOPY_K_RTC		CIMATCOPY_K_RTC
  
  #define GEADD_K                 CGEADD_K
@@ -1343,6 +1389,8 @@ index ea2cf5e..73d8c87 100644
 +#define REFL3_K                         C3REFL_K
 +#define EXB3_K                          C3EXB_K
 +#define DRAG3_K                         C3DRAG_K
++#define LAP5_K                          CLAP5_K
++#define LAP7_K                          CLAP7_K
 +#define MOM_KE_K                        C3MOM_KE_K
  
  #define GEMM_SMALL_MATRIX_PERMIT	CGEMM_SMALL_MATRIX_PERMIT
@@ -1424,10 +1472,10 @@ index fd20945..709c8e1 100644
  
  extern gotoblas_t *gotoblas;
 diff --git a/common_s.h b/common_s.h
-index e43b74b..7907fff 100644
+index e43b74b..e1002af 100644
 --- a/common_s.h
 +++ b/common_s.h
-@@ -179,6 +179,24 @@
+@@ -179,6 +179,26 @@
  #define SIMATCOPY_K_RT          simatcopy_k_rt
  
  #define SGEADD_K                sgeadd_k 
@@ -1449,10 +1497,12 @@ index e43b74b..7907fff 100644
 +#define S3EXB_K                s3exb_k
 +#define S3DRAG_K                s3drag_k
 +#define S3MOM_KE_K                s3mom_ke_k
++#define SLAP5_K                 slap5_k
++#define SLAP7_K                 slap7_k
  
  #define SGEMM_SMALL_MATRIX_PERMIT	sgemm_small_matrix_permit
  
-@@ -332,6 +350,24 @@
+@@ -332,6 +352,26 @@
  #define SIMATCOPY_K_RT          gotoblas -> simatcopy_k_rt
  
  #define SGEADD_K                gotoblas -> sgeadd_k 
@@ -1474,14 +1524,16 @@ index e43b74b..7907fff 100644
 +#define	S3EXB_K			gotoblas -> s3exb_k
 +#define	S3DRAG_K			gotoblas -> s3drag_k
 +#define	S3MOM_KE_K			gotoblas -> s3mom_ke_k
++#define	SLAP5_K			gotoblas -> slap5_k
++#define	SLAP7_K			gotoblas -> slap7_k
  
  #define SGEMM_SMALL_MATRIX_PERMIT	gotoblas -> sgemm_small_matrix_permit
  
 diff --git a/common_z.h b/common_z.h
-index c12d71b..ed1a468 100644
+index c12d71b..8d1b049 100644
 --- a/common_z.h
 +++ b/common_z.h
-@@ -231,6 +231,24 @@
+@@ -231,6 +231,26 @@
  #define ZIMATCOPY_K_RTC         zimatcopy_k_rtc
  
  #define ZGEADD_K                zgeadd_k 
@@ -1503,10 +1555,12 @@ index c12d71b..ed1a468 100644
 +#define Z3EXB_K                z3exb_k
 +#define Z3DRAG_K                z3drag_k
 +#define Z3MOM_KE_K                z3mom_ke_k
++#define ZLAP5_K                 zlap5_k
++#define ZLAP7_K                 zlap7_k
  
  #define ZGEMM_SMALL_MATRIX_PERMIT	zgemm_small_matrix_permit
  
-@@ -427,6 +445,24 @@
+@@ -427,6 +447,26 @@
  #define ZIMATCOPY_K_RTC         gotoblas -> zimatcopy_k_rtc
  
  #define ZGEADD_K                gotoblas -> zgeadd_k
@@ -1528,13 +1582,15 @@ index c12d71b..ed1a468 100644
 +#define	Z3EXB_K			gotoblas -> z3exb_k
 +#define	Z3DRAG_K			gotoblas -> z3drag_k
 +#define	Z3MOM_KE_K			gotoblas -> z3mom_ke_k
++#define	ZLAP5_K			gotoblas -> zlap5_k
++#define	ZLAP7_K			gotoblas -> zlap7_k
  
  #define ZGEMM_SMALL_MATRIX_PERMIT	gotoblas -> zgemm_small_matrix_permit
  
 diff --git a/exports/gensymbol b/exports/gensymbol
 old mode 100755
 new mode 100644
-index bd4652b..43485eb
+index bd4652b..fd72312
 --- a/exports/gensymbol
 +++ b/exports/gensymbol
 @@ -49,7 +49,7 @@ blasobjsc="
@@ -1542,7 +1598,7 @@ index bd4652b..43485eb
      chpmv chpr2 chpr crotg cscal csrot csscal cswap scamin scasum scnrm2
      csymm csyr2k csyrk ctbmv ctbsv ctpmv ctpsv ctrmm ctrmv ctrsm
 -    ctrsv icamax icamin cimatcopy comatcopy cgeadd scsum cgemmt cgemmtr"
-+    ctrsv icamax icamin cimatcopy comatcopy cgeadd scsum cgemmt cgemmtr c1xypa c3dot c3had c3cross c3crossscal c3sqr c3crossdot c3crosssqr c3crossxy_crossxz c3crossxy_dotxz c3dotxy_dotxz c1norm c3crosscross c3norm_unit c3refl c3exb c3drag c3mom_ke"
++    ctrsv icamax icamin cimatcopy comatcopy cgeadd scsum cgemmt cgemmtr c1xypa c3dot c3had c3cross c3crossscal c3sqr c3crossdot c3crosssqr c3crossxy_crossxz c3crossxy_dotxz c3dotxy_dotxz c1norm c3crosscross c3norm_unit c3refl c3exb c3drag c3mom_ke clap5 clap7"
  
  blasobjsd="
      damax damin dasum daxpy daxpby dcabs1 dcopy ddot dgbmv dgemm
@@ -1551,7 +1607,7 @@ index bd4652b..43485eb
      dspr dswap dsymm dsymv dsyr2 dsyr2k dsyr dsyrk dtbmv dtbsv
      dtpmv dtpsv dtrmm dtrmv dtrsm dtrsv
 -        idamax idamin idmax idmin dgeadd dsum dgemmt dgemmtr"
-+        idamax idamin idmax idmin dgeadd dsum dgemmt dgemmtr d1xypa d3dot d3had d3cross d3crossscal d3sqr d3crossdot d3crosssqr d3crossxy_crossxz d3crossxy_dotxz d3dotxy_dotxz d1norm d3crosscross d3norm_unit d3refl d3exb d3drag d3mom_ke"
++        idamax idamin idmax idmin dgeadd dsum dgemmt dgemmtr d1xypa d3dot d3had d3cross d3crossscal d3sqr d3crossdot d3crosssqr d3crossxy_crossxz d3crossxy_dotxz d3dotxy_dotxz d1norm d3crosscross d3norm_unit d3refl d3exb d3drag d3mom_ke dlap5 dlap7"
  
  blasobjss="
      isamax isamin ismax ismin
@@ -1560,7 +1616,7 @@ index bd4652b..43485eb
      srot srotg srotm srotmg ssbmv sscal sspmv sspr2 sspr sswap
      ssymm ssymv ssyr2 ssyr2k ssyr ssyrk stbmv stbsv stpmv stpsv
 -    strmm strmv strsm strsv  sgeadd ssum sgemmt sgemmtr"
-+    strmm strmv strsm strsv  sgeadd ssum sgemmt sgemmtr s1xypa s3dot s3had s3cross s3crossscal s3sqr s3crossdot s3crosssqr s3crossxy_crossxz s3crossxy_dotxz s3dotxy_dotxz s1norm s3crosscross s3norm_unit s3refl s3exb s3drag s3mom_ke"
++    strmm strmv strsm strsv  sgeadd ssum sgemmt sgemmtr s1xypa s3dot s3had s3cross s3crossscal s3sqr s3crossdot s3crosssqr s3crossxy_crossxz s3crossxy_dotxz s3dotxy_dotxz s1norm s3crosscross s3norm_unit s3refl s3exb s3drag s3mom_ke slap5 slap7"
  
  blasobjsz="
      izamax izamin
@@ -1569,7 +1625,7 @@ index bd4652b..43485eb
      ztbsv ztpmv ztpsv ztrmm ztrmv ztrsm ztrsv
      zomatcopy  zimatcopy dzamax dzamin dzasum dznrm2
 -    zgeadd  dzsum zgemmt zgemmtr"
-+    zgeadd  dzsum zgemmt zgemmtr z1xypa z3dot z3had z3cross z3crossscal z3sqr z3crossdot z3crosssqr z3crossxy_crossxz z3crossxy_dotxz z3dotxy_dotxz z1norm z3crosscross z3norm_unit z3refl z3exb z3drag z3mom_ke"
++    zgeadd  dzsum zgemmt zgemmtr z1xypa z3dot z3had z3cross z3crossscal z3sqr z3crossdot z3crosssqr z3crossxy_crossxz z3crossxy_dotxz z3dotxy_dotxz z1norm z3crosscross z3norm_unit z3refl z3exb z3drag z3mom_ke zlap5 zlap7"
  
  blasobjs="lsame xerbla"
  bfblasobjs="bgemm bgemv sbgemm sbgemmt sbgemmtr sbgemv sbdot sbstobf16 sbdtobf16 sbf16tos dbf16tod"
@@ -1578,7 +1634,7 @@ index bd4652b..43485eb
      cblas_cher cblas_cherk  cblas_chpmv cblas_chpr2 cblas_chpr cblas_cscal cblas_caxpby
      cblas_csscal cblas_cswap cblas_csymm cblas_csyr2k cblas_csyrk cblas_ctbmv cblas_cgeadd
 -    cblas_ctbsv cblas_ctpmv cblas_ctpsv cblas_ctrmm cblas_ctrmv cblas_ctrsm cblas_ctrsv
-+    cblas_ctbsv cblas_ctpmv cblas_ctpsv cblas_ctrmm cblas_ctrmv cblas_ctrsm cblas_ctrsv cblas_c1xypa cblas_c3dot cblas_c3had cblas_c3cross cblas_c3crossscal cblas_c3sqr cblas_c3crossdot cblas_c3crosssqr cblas_c3crossxy_crossxz cblas_c3crossxy_dotxz cblas_c3dotxy_dotxz cblas_c1norm cblas_c3crosscross cblas_c3norm_unit cblas_c3refl cblas_c3exb cblas_c3drag cblas_c3mom_ke
++    cblas_ctbsv cblas_ctpmv cblas_ctpsv cblas_ctrmm cblas_ctrmv cblas_ctrsm cblas_ctrsv cblas_c1xypa cblas_c3dot cblas_c3had cblas_c3cross cblas_c3crossscal cblas_c3sqr cblas_c3crossdot cblas_c3crosssqr cblas_c3crossxy_crossxz cblas_c3crossxy_dotxz cblas_c3dotxy_dotxz cblas_c1norm cblas_c3crosscross cblas_c3norm_unit cblas_c3refl cblas_c3exb cblas_c3drag cblas_c3mom_ke cblas_clap5 cblas_clap7
      cblas_scnrm2 cblas_scasum cblas_cgemmt cblas_cgemmtr
      cblas_icamax cblas_icamin cblas_icmin cblas_icmax cblas_scsum cblas_cimatcopy cblas_comatcopy
      cblas_caxpyc cblas_crotg cblas_csrot cblas_scamax cblas_scamin cblas_cgemm_batch
@@ -1587,7 +1643,7 @@ index bd4652b..43485eb
      cblas_dspmv cblas_dspr2 cblas_dspr cblas_dswap cblas_dsymm cblas_dsymv cblas_dsyr2
      cblas_dsyr2k cblas_dsyr cblas_dsyrk cblas_dtbmv cblas_dtbsv cblas_dtpmv cblas_dtpsv
 -    cblas_dtrmm cblas_dtrmv cblas_dtrsm cblas_dtrsv cblas_daxpby cblas_dgeadd cblas_dgemmt cblas_dgemmtr
-+    cblas_dtrmm cblas_dtrmv cblas_dtrsm cblas_dtrsv cblas_daxpby cblas_dgeadd cblas_dgemmt cblas_dgemmtr cblas_d1xypa cblas_d3dot cblas_d3had cblas_d3cross cblas_d3crossscal cblas_d3sqr cblas_d3crossdot cblas_d3crosssqr cblas_d3crossxy_crossxz cblas_d3crossxy_dotxz cblas_d3dotxy_dotxz cblas_d1norm cblas_d3crosscross cblas_d3norm_unit cblas_d3refl cblas_d3exb cblas_d3drag cblas_d3mom_ke
++    cblas_dtrmm cblas_dtrmv cblas_dtrsm cblas_dtrsv cblas_daxpby cblas_dgeadd cblas_dgemmt cblas_dgemmtr cblas_d1xypa cblas_d3dot cblas_d3had cblas_d3cross cblas_d3crossscal cblas_d3sqr cblas_d3crossdot cblas_d3crosssqr cblas_d3crossxy_crossxz cblas_d3crossxy_dotxz cblas_d3dotxy_dotxz cblas_d1norm cblas_d3crosscross cblas_d3norm_unit cblas_d3refl cblas_d3exb cblas_d3drag cblas_d3mom_ke cblas_dlap5 cblas_dlap7
      cblas_idamax cblas_idamin cblas_idmin cblas_idmax cblas_dsum cblas_dimatcopy cblas_domatcopy
      cblas_damax  cblas_damin cblas_dgemm_batch
      "
@@ -1596,7 +1652,7 @@ index bd4652b..43485eb
      cblas_sswap cblas_ssymm cblas_ssymv cblas_ssyr2 cblas_ssyr2k cblas_ssyr cblas_ssyrk
      cblas_stbmv cblas_stbsv cblas_stpmv cblas_stpsv cblas_strmm cblas_strmv cblas_strsm
 -    cblas_strsv cblas_sgeadd cblas_sgemmt cblas_sgemmtr
-+    cblas_strsv cblas_sgeadd cblas_sgemmt cblas_sgemmtr cblas_s1xypa cblas_s3dot cblas_s3had cblas_s3cross cblas_s3crossscal cblas_s3sqr cblas_s3crossdot cblas_s3crosssqr cblas_s3crossxy_crossxz cblas_s3crossxy_dotxz cblas_s3dotxy_dotxz cblas_s1norm cblas_s3crosscross cblas_s3norm_unit cblas_s3refl cblas_s3exb cblas_s3drag cblas_s3mom_ke
++    cblas_strsv cblas_sgeadd cblas_sgemmt cblas_sgemmtr cblas_s1xypa cblas_s3dot cblas_s3had cblas_s3cross cblas_s3crossscal cblas_s3sqr cblas_s3crossdot cblas_s3crosssqr cblas_s3crossxy_crossxz cblas_s3crossxy_dotxz cblas_s3dotxy_dotxz cblas_s1norm cblas_s3crosscross cblas_s3norm_unit cblas_s3refl cblas_s3exb cblas_s3drag cblas_s3mom_ke cblas_slap5 cblas_slap7
      cblas_isamax cblas_isamin cblas_ismin cblas_ismax cblas_ssum cblas_simatcopy cblas_somatcopy
      cblas_samax cblas_samin cblas_sgemm_batch
      "
@@ -1605,7 +1661,7 @@ index bd4652b..43485eb
      cblas_ztbmv cblas_ztbsv cblas_ztpmv cblas_ztpsv cblas_ztrmm cblas_ztrmv cblas_ztrsm
      cblas_ztrsv cblas_cdotc_sub cblas_cdotu_sub cblas_zdotc_sub cblas_zdotu_sub
 -    cblas_zaxpby cblas_zgeadd cblas_zgemmt cblas_zgemmtr
-+    cblas_zaxpby cblas_zgeadd cblas_zgemmt cblas_zgemmtr cblas_z1xypa cblas_z3dot cblas_z3had cblas_z3cross cblas_z3crossscal cblas_z3sqr cblas_z3crossdot cblas_z3crosssqr cblas_z3crossxy_crossxz cblas_z3crossxy_dotxz cblas_z3dotxy_dotxz cblas_z1norm cblas_z3crosscross cblas_z3norm_unit cblas_z3refl cblas_z3exb cblas_z3drag cblas_z3mom_ke
++    cblas_zaxpby cblas_zgeadd cblas_zgemmt cblas_zgemmtr cblas_z1xypa cblas_z3dot cblas_z3had cblas_z3cross cblas_z3crossscal cblas_z3sqr cblas_z3crossdot cblas_z3crosssqr cblas_z3crossxy_crossxz cblas_z3crossxy_dotxz cblas_z3dotxy_dotxz cblas_z1norm cblas_z3crosscross cblas_z3norm_unit cblas_z3refl cblas_z3exb cblas_z3drag cblas_z3mom_ke cblas_zlap5 cblas_zlap7
      cblas_izamax cblas_izamin cblas_izmin cblas_izmax cblas_dzsum cblas_zimatcopy cblas_zomatcopy
      cblas_zaxpyc cblas_zdrot cblas_zrotg cblas_dzamax cblas_dzamin cblas_zgemm_batch
  "
@@ -3278,10 +3334,10 @@ index 0000000..83593f4
 +
 +}
 diff --git a/interface/CMakeLists.txt b/interface/CMakeLists.txt
-index ee7d40d..404d2ec 100644
+index ee7d40d..d02cb50 100644
 --- a/interface/CMakeLists.txt
 +++ b/interface/CMakeLists.txt
-@@ -49,6 +49,40 @@ set(BLAS1_MANGLED_SOURCES
+@@ -49,6 +49,26 @@ set(BLAS1_MANGLED_SOURCES
    dot.c
    rotg.c
    axpby.c
@@ -3303,22 +3359,8 @@ index ee7d40d..404d2ec 100644
 +  3exb.c
 +  3drag.c
 +  3mom_ke.c
-+  3had.c
-+  3cross.c
-+  3crossscal.c
-+  3sqr.c
-+  3crossdot.c
-+  3crosssqr.c
-+  3crossxy_crossxz.c
-+  3crossxy_dotxz.c
-+  3dotxy_dotxz.c
-+  1norm.c
-+  3crosscross.c
-+  3norm_unit.c
-+  3refl.c
-+  3exb.c
-+  3drag.c
-+  3mom_ke.c
++  lap5.c
++  lap7.c
  )
  
  # TODO: USE_NETLIB_GEMV should switch gemv.c to netlib/*gemv.f
@@ -3713,6 +3755,167 @@ index 2b6b60c..9e48217 100644
 +
 +cblas_c1norm.$(SUFFIX) cblas_c1norm.$(PSUFFIX) : z1norm.c
 +	$(CC) $(CFLAGS) -DCBLAS -c $< -o $(@F)
+diff --git a/interface/lap5.c b/interface/lap5.c
+new file mode 100644
+index 0000000..c7a9656
+--- /dev/null
++++ b/interface/lap5.c
+@@ -0,0 +1,74 @@
++/***************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in source code must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++#include <stdio.h>
++#include "common.h"
++#ifdef FUNCTION_PROFILE
++#include "functable.h"
++#endif
++#ifndef CBLAS
++
++void NAME(blasint *N, FLOAT *ALPHA, FLOAT *X, blasint *INCX, FLOAT *JX, FLOAT *JY, FLOAT *Y, blasint *INCY)
++{
++  BLASLONG n    = *N;
++  FLOAT alpha  = *ALPHA;
++  BLASLONG incx = *INCX;
++  FLOAT jx     = *JX;
++  FLOAT jy     = *JY;
++  BLASLONG incy = *INCY;
++  FLOAT * x = X;
++  FLOAT * y = Y;
++
++#else
++
++void CNAME(blasint n, FLOAT alpha, FLOAT *x, blasint incx, FLOAT jx, FLOAT jy, FLOAT *y, blasint incy)
++{
++#endif
++
++#ifndef CBLAS
++  PRINT_DEBUG_NAME;
++#else
++  PRINT_DEBUG_CNAME;
++#endif
++
++  if (n <= 0) return;
++
++  IDEBUG_START;
++
++  FUNCTION_PROFILE_START();
++
++  if (incx < 0) x -= (n - 1) * incx;
++  if (incy < 0) y -= (n - 1) * incy;
++
++  LAP5_K(n, 0, 0, alpha, jx, jy, x, incx, y, incy);
++
++  FUNCTION_PROFILE_END(2, n, n);
++
++  IDEBUG_END;
++
++  return;
++
++}
+diff --git a/interface/lap7.c b/interface/lap7.c
+new file mode 100644
+index 0000000..a2055ab
+--- /dev/null
++++ b/interface/lap7.c
+@@ -0,0 +1,75 @@
++/***************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in source code must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++#include <stdio.h>
++#include "common.h"
++#ifdef FUNCTION_PROFILE
++#include "functable.h"
++#endif
++#ifndef CBLAS
++
++void NAME(blasint *N, FLOAT *ALPHA, FLOAT *X, blasint *INCX, FLOAT *JX, FLOAT *JY, FLOAT *JZ, FLOAT *Y, blasint *INCY)
++{
++  BLASLONG n    = *N;
++  FLOAT alpha  = *ALPHA;
++  BLASLONG incx = *INCX;
++  FLOAT jx     = *JX;
++  FLOAT jy     = *JY;
++  FLOAT jz     = *JZ;
++  BLASLONG incy = *INCY;
++  FLOAT * x = X;
++  FLOAT * y = Y;
++
++#else
++
++void CNAME(blasint n, FLOAT alpha, FLOAT *x, blasint incx, FLOAT jx, FLOAT jy, FLOAT jz, FLOAT *y, blasint incy)
++{
++#endif
++
++#ifndef CBLAS
++  PRINT_DEBUG_NAME;
++#else
++  PRINT_DEBUG_CNAME;
++#endif
++
++  if (n <= 0) return;
++
++  IDEBUG_START;
++
++  FUNCTION_PROFILE_START();
++
++  if (incx < 0) x -= (n - 1) * incx;
++  if (incy < 0) y -= (n - 1) * incy;
++
++  LAP7_K(n, 0, 0, alpha, jx, jy, jz, x, incx, y, incy);
++
++  FUNCTION_PROFILE_END(2, n, n);
++
++  IDEBUG_END;
++
++  return;
++
++}
 diff --git a/interface/z1norm.c b/interface/z1norm.c
 new file mode 100644
 index 0000000..71c63f5
@@ -5542,8 +5745,175 @@ index 0000000..7d950df
 +  return;
 +
 +}
+diff --git a/interface/zlap5.c b/interface/zlap5.c
+new file mode 100644
+index 0000000..ba41b4e
+--- /dev/null
++++ b/interface/zlap5.c
+@@ -0,0 +1,77 @@
++/***************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in source code must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++#include <stdio.h>
++#include "common.h"
++#ifdef FUNCTION_PROFILE
++#include "functable.h"
++#endif
++#ifndef CBLAS
++
++void NAME(blasint *N, FLOAT *ALPHA, FLOAT *X, blasint *INCX, FLOAT *JX, FLOAT *JY, FLOAT *Y, blasint *INCY)
++{
++  BLASLONG n    = *N;
++  FLOAT alpha  = *ALPHA;
++  BLASLONG incx = *INCX;
++  FLOAT jx     = *JX;
++  FLOAT jy     = *JY;
++  BLASLONG incy = *INCY;
++  FLOAT * x = X;
++  FLOAT * y = Y;
++
++#else
++
++void CNAME(blasint n, FLOAT alpha, void *vx, blasint incx, FLOAT jx, FLOAT jy, void *vy, blasint incy)
++{
++  FLOAT *x = (FLOAT*) vx;
++  FLOAT *y = (FLOAT*) vy;
++
++#endif
++
++#ifndef CBLAS
++  PRINT_DEBUG_NAME;
++#else
++  PRINT_DEBUG_CNAME;
++#endif
++
++  if (n <= 0) return;
++
++  IDEBUG_START;
++
++  FUNCTION_PROFILE_START();
++
++  if (incx < 0) x -= (n - 1) * incx * 2;
++  if (incy < 0) y -= (n - 1) * incy * 2;
++
++  LAP5_K(n, 0, 0, alpha, jx, jy, x, incx, y, incy);
++
++  FUNCTION_PROFILE_END(2, n, n);
++
++  IDEBUG_END;
++
++  return;
++
++}
+diff --git a/interface/zlap7.c b/interface/zlap7.c
+new file mode 100644
+index 0000000..534ab11
+--- /dev/null
++++ b/interface/zlap7.c
+@@ -0,0 +1,78 @@
++/***************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in source code must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++#include <stdio.h>
++#include "common.h"
++#ifdef FUNCTION_PROFILE
++#include "functable.h"
++#endif
++#ifndef CBLAS
++
++void NAME(blasint *N, FLOAT *ALPHA, FLOAT *X, blasint *INCX, FLOAT *JX, FLOAT *JY, FLOAT *JZ, FLOAT *Y, blasint *INCY)
++{
++  BLASLONG n    = *N;
++  FLOAT alpha  = *ALPHA;
++  BLASLONG incx = *INCX;
++  FLOAT jx     = *JX;
++  FLOAT jy     = *JY;
++  FLOAT jz     = *JZ;
++  BLASLONG incy = *INCY;
++  FLOAT * x = X;
++  FLOAT * y = Y;
++
++#else
++
++void CNAME(blasint n, FLOAT alpha, void *vx, blasint incx, FLOAT jx, FLOAT jy, FLOAT jz, void *vy, blasint incy)
++{
++  FLOAT *x = (FLOAT*) vx;
++  FLOAT *y = (FLOAT*) vy;
++
++#endif
++
++#ifndef CBLAS
++  PRINT_DEBUG_NAME;
++#else
++  PRINT_DEBUG_CNAME;
++#endif
++
++  if (n <= 0) return;
++
++  IDEBUG_START;
++
++  FUNCTION_PROFILE_START();
++
++  if (incx < 0) x -= (n - 1) * incx * 2;
++  if (incy < 0) y -= (n - 1) * incy * 2;
++
++  LAP7_K(n, 0, 0, alpha, jx, jy, jz, x, incx, y, incy);
++
++  FUNCTION_PROFILE_END(2, n, n);
++
++  IDEBUG_END;
++
++  return;
++
++}
 diff --git a/kernel/CMakeLists.txt b/kernel/CMakeLists.txt
-index 38f484a..20cfee3 100644
+index 38f484a..9e52fd7 100644
 --- a/kernel/CMakeLists.txt
 +++ b/kernel/CMakeLists.txt
 @@ -28,6 +28,22 @@
@@ -5569,7 +5939,7 @@ index 38f484a..20cfee3 100644
  # Makefile
  function (build_core TARGET_CORE KDIR TSUFFIX KERNEL_DEFINITIONS)
      set (OPENBLAS_SRC "")
-@@ -96,6 +112,96 @@ function (build_core TARGET_CORE KDIR TSUFFIX KERNEL_DEFINITIONS)
+@@ -96,6 +112,106 @@ function (build_core TARGET_CORE KDIR TSUFFIX KERNEL_DEFINITIONS)
        GenerateNamedObjects("${KERNELDIR}/${${float_char}SCALKERNEL}" "" "scal_k" false "" "" false ${float_type})
        GenerateNamedObjects("${KERNELDIR}/${${float_char}SWAPKERNEL}" "" "swap_k" false "" "" false ${float_type})
        GenerateNamedObjects("${KERNELDIR}/${${float_char}AXPBYKERNEL}" "" "axpby_k" false "" "" false ${float_type})
@@ -5663,11 +6033,21 @@ index 38f484a..20cfee3 100644
 +        GenerateNamedObjects("${KERNELDIR}/${${float_char}3MOM_KEKERNEL}" "" "3mom_ke_k" false "" "" false ${float_type})
 +        PhysicsKernelOptimize("${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/\{3mom_ke__char\}3mom_ke_k.c")
 +      endif ()
++      if (DEFINED ${float_char}LAP5KERNEL)
++        string(TOLOWER ${float_char} lap5_char)
++        GenerateNamedObjects("${KERNELDIR}/${${float_char}LAP5KERNEL}" "" "lap5_k" false "" "" false ${float_type})
++        PhysicsKernelOptimize("${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${lap5_char}lap5_k.c")
++      endif ()
++      if (DEFINED ${float_char}LAP7KERNEL)
++        string(TOLOWER ${float_char} lap7_char)
++        GenerateNamedObjects("${KERNELDIR}/${${float_char}LAP7KERNEL}" "" "lap7_k" false "" "" false ${float_type})
++        PhysicsKernelOptimize("${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${lap7_char}lap7_k.c")
++      endif ()
        GenerateNamedObjects("${KERNELDIR}/${${float_char}SUMKERNEL}" "" "sum_k" false "" "" false ${float_type})
  
        if (${float_type} STREQUAL "COMPLEX" OR ${float_type} STREQUAL "ZCOMPLEX")
 diff --git a/kernel/Makefile.L1 b/kernel/Makefile.L1
-index 221cc51..30aaf78 100644
+index 221cc51..8982010 100644
 --- a/kernel/Makefile.L1
 +++ b/kernel/Makefile.L1
 @@ -548,14 +548,14 @@ SBLASOBJS	+= \
@@ -5703,7 +6083,7 @@ index 221cc51..30aaf78 100644
  
  XBLASOBJS	+= \
  	 xamax_k$(TSUFFIX).$(SUFFIX)  xamin_k$(TSUFFIX).$(SUFFIX) ixamax_k$(TSUFFIX).$(SUFFIX) ixamin_k$(TSUFFIX).$(SUFFIX) \
-@@ -958,4 +957,436 @@ $(KDIR)caxpby_k$(TSUFFIX).$(SUFFIX)  $(KDIR)caxpby_k$(TPSUFFIX).$(PSUFFIX)  : $(
+@@ -958,4 +957,484 @@ $(KDIR)caxpby_k$(TSUFFIX).$(SUFFIX)  $(KDIR)caxpby_k$(TPSUFFIX).$(PSUFFIX)  : $(
  $(KDIR)zaxpby_k$(TSUFFIX).$(SUFFIX)  $(KDIR)zaxpby_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(ZAXPBYKERNEL)
  	$(CC) -c $(CFLAGS) -DCOMPLEX -UCONJ -DDOUBLE $< -o $@
  
@@ -6139,6 +6519,54 @@ index 221cc51..30aaf78 100644
 +endif
 +$(KDIR)z3mom_ke_k$(TSUFFIX).$(SUFFIX)  $(KDIR)z3mom_ke_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(Z3MOM_KEKERNEL)
 +	$(CC) -c $(CFLAGS) -DCOMPLEX -DDOUBLE $< -o $@
++ifndef SLAP5KERNEL
++SLAP5KERNEL = ../generic/lap5.c
++endif
++$(KDIR)slap5_k$(TSUFFIX).$(SUFFIX)  $(KDIR)slap5_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(SLAP5KERNEL)
++	$(CC) -c $(CFLAGS) -UCOMPLEX -UDOUBLE $< -o $@
++
++ifndef DLAP5KERNEL
++DLAP5KERNEL = ../generic/lap5.c
++endif
++$(KDIR)dlap5_k$(TSUFFIX).$(SUFFIX)  $(KDIR)dlap5_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(DLAP5KERNEL)
++	$(CC) -c $(CFLAGS) -UCOMPLEX -DDOUBLE $< -o $@
++
++ifndef CLAP5KERNEL
++CLAP5KERNEL = ../generic/zlap5.c
++endif
++$(KDIR)clap5_k$(TSUFFIX).$(SUFFIX)  $(KDIR)clap5_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(CLAP5KERNEL)
++	$(CC) -c $(CFLAGS) -DCOMPLEX -UDOUBLE $< -o $@
++
++ifndef ZLAP5KERNEL
++ZLAP5KERNEL = ../generic/zlap5.c
++endif
++$(KDIR)zlap5_k$(TSUFFIX).$(SUFFIX)  $(KDIR)zlap5_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(ZLAP5KERNEL)
++	$(CC) -c $(CFLAGS) -DCOMPLEX -DDOUBLE $< -o $@
++
++ifndef SLAP7KERNEL
++SLAP7KERNEL = ../generic/lap7.c
++endif
++$(KDIR)slap7_k$(TSUFFIX).$(SUFFIX)  $(KDIR)slap7_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(SLAP7KERNEL)
++	$(CC) -c $(CFLAGS) -UCOMPLEX -UDOUBLE $< -o $@
++
++ifndef DLAP7KERNEL
++DLAP7KERNEL = ../generic/lap7.c
++endif
++$(KDIR)dlap7_k$(TSUFFIX).$(SUFFIX)  $(KDIR)dlap7_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(DLAP7KERNEL)
++	$(CC) -c $(CFLAGS) -UCOMPLEX -DDOUBLE $< -o $@
++
++ifndef CLAP7KERNEL
++CLAP7KERNEL = ../generic/zlap7.c
++endif
++$(KDIR)clap7_k$(TSUFFIX).$(SUFFIX)  $(KDIR)clap7_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(CLAP7KERNEL)
++	$(CC) -c $(CFLAGS) -DCOMPLEX -UDOUBLE $< -o $@
++
++ifndef ZLAP7KERNEL
++ZLAP7KERNEL = ../generic/zlap7.c
++endif
++$(KDIR)zlap7_k$(TSUFFIX).$(SUFFIX)  $(KDIR)zlap7_k$(TPSUFFIX).$(PSUFFIX)  : $(KERNELDIR)/$(ZLAP7KERNEL)
++	$(CC) -c $(CFLAGS) -DCOMPLEX -DDOUBLE $< -o $@
++
  
 diff --git a/kernel/generic/1norm.c b/kernel/generic/1norm.c
 new file mode 100644
@@ -7866,6 +8294,137 @@ index 0000000..a2a66ca
 +			ir += incr;
 +			i++;
 +		}
++	}
++	return(0);
++}
+diff --git a/kernel/generic/lap5.c b/kernel/generic/lap5.c
+new file mode 100644
+index 0000000..6c5dc6b
+--- /dev/null
++++ b/kernel/generic/lap5.c
+@@ -0,0 +1,60 @@
++/***************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in source code must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++#include "common.h"
++
++/* lap5: lap[i] = alpha * ((u[i-jx] + u[i+jx]) + (u[i-jy] + u[i+jy]) - 4*u[i]).
++   jx, jy are signed element offsets (REAL scalars, cast to BLASLONG); the
++   caller walks one grid row at a time and guarantees neighbor indices are
++   in bounds.  lap may overlap u only where they cannot be written before
++   being read (same rule as axpby); in practice keep them disjoint. */
++int CNAME(BLASLONG n, BLASLONG dummy0, BLASLONG dummy1, FLOAT alpha, FLOAT jxf, FLOAT jyf,
++          FLOAT *x, BLASLONG incx, FLOAT *y, BLASLONG incy)
++{
++	BLASLONG i = 0;
++	BLASLONG ix = 0, iy = 0;
++	BLASLONG jx = (BLASLONG)jxf, jy = (BLASLONG)jyf;
++	FLOAT s;
++
++	if ( n < 0 )  return(0);
++
++	if ((incx == 1) && (incy == 1)) {
++		for (i = 0; i < n; i++) {
++			s = (x[i - jx] + x[i + jx]) + (x[i - jy] + x[i + jy]);
++			y[i] = alpha * (s - 4 * x[i]);
++		}
++		i = n;
++	}
++
++	while (i < n) {
++		s = (x[ix - jx] + x[ix + jx]) + (x[ix - jy] + x[ix + jy]);
++		if (incy != 0) y[iy] = alpha * (s - 4 * x[ix]);
++		ix += incx;
++		iy += incy;
++		i++;
++	}
++	return(0);
++}
+diff --git a/kernel/generic/lap7.c b/kernel/generic/lap7.c
+new file mode 100644
+index 0000000..a2d3e2d
+--- /dev/null
++++ b/kernel/generic/lap7.c
+@@ -0,0 +1,59 @@
++/***************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in source code must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++#include "common.h"
++
++/* lap7: lap[i] = alpha * ((u[i-jx] + u[i+jx]) + (u[i-jy] + u[i+jy])
++                                   + (u[i-jz] + u[i+jz]) - 6*u[i]).
++   Same conventions as lap5 (signed REAL element offsets, bounds are the
++   caller's responsibility). */
++int CNAME(BLASLONG n, BLASLONG dummy0, BLASLONG dummy1, FLOAT alpha, FLOAT jxf, FLOAT jyf, FLOAT jzf,
++          FLOAT *x, BLASLONG incx, FLOAT *y, BLASLONG incy)
++{
++	BLASLONG i = 0;
++	BLASLONG ix = 0, iy = 0;
++	BLASLONG jx = (BLASLONG)jxf, jy = (BLASLONG)jyf, jz = (BLASLONG)jzf;
++	FLOAT s;
++
++	if ( n < 0 )  return(0);
++
++	if ((incx == 1) && (incy == 1)) {
++		for (i = 0; i < n; i++) {
++			s = ((x[i - jx] + x[i + jx]) + (x[i - jy] + x[i + jy])) + (x[i - jz] + x[i + jz]);
++			y[i] = alpha * (s - 6 * x[i]);
++		}
++		i = n;
++	}
++
++	while (i < n) {
++		s = ((x[ix - jx] + x[ix + jx]) + (x[ix - jy] + x[ix + jy])) + (x[ix - jz] + x[ix + jz]);
++		if (incy != 0) y[iy] = alpha * (s - 6 * x[ix]);
++		ix += incx;
++		iy += incy;
++		i++;
 +	}
 +	return(0);
 +}
@@ -11099,6 +11658,125 @@ index 0000000..55da711
 +	}
 +	return(0);
 +}
+diff --git a/kernel/generic/zlap5.c b/kernel/generic/zlap5.c
+new file mode 100644
+index 0000000..923e308
+--- /dev/null
++++ b/kernel/generic/zlap5.c
+@@ -0,0 +1,54 @@
++/***************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in source code must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++#include "common.h"
++
++/* z lap5: plain linear Laplacian (no conjugates) applied to both
++   components independently; alpha is real.  jx, jy are signed element
++   (pair) offsets; the kernel doubles them for the interleaved layout. */
++int CNAME(BLASLONG n, BLASLONG dummy0, BLASLONG dummy1, FLOAT alpha, FLOAT jxf, FLOAT jyf,
++          FLOAT *x, BLASLONG incx, FLOAT *y, BLASLONG incy)
++{
++	BLASLONG i = 0;
++	BLASLONG ix = 0, iy = 0;
++	BLASLONG jx = 2 * (BLASLONG)jxf, jy = 2 * (BLASLONG)jyf;
++	FLOAT sr, si;
++
++	if ( n < 0 )  return(0);
++
++	while (i < n) {
++		sr = (x[ix - jx] + x[ix + jx]) + (x[ix - jy] + x[ix + jy]);
++		si = (x[ix - jx + 1] + x[ix + jx + 1]) + (x[ix - jy + 1] + x[ix + jy + 1]);
++		if (incy != 0) {
++			y[iy]     = alpha * (sr - 4 * x[ix]);
++			y[iy + 1] = alpha * (si - 4 * x[ix + 1]);
++		}
++		ix += 2 * incx;
++		iy += 2 * incy;
++		i++;
++	}
++	return(0);
++}
+diff --git a/kernel/generic/zlap7.c b/kernel/generic/zlap7.c
+new file mode 100644
+index 0000000..47639e8
+--- /dev/null
++++ b/kernel/generic/zlap7.c
+@@ -0,0 +1,53 @@
++/***************************************************************************
++Copyright (c) 2026, The OpenBLAS Project
++All rights reserved.
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions are
++met:
++1. Redistributions of source code must retain the above copyright
++notice, this list of conditions and the following disclaimer.
++2. Redistributions in source code must reproduce the above copyright
++notice, this list of conditions and the following disclaimer in
++the documentation and/or other materials provided with the
++distribution.
++3. Neither the name of the OpenBLAS project nor the names of
++its contributors may be used to endorse or promote products
++derived from this software without specific prior written permission.
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
++AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED. IN NO EVENT SHALL THE OPENBLAS PROJECT OR CONTRIBUTORS BE
++LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
++OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++*****************************************************************************/
++#include "common.h"
++
++/* z lap7: plain linear Laplacian (no conjugates), both components
++   independently; real alpha; signed element (pair) offsets. */
++int CNAME(BLASLONG n, BLASLONG dummy0, BLASLONG dummy1, FLOAT alpha, FLOAT jxf, FLOAT jyf, FLOAT jzf,
++          FLOAT *x, BLASLONG incx, FLOAT *y, BLASLONG incy)
++{
++	BLASLONG i = 0;
++	BLASLONG ix = 0, iy = 0;
++	BLASLONG jx = 2 * (BLASLONG)jxf, jy = 2 * (BLASLONG)jyf, jz = 2 * (BLASLONG)jzf;
++	FLOAT sr, si;
++
++	if ( n < 0 )  return(0);
++
++	while (i < n) {
++		sr = ((x[ix - jx] + x[ix + jx]) + (x[ix - jy] + x[ix + jy])) + (x[ix - jz] + x[ix + jz]);
++		si = ((x[ix - jx + 1] + x[ix + jx + 1]) + (x[ix - jy + 1] + x[ix + jy + 1])) + (x[ix - jz + 1] + x[ix + jz + 1]);
++		if (incy != 0) {
++			y[iy]     = alpha * (sr - 6 * x[ix]);
++			y[iy + 1] = alpha * (si - 6 * x[ix + 1]);
++		}
++		ix += 2 * incx;
++		iy += 2 * incy;
++		i++;
++	}
++	return(0);
++}
 diff --git a/kernel/setparam-ref.c b/kernel/setparam-ref.c
 index 107f1f4..1a27130 100644
 --- a/kernel/setparam-ref.c
@@ -11255,10 +11933,10 @@ index 107f1f4..1a27130 100644
  
  #if (ARCH_ARM64)
 diff --git a/utest/CMakeLists.txt b/utest/CMakeLists.txt
-index 1551cef..936b59d 100644
+index 1551cef..4028045 100644
 --- a/utest/CMakeLists.txt
 +++ b/utest/CMakeLists.txt
-@@ -18,6 +18,24 @@ else ()
+@@ -18,6 +18,26 @@ else ()
      test_zscal.c
      test_amin.c
      test_axpby.c
@@ -11280,10 +11958,12 @@ index 1551cef..936b59d 100644
 +    test_3exb.c
 +    test_3drag.c
 +    test_3mom_ke.c
++    test_lap5.c
++    test_lap7.c
      test_gemv.c
    )
  endif ()
-@@ -60,6 +78,78 @@ ${DIR_EXT}/test_sgeadd.c
+@@ -60,6 +80,86 @@ ${DIR_EXT}/test_sgeadd.c
  ${DIR_EXT}/test_dgeadd.c
  ${DIR_EXT}/test_cgeadd.c
  ${DIR_EXT}/test_zgeadd.c
@@ -11359,11 +12039,19 @@ index 1551cef..936b59d 100644
 +${DIR_EXT}/test_d3mom_ke.c
 +${DIR_EXT}/test_c3mom_ke.c
 +${DIR_EXT}/test_z3mom_ke.c
++${DIR_EXT}/test_slap5.c
++${DIR_EXT}/test_dlap5.c
++${DIR_EXT}/test_clap5.c
++${DIR_EXT}/test_zlap5.c
++${DIR_EXT}/test_slap7.c
++${DIR_EXT}/test_dlap7.c
++${DIR_EXT}/test_clap7.c
++${DIR_EXT}/test_zlap7.c
  ${DIR_EXT}/test_saxpby.c
  ${DIR_EXT}/test_daxpby.c
  ${DIR_EXT}/test_caxpby.c
 diff --git a/utest/Makefile b/utest/Makefile
-index 07de0c2..9284437 100644
+index 07de0c2..0b19baf 100644
 --- a/utest/Makefile
 +++ b/utest/Makefile
 @@ -14,7 +14,10 @@ UTESTEXTBIN=openblas_utest_ext$(EXE)
@@ -11374,11 +12062,11 @@ index 07de0c2..9284437 100644
 +     test_amin.o test_axpby.o test_gemv.o test_1xypa.o test_3dot.o test_3had.o test_3cross.o test_3crossscal.o \
 +     test_3sqr.o test_3crossdot.o test_3crosssqr.o test_3crossxy_crossxz.o test_3crossxy_dotxz.o \
 +     test_3dotxy_dotxz.o test_1norm.o \
-+     test_3crosscross.o test_3norm_unit.o test_3refl.o test_3exb.o test_3drag.o test_3mom_ke.o
++     test_3crosscross.o test_3norm_unit.o test_3refl.o test_3exb.o test_3drag.o test_3mom_ke.o test_lap5.o test_lap7.o
  #test_rot.o test_swap.o test_axpy.o test_dotu.o test_dsdot.o test_fork.o
  OBJS_EXT=utest_main.o $(DIR_EXT)/xerbla.o $(DIR_EXT)/common.o 
  OBJS_EXT+=$(DIR_EXT)/test_isamin.o $(DIR_EXT)/test_idamin.o $(DIR_EXT)/test_icamin.o $(DIR_EXT)/test_izamin.o 
-@@ -26,6 +29,24 @@ OBJS_EXT+=$(DIR_EXT)/test_zscal.o $(DIR_EXT)/test_cscal.o
+@@ -26,6 +29,26 @@ OBJS_EXT+=$(DIR_EXT)/test_zscal.o $(DIR_EXT)/test_cscal.o
  OBJS_EXT+=$(DIR_EXT)/test_domatcopy.o $(DIR_EXT)/test_somatcopy.o $(DIR_EXT)/test_zomatcopy.o $(DIR_EXT)/test_comatcopy.o
  OBJS_EXT+=$(DIR_EXT)/test_simatcopy.o $(DIR_EXT)/test_dimatcopy.o $(DIR_EXT)/test_cimatcopy.o $(DIR_EXT)/test_zimatcopy.o
  OBJS_EXT+=$(DIR_EXT)/test_sgeadd.o $(DIR_EXT)/test_dgeadd.o $(DIR_EXT)/test_cgeadd.o $(DIR_EXT)/test_zgeadd.o
@@ -11400,6 +12088,8 @@ index 07de0c2..9284437 100644
 +OBJS_EXT+=$(DIR_EXT)/test_s3exb.o $(DIR_EXT)/test_d3exb.o $(DIR_EXT)/test_c3exb.o $(DIR_EXT)/test_z3exb.o
 +OBJS_EXT+=$(DIR_EXT)/test_s3drag.o $(DIR_EXT)/test_d3drag.o $(DIR_EXT)/test_c3drag.o $(DIR_EXT)/test_z3drag.o
 +OBJS_EXT+=$(DIR_EXT)/test_s3mom_ke.o $(DIR_EXT)/test_d3mom_ke.o $(DIR_EXT)/test_c3mom_ke.o $(DIR_EXT)/test_z3mom_ke.o
++OBJS_EXT+=$(DIR_EXT)/test_slap5.o $(DIR_EXT)/test_dlap5.o $(DIR_EXT)/test_clap5.o $(DIR_EXT)/test_zlap5.o
++OBJS_EXT+=$(DIR_EXT)/test_slap7.o $(DIR_EXT)/test_dlap7.o $(DIR_EXT)/test_clap7.o $(DIR_EXT)/test_zlap7.o
  OBJS_EXT+=$(DIR_EXT)/test_cgemv_t.o $(DIR_EXT)/test_zgemv_t.o $(DIR_EXT)/test_cgemv_n.o $(DIR_EXT)/test_zgemv_n.o
  OBJS_EXT+=$(DIR_EXT)/test_sgemmt.o $(DIR_EXT)/test_dgemmt.o $(DIR_EXT)/test_cgemmt.o $(DIR_EXT)/test_zgemmt.o
  OBJS_EXT+=$(DIR_EXT)/test_ztrmv.o $(DIR_EXT)/test_ctrmv.o $(DIR_EXT)/test_ztrsv.o $(DIR_EXT)/test_ctrsv.o
@@ -18269,6 +18959,218 @@ index 0000000..24bc40b
 +}
 +
 +#endif
+diff --git a/utest/test_extensions/test_clap5.c b/utest/test_extensions/test_clap5.c
+new file mode 100644
+index 0000000..eb21cb9
+--- /dev/null
++++ b/utest/test_extensions/test_clap5.c
+@@ -0,0 +1,100 @@
++/**********************************************************************************/
++/*                                                                                */
++/*  lap5 kernel unit tests                                                        */
++/*                                                                                */
++/**********************************************************************************/
++
++#include "utest/openblas_utest.h"
++#include "common.h"
++
++#define DATASIZE 100
++#define INCREMENT 2
++#define BUFFER (DATASIZE * INCREMENT * 2)
++#define GUARD 16
++
++#ifdef BUILD_COMPLEX
++
++typedef float T;
++
++static const T sc_alpha = 0.75;
++static const T j3 = 3, j7 = 7;
++
++static T b_u[2 * BUFFER];
++static T o_lap[2 * BUFFER]; static T g_lap[2 * BUFFER];
++
++static void setup_lap5(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, ei, oi, oo;
++    srand_generate(b_u, 2 * BUFFER);
++    for (i = 0; i < 2 * BUFFER; i++) { o_lap[i] = 0; g_lap[i] = 0; }
++    if (n <= 0) return;
++    for (i = 0; i < n; i++) {
++        ei = GUARD + ((inc_in >= 0) ? i * inc_in : (n - 1 - i) * (-inc_in));
++        oi = 2 * ei;
++        oo = (inc_out >= 0) ? i * inc_out : (n - 1 - i) * (-inc_out);
++        T sr = (b_u[oi - 6] + b_u[oi + 6]) + (b_u[oi - 14] + b_u[oi + 14]);
++        T si = (b_u[oi - 6 + 1] + b_u[oi + 6 + 1]) + (b_u[oi - 14 + 1] + b_u[oi + 14 + 1]);
++        g_lap[2 * oo]     = sc_alpha * (sr - 4 * b_u[oi]);
++        g_lap[2 * oo + 1] = sc_alpha * (si - 4 * b_u[oi + 1]);
++    }
++}
++
++static double check_lap5(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap5(n, inc_in, inc_out);
++    BLASFUNC(clap5)(&n, (T *)(&sc_alpha), b_u + 2 * GUARD, &inc_in, (T *)(&j3), (T *)(&j7), o_lap, &inc_out);
++    span = 2 * n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#ifndef NO_CBLAS
++static double c_api_check_lap5(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap5(n, inc_in, inc_out);
++    cblas_clap5(n, sc_alpha, b_u + 2 * GUARD, inc_in, j3, j7, o_lap, inc_out);
++    span = 2 * n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#endif
++
++#define LAP_CTEST(inc_in, inc_out, name)                    \
++CTEST(clap5, name)                                        \
++{                                                           \
++    double diff = check_lap5(DATASIZE, inc_in, inc_out);    \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, SINGLE_EPS);          \
++}
++#define LAP_CTEST_C(inc_in, inc_out, name)                      \
++CTEST(clap5, c_api_##name)                                    \
++{                                                               \
++    double diff = c_api_check_lap5(DATASIZE, inc_in, inc_out);  \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, SINGLE_EPS);              \
++}
++
++LAP_CTEST(1, 1, inc_1_1)
++LAP_CTEST(2, 2, inc_2_2)
++LAP_CTEST(-1, 1, inc_m1_1)
++LAP_CTEST(1, -1, inc_1_m1)
++LAP_CTEST(2, 1, inc_2_1)
++LAP_CTEST(-2, -1, inc_m2_m1)
++LAP_CTEST(0, 1, inc_0_1)
++
++#ifndef NO_CBLAS
++LAP_CTEST_C(1, 1, inc_1_1)
++LAP_CTEST_C(2, 2, inc_2_2)
++LAP_CTEST_C(-1, 1, inc_m1_1)
++LAP_CTEST_C(1, -1, inc_1_m1)
++LAP_CTEST_C(2, 1, inc_2_1)
++LAP_CTEST_C(-2, -1, inc_m2_m1)
++LAP_CTEST_C(0, 1, inc_0_1)
++#endif
++
++CTEST(clap5, n_zero)
++{
++    double diff = check_lap5(0, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, SINGLE_EPS);
++}
++
++#endif
+diff --git a/utest/test_extensions/test_clap7.c b/utest/test_extensions/test_clap7.c
+new file mode 100644
+index 0000000..07beaaf
+--- /dev/null
++++ b/utest/test_extensions/test_clap7.c
+@@ -0,0 +1,100 @@
++/**********************************************************************************/
++/*                                                                                */
++/*  lap7 kernel unit tests                                                        */
++/*                                                                                */
++/**********************************************************************************/
++
++#include "utest/openblas_utest.h"
++#include "common.h"
++
++#define DATASIZE 100
++#define INCREMENT 2
++#define BUFFER (DATASIZE * INCREMENT * 2)
++#define GUARD 16
++
++#ifdef BUILD_COMPLEX
++
++typedef float T;
++
++static const T sc_alpha = 0.75;
++static const T j3 = 3, j7 = 7, jz11 = 11;
++
++static T b_u[2 * BUFFER];
++static T o_lap[2 * BUFFER]; static T g_lap[2 * BUFFER];
++
++static void setup_lap7(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, ei, oi, oo;
++    srand_generate(b_u, 2 * BUFFER);
++    for (i = 0; i < 2 * BUFFER; i++) { o_lap[i] = 0; g_lap[i] = 0; }
++    if (n <= 0) return;
++    for (i = 0; i < n; i++) {
++        ei = GUARD + ((inc_in >= 0) ? i * inc_in : (n - 1 - i) * (-inc_in));
++        oi = 2 * ei;
++        oo = (inc_out >= 0) ? i * inc_out : (n - 1 - i) * (-inc_out);
++        T sr = ((b_u[oi - 6] + b_u[oi + 6]) + (b_u[oi - 14] + b_u[oi + 14])) + (b_u[oi - 22] + b_u[oi + 22]);
++        T si = ((b_u[oi - 6 + 1] + b_u[oi + 6 + 1]) + (b_u[oi - 14 + 1] + b_u[oi + 14 + 1])) + (b_u[oi - 22 + 1] + b_u[oi + 22 + 1]);
++        g_lap[2 * oo]     = sc_alpha * (sr - 6 * b_u[oi]);
++        g_lap[2 * oo + 1] = sc_alpha * (si - 6 * b_u[oi + 1]);
++    }
++}
++
++static double check_lap7(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap7(n, inc_in, inc_out);
++    BLASFUNC(clap7)(&n, (T *)(&sc_alpha), b_u + 2 * GUARD, &inc_in, (T *)(&j3), (T *)(&j7), (T *)(&jz11), o_lap, &inc_out);
++    span = 2 * n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#ifndef NO_CBLAS
++static double c_api_check_lap7(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap7(n, inc_in, inc_out);
++    cblas_clap7(n, sc_alpha, b_u + 2 * GUARD, inc_in, j3, j7, jz11, o_lap, inc_out);
++    span = 2 * n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#endif
++
++#define LAP_CTEST(inc_in, inc_out, name)                    \
++CTEST(clap7, name)                                        \
++{                                                           \
++    double diff = check_lap7(DATASIZE, inc_in, inc_out);    \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, SINGLE_EPS);          \
++}
++#define LAP_CTEST_C(inc_in, inc_out, name)                      \
++CTEST(clap7, c_api_##name)                                    \
++{                                                               \
++    double diff = c_api_check_lap7(DATASIZE, inc_in, inc_out);  \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, SINGLE_EPS);              \
++}
++
++LAP_CTEST(1, 1, inc_1_1)
++LAP_CTEST(2, 2, inc_2_2)
++LAP_CTEST(-1, 1, inc_m1_1)
++LAP_CTEST(1, -1, inc_1_m1)
++LAP_CTEST(2, 1, inc_2_1)
++LAP_CTEST(-2, -1, inc_m2_m1)
++LAP_CTEST(0, 1, inc_0_1)
++
++#ifndef NO_CBLAS
++LAP_CTEST_C(1, 1, inc_1_1)
++LAP_CTEST_C(2, 2, inc_2_2)
++LAP_CTEST_C(-1, 1, inc_m1_1)
++LAP_CTEST_C(1, -1, inc_1_m1)
++LAP_CTEST_C(2, 1, inc_2_1)
++LAP_CTEST_C(-2, -1, inc_m2_m1)
++LAP_CTEST_C(0, 1, inc_0_1)
++#endif
++
++CTEST(clap7, n_zero)
++{
++    double diff = check_lap7(0, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, SINGLE_EPS);
++}
++
++#endif
 diff --git a/utest/test_extensions/test_d1norm.c b/utest/test_extensions/test_d1norm.c
 new file mode 100644
 index 0000000..94b6d84
@@ -22236,6 +23138,212 @@ index 0000000..549fd96
 +{
 +    float diff = c_api_check_3sqr(0, 1, 1, 1, 1);
 +    ASSERT_DBL_NEAR_TOL(0.0f, diff, DOUBLE_EPS);
++}
++
++#endif
+diff --git a/utest/test_extensions/test_dlap5.c b/utest/test_extensions/test_dlap5.c
+new file mode 100644
+index 0000000..4dd7852
+--- /dev/null
++++ b/utest/test_extensions/test_dlap5.c
+@@ -0,0 +1,97 @@
++/**********************************************************************************/
++/*                                                                                */
++/*  lap5 kernel unit tests                                                        */
++/*                                                                                */
++/**********************************************************************************/
++
++#include "utest/openblas_utest.h"
++#include "common.h"
++
++#define DATASIZE 100
++#define INCREMENT 2
++#define BUFFER (DATASIZE * INCREMENT * 2)
++#define GUARD 16
++
++#ifdef BUILD_DOUBLE
++
++typedef double T;
++
++static const T sc_alpha = 0.75;
++static const T j3 = 3, j7 = 7;
++
++static T b_u[BUFFER];
++static T o_lap[BUFFER]; static T g_lap[BUFFER];
++
++static void setup_lap5(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, oi, oo;
++    drand_generate(b_u, BUFFER);
++    for (i = 0; i < BUFFER; i++) { o_lap[i] = 0; g_lap[i] = 0; }
++    if (n <= 0) return;
++    for (i = 0; i < n; i++) {
++        oi = GUARD + ((inc_in >= 0) ? i * inc_in : (n - 1 - i) * (-inc_in));
++        oo = (inc_out >= 0) ? i * inc_out : (n - 1 - i) * (-inc_out);
++        T s_ = (b_u[oi - 3] + b_u[oi + 3]) + (b_u[oi - 7] + b_u[oi + 7]);
++        g_lap[oo] = sc_alpha * (s_ - 4 * b_u[oi]);
++    }
++}
++
++static double check_lap5(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap5(n, inc_in, inc_out);
++    BLASFUNC(dlap5)(&n, (T *)(&sc_alpha), b_u + GUARD, &inc_in, (T *)(&j3), (T *)(&j7), o_lap, &inc_out);
++    span = n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#ifndef NO_CBLAS
++static double c_api_check_lap5(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap5(n, inc_in, inc_out);
++    cblas_dlap5(n, sc_alpha, b_u + GUARD, inc_in, j3, j7, o_lap, inc_out);
++    span = n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#endif
++
++#define LAP_CTEST(inc_in, inc_out, name)                    \
++CTEST(dlap5, name)                                        \
++{                                                           \
++    double diff = check_lap5(DATASIZE, inc_in, inc_out);    \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, DOUBLE_EPS);          \
++}
++#define LAP_CTEST_C(inc_in, inc_out, name)                      \
++CTEST(dlap5, c_api_##name)                                    \
++{                                                               \
++    double diff = c_api_check_lap5(DATASIZE, inc_in, inc_out);  \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, DOUBLE_EPS);              \
++}
++
++LAP_CTEST(1, 1, inc_1_1)
++LAP_CTEST(2, 2, inc_2_2)
++LAP_CTEST(-1, 1, inc_m1_1)
++LAP_CTEST(1, -1, inc_1_m1)
++LAP_CTEST(2, 1, inc_2_1)
++LAP_CTEST(-2, -1, inc_m2_m1)
++LAP_CTEST(0, 1, inc_0_1)
++
++#ifndef NO_CBLAS
++LAP_CTEST_C(1, 1, inc_1_1)
++LAP_CTEST_C(2, 2, inc_2_2)
++LAP_CTEST_C(-1, 1, inc_m1_1)
++LAP_CTEST_C(1, -1, inc_1_m1)
++LAP_CTEST_C(2, 1, inc_2_1)
++LAP_CTEST_C(-2, -1, inc_m2_m1)
++LAP_CTEST_C(0, 1, inc_0_1)
++#endif
++
++CTEST(dlap5, n_zero)
++{
++    double diff = check_lap5(0, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, DOUBLE_EPS);
++}
++
++#endif
+diff --git a/utest/test_extensions/test_dlap7.c b/utest/test_extensions/test_dlap7.c
+new file mode 100644
+index 0000000..8c52937
+--- /dev/null
++++ b/utest/test_extensions/test_dlap7.c
+@@ -0,0 +1,97 @@
++/**********************************************************************************/
++/*                                                                                */
++/*  lap7 kernel unit tests                                                        */
++/*                                                                                */
++/**********************************************************************************/
++
++#include "utest/openblas_utest.h"
++#include "common.h"
++
++#define DATASIZE 100
++#define INCREMENT 2
++#define BUFFER (DATASIZE * INCREMENT * 2)
++#define GUARD 16
++
++#ifdef BUILD_DOUBLE
++
++typedef double T;
++
++static const T sc_alpha = 0.75;
++static const T j3 = 3, j7 = 7, jz11 = 11;
++
++static T b_u[BUFFER];
++static T o_lap[BUFFER]; static T g_lap[BUFFER];
++
++static void setup_lap7(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, oi, oo;
++    drand_generate(b_u, BUFFER);
++    for (i = 0; i < BUFFER; i++) { o_lap[i] = 0; g_lap[i] = 0; }
++    if (n <= 0) return;
++    for (i = 0; i < n; i++) {
++        oi = GUARD + ((inc_in >= 0) ? i * inc_in : (n - 1 - i) * (-inc_in));
++        oo = (inc_out >= 0) ? i * inc_out : (n - 1 - i) * (-inc_out);
++        T s_ = ((b_u[oi - 3] + b_u[oi + 3]) + (b_u[oi - 7] + b_u[oi + 7])) + (b_u[oi - 11] + b_u[oi + 11]);
++        g_lap[oo] = sc_alpha * (s_ - 6 * b_u[oi]);
++    }
++}
++
++static double check_lap7(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap7(n, inc_in, inc_out);
++    BLASFUNC(dlap7)(&n, (T *)(&sc_alpha), b_u + GUARD, &inc_in, (T *)(&j3), (T *)(&j7), (T *)(&jz11), o_lap, &inc_out);
++    span = n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#ifndef NO_CBLAS
++static double c_api_check_lap7(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap7(n, inc_in, inc_out);
++    cblas_dlap7(n, sc_alpha, b_u + GUARD, inc_in, j3, j7, jz11, o_lap, inc_out);
++    span = n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#endif
++
++#define LAP_CTEST(inc_in, inc_out, name)                    \
++CTEST(dlap7, name)                                        \
++{                                                           \
++    double diff = check_lap7(DATASIZE, inc_in, inc_out);    \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, DOUBLE_EPS);          \
++}
++#define LAP_CTEST_C(inc_in, inc_out, name)                      \
++CTEST(dlap7, c_api_##name)                                    \
++{                                                               \
++    double diff = c_api_check_lap7(DATASIZE, inc_in, inc_out);  \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, DOUBLE_EPS);              \
++}
++
++LAP_CTEST(1, 1, inc_1_1)
++LAP_CTEST(2, 2, inc_2_2)
++LAP_CTEST(-1, 1, inc_m1_1)
++LAP_CTEST(1, -1, inc_1_m1)
++LAP_CTEST(2, 1, inc_2_1)
++LAP_CTEST(-2, -1, inc_m2_m1)
++LAP_CTEST(0, 1, inc_0_1)
++
++#ifndef NO_CBLAS
++LAP_CTEST_C(1, 1, inc_1_1)
++LAP_CTEST_C(2, 2, inc_2_2)
++LAP_CTEST_C(-1, 1, inc_m1_1)
++LAP_CTEST_C(1, -1, inc_1_m1)
++LAP_CTEST_C(2, 1, inc_2_1)
++LAP_CTEST_C(-2, -1, inc_m2_m1)
++LAP_CTEST_C(0, 1, inc_0_1)
++#endif
++
++CTEST(dlap7, n_zero)
++{
++    double diff = check_lap7(0, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, DOUBLE_EPS);
 +}
 +
 +#endif
@@ -26216,6 +27324,212 @@ index 0000000..055d8a2
 +{
 +    float diff = c_api_check_3sqr(0, 1, 1, 1, 1);
 +    ASSERT_DBL_NEAR_TOL(0.0f, diff, SINGLE_EPS);
++}
++
++#endif
+diff --git a/utest/test_extensions/test_slap5.c b/utest/test_extensions/test_slap5.c
+new file mode 100644
+index 0000000..86ff452
+--- /dev/null
++++ b/utest/test_extensions/test_slap5.c
+@@ -0,0 +1,97 @@
++/**********************************************************************************/
++/*                                                                                */
++/*  lap5 kernel unit tests                                                        */
++/*                                                                                */
++/**********************************************************************************/
++
++#include "utest/openblas_utest.h"
++#include "common.h"
++
++#define DATASIZE 100
++#define INCREMENT 2
++#define BUFFER (DATASIZE * INCREMENT * 2)
++#define GUARD 16
++
++#ifdef BUILD_SINGLE
++
++typedef float T;
++
++static const T sc_alpha = 0.75;
++static const T j3 = 3, j7 = 7;
++
++static T b_u[BUFFER];
++static T o_lap[BUFFER]; static T g_lap[BUFFER];
++
++static void setup_lap5(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, oi, oo;
++    srand_generate(b_u, BUFFER);
++    for (i = 0; i < BUFFER; i++) { o_lap[i] = 0; g_lap[i] = 0; }
++    if (n <= 0) return;
++    for (i = 0; i < n; i++) {
++        oi = GUARD + ((inc_in >= 0) ? i * inc_in : (n - 1 - i) * (-inc_in));
++        oo = (inc_out >= 0) ? i * inc_out : (n - 1 - i) * (-inc_out);
++        T s_ = (b_u[oi - 3] + b_u[oi + 3]) + (b_u[oi - 7] + b_u[oi + 7]);
++        g_lap[oo] = sc_alpha * (s_ - 4 * b_u[oi]);
++    }
++}
++
++static double check_lap5(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap5(n, inc_in, inc_out);
++    BLASFUNC(slap5)(&n, (T *)(&sc_alpha), b_u + GUARD, &inc_in, (T *)(&j3), (T *)(&j7), o_lap, &inc_out);
++    span = n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#ifndef NO_CBLAS
++static double c_api_check_lap5(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap5(n, inc_in, inc_out);
++    cblas_slap5(n, sc_alpha, b_u + GUARD, inc_in, j3, j7, o_lap, inc_out);
++    span = n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#endif
++
++#define LAP_CTEST(inc_in, inc_out, name)                    \
++CTEST(slap5, name)                                        \
++{                                                           \
++    double diff = check_lap5(DATASIZE, inc_in, inc_out);    \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, SINGLE_EPS);          \
++}
++#define LAP_CTEST_C(inc_in, inc_out, name)                      \
++CTEST(slap5, c_api_##name)                                    \
++{                                                               \
++    double diff = c_api_check_lap5(DATASIZE, inc_in, inc_out);  \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, SINGLE_EPS);              \
++}
++
++LAP_CTEST(1, 1, inc_1_1)
++LAP_CTEST(2, 2, inc_2_2)
++LAP_CTEST(-1, 1, inc_m1_1)
++LAP_CTEST(1, -1, inc_1_m1)
++LAP_CTEST(2, 1, inc_2_1)
++LAP_CTEST(-2, -1, inc_m2_m1)
++LAP_CTEST(0, 1, inc_0_1)
++
++#ifndef NO_CBLAS
++LAP_CTEST_C(1, 1, inc_1_1)
++LAP_CTEST_C(2, 2, inc_2_2)
++LAP_CTEST_C(-1, 1, inc_m1_1)
++LAP_CTEST_C(1, -1, inc_1_m1)
++LAP_CTEST_C(2, 1, inc_2_1)
++LAP_CTEST_C(-2, -1, inc_m2_m1)
++LAP_CTEST_C(0, 1, inc_0_1)
++#endif
++
++CTEST(slap5, n_zero)
++{
++    double diff = check_lap5(0, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, SINGLE_EPS);
++}
++
++#endif
+diff --git a/utest/test_extensions/test_slap7.c b/utest/test_extensions/test_slap7.c
+new file mode 100644
+index 0000000..ecebc64
+--- /dev/null
++++ b/utest/test_extensions/test_slap7.c
+@@ -0,0 +1,97 @@
++/**********************************************************************************/
++/*                                                                                */
++/*  lap7 kernel unit tests                                                        */
++/*                                                                                */
++/**********************************************************************************/
++
++#include "utest/openblas_utest.h"
++#include "common.h"
++
++#define DATASIZE 100
++#define INCREMENT 2
++#define BUFFER (DATASIZE * INCREMENT * 2)
++#define GUARD 16
++
++#ifdef BUILD_SINGLE
++
++typedef float T;
++
++static const T sc_alpha = 0.75;
++static const T j3 = 3, j7 = 7, jz11 = 11;
++
++static T b_u[BUFFER];
++static T o_lap[BUFFER]; static T g_lap[BUFFER];
++
++static void setup_lap7(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, oi, oo;
++    srand_generate(b_u, BUFFER);
++    for (i = 0; i < BUFFER; i++) { o_lap[i] = 0; g_lap[i] = 0; }
++    if (n <= 0) return;
++    for (i = 0; i < n; i++) {
++        oi = GUARD + ((inc_in >= 0) ? i * inc_in : (n - 1 - i) * (-inc_in));
++        oo = (inc_out >= 0) ? i * inc_out : (n - 1 - i) * (-inc_out);
++        T s_ = ((b_u[oi - 3] + b_u[oi + 3]) + (b_u[oi - 7] + b_u[oi + 7])) + (b_u[oi - 11] + b_u[oi + 11]);
++        g_lap[oo] = sc_alpha * (s_ - 6 * b_u[oi]);
++    }
++}
++
++static double check_lap7(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap7(n, inc_in, inc_out);
++    BLASFUNC(slap7)(&n, (T *)(&sc_alpha), b_u + GUARD, &inc_in, (T *)(&j3), (T *)(&j7), (T *)(&jz11), o_lap, &inc_out);
++    span = n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#ifndef NO_CBLAS
++static double c_api_check_lap7(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap7(n, inc_in, inc_out);
++    cblas_slap7(n, sc_alpha, b_u + GUARD, inc_in, j3, j7, jz11, o_lap, inc_out);
++    span = n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#endif
++
++#define LAP_CTEST(inc_in, inc_out, name)                    \
++CTEST(slap7, name)                                        \
++{                                                           \
++    double diff = check_lap7(DATASIZE, inc_in, inc_out);    \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, SINGLE_EPS);          \
++}
++#define LAP_CTEST_C(inc_in, inc_out, name)                      \
++CTEST(slap7, c_api_##name)                                    \
++{                                                               \
++    double diff = c_api_check_lap7(DATASIZE, inc_in, inc_out);  \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, SINGLE_EPS);              \
++}
++
++LAP_CTEST(1, 1, inc_1_1)
++LAP_CTEST(2, 2, inc_2_2)
++LAP_CTEST(-1, 1, inc_m1_1)
++LAP_CTEST(1, -1, inc_1_m1)
++LAP_CTEST(2, 1, inc_2_1)
++LAP_CTEST(-2, -1, inc_m2_m1)
++LAP_CTEST(0, 1, inc_0_1)
++
++#ifndef NO_CBLAS
++LAP_CTEST_C(1, 1, inc_1_1)
++LAP_CTEST_C(2, 2, inc_2_2)
++LAP_CTEST_C(-1, 1, inc_m1_1)
++LAP_CTEST_C(1, -1, inc_1_m1)
++LAP_CTEST_C(2, 1, inc_2_1)
++LAP_CTEST_C(-2, -1, inc_m2_m1)
++LAP_CTEST_C(0, 1, inc_0_1)
++#endif
++
++CTEST(slap7, n_zero)
++{
++    double diff = check_lap7(0, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, SINGLE_EPS);
 +}
 +
 +#endif
@@ -30364,6 +31678,352 @@ index 0000000..ac351c4
 +    ASSERT_DBL_NEAR_TOL(0.0f, diff, DOUBLE_EPS);
 +}
 +
++#endif
+diff --git a/utest/test_extensions/test_zlap5.c b/utest/test_extensions/test_zlap5.c
+new file mode 100644
+index 0000000..7674952
+--- /dev/null
++++ b/utest/test_extensions/test_zlap5.c
+@@ -0,0 +1,100 @@
++/**********************************************************************************/
++/*                                                                                */
++/*  lap5 kernel unit tests                                                        */
++/*                                                                                */
++/**********************************************************************************/
++
++#include "utest/openblas_utest.h"
++#include "common.h"
++
++#define DATASIZE 100
++#define INCREMENT 2
++#define BUFFER (DATASIZE * INCREMENT * 2)
++#define GUARD 16
++
++#ifdef BUILD_COMPLEX16
++
++typedef double T;
++
++static const T sc_alpha = 0.75;
++static const T j3 = 3, j7 = 7;
++
++static T b_u[2 * BUFFER];
++static T o_lap[2 * BUFFER]; static T g_lap[2 * BUFFER];
++
++static void setup_lap5(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, ei, oi, oo;
++    drand_generate(b_u, 2 * BUFFER);
++    for (i = 0; i < 2 * BUFFER; i++) { o_lap[i] = 0; g_lap[i] = 0; }
++    if (n <= 0) return;
++    for (i = 0; i < n; i++) {
++        ei = GUARD + ((inc_in >= 0) ? i * inc_in : (n - 1 - i) * (-inc_in));
++        oi = 2 * ei;
++        oo = (inc_out >= 0) ? i * inc_out : (n - 1 - i) * (-inc_out);
++        T sr = (b_u[oi - 6] + b_u[oi + 6]) + (b_u[oi - 14] + b_u[oi + 14]);
++        T si = (b_u[oi - 6 + 1] + b_u[oi + 6 + 1]) + (b_u[oi - 14 + 1] + b_u[oi + 14 + 1]);
++        g_lap[2 * oo]     = sc_alpha * (sr - 4 * b_u[oi]);
++        g_lap[2 * oo + 1] = sc_alpha * (si - 4 * b_u[oi + 1]);
++    }
++}
++
++static double check_lap5(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap5(n, inc_in, inc_out);
++    BLASFUNC(zlap5)(&n, (T *)(&sc_alpha), b_u + 2 * GUARD, &inc_in, (T *)(&j3), (T *)(&j7), o_lap, &inc_out);
++    span = 2 * n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#ifndef NO_CBLAS
++static double c_api_check_lap5(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap5(n, inc_in, inc_out);
++    cblas_zlap5(n, sc_alpha, b_u + 2 * GUARD, inc_in, j3, j7, o_lap, inc_out);
++    span = 2 * n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#endif
++
++#define LAP_CTEST(inc_in, inc_out, name)                    \
++CTEST(zlap5, name)                                        \
++{                                                           \
++    double diff = check_lap5(DATASIZE, inc_in, inc_out);    \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, DOUBLE_EPS);          \
++}
++#define LAP_CTEST_C(inc_in, inc_out, name)                      \
++CTEST(zlap5, c_api_##name)                                    \
++{                                                               \
++    double diff = c_api_check_lap5(DATASIZE, inc_in, inc_out);  \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, DOUBLE_EPS);              \
++}
++
++LAP_CTEST(1, 1, inc_1_1)
++LAP_CTEST(2, 2, inc_2_2)
++LAP_CTEST(-1, 1, inc_m1_1)
++LAP_CTEST(1, -1, inc_1_m1)
++LAP_CTEST(2, 1, inc_2_1)
++LAP_CTEST(-2, -1, inc_m2_m1)
++LAP_CTEST(0, 1, inc_0_1)
++
++#ifndef NO_CBLAS
++LAP_CTEST_C(1, 1, inc_1_1)
++LAP_CTEST_C(2, 2, inc_2_2)
++LAP_CTEST_C(-1, 1, inc_m1_1)
++LAP_CTEST_C(1, -1, inc_1_m1)
++LAP_CTEST_C(2, 1, inc_2_1)
++LAP_CTEST_C(-2, -1, inc_m2_m1)
++LAP_CTEST_C(0, 1, inc_0_1)
++#endif
++
++CTEST(zlap5, n_zero)
++{
++    double diff = check_lap5(0, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, DOUBLE_EPS);
++}
++
++#endif
+diff --git a/utest/test_extensions/test_zlap7.c b/utest/test_extensions/test_zlap7.c
+new file mode 100644
+index 0000000..ab6f4eb
+--- /dev/null
++++ b/utest/test_extensions/test_zlap7.c
+@@ -0,0 +1,100 @@
++/**********************************************************************************/
++/*                                                                                */
++/*  lap7 kernel unit tests                                                        */
++/*                                                                                */
++/**********************************************************************************/
++
++#include "utest/openblas_utest.h"
++#include "common.h"
++
++#define DATASIZE 100
++#define INCREMENT 2
++#define BUFFER (DATASIZE * INCREMENT * 2)
++#define GUARD 16
++
++#ifdef BUILD_COMPLEX16
++
++typedef double T;
++
++static const T sc_alpha = 0.75;
++static const T j3 = 3, j7 = 7, jz11 = 11;
++
++static T b_u[2 * BUFFER];
++static T o_lap[2 * BUFFER]; static T g_lap[2 * BUFFER];
++
++static void setup_lap7(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, ei, oi, oo;
++    drand_generate(b_u, 2 * BUFFER);
++    for (i = 0; i < 2 * BUFFER; i++) { o_lap[i] = 0; g_lap[i] = 0; }
++    if (n <= 0) return;
++    for (i = 0; i < n; i++) {
++        ei = GUARD + ((inc_in >= 0) ? i * inc_in : (n - 1 - i) * (-inc_in));
++        oi = 2 * ei;
++        oo = (inc_out >= 0) ? i * inc_out : (n - 1 - i) * (-inc_out);
++        T sr = ((b_u[oi - 6] + b_u[oi + 6]) + (b_u[oi - 14] + b_u[oi + 14])) + (b_u[oi - 22] + b_u[oi + 22]);
++        T si = ((b_u[oi - 6 + 1] + b_u[oi + 6 + 1]) + (b_u[oi - 14 + 1] + b_u[oi + 14 + 1])) + (b_u[oi - 22 + 1] + b_u[oi + 22 + 1]);
++        g_lap[2 * oo]     = sc_alpha * (sr - 6 * b_u[oi]);
++        g_lap[2 * oo + 1] = sc_alpha * (si - 6 * b_u[oi + 1]);
++    }
++}
++
++static double check_lap7(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap7(n, inc_in, inc_out);
++    BLASFUNC(zlap7)(&n, (T *)(&sc_alpha), b_u + 2 * GUARD, &inc_in, (T *)(&j3), (T *)(&j7), (T *)(&jz11), o_lap, &inc_out);
++    span = 2 * n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#ifndef NO_CBLAS
++static double c_api_check_lap7(blasint n, blasint inc_in, blasint inc_out)
++{
++    blasint i, span; double maxdiff = 0;
++    setup_lap7(n, inc_in, inc_out);
++    cblas_zlap7(n, sc_alpha, b_u + 2 * GUARD, inc_in, j3, j7, jz11, o_lap, inc_out);
++    span = 2 * n * labs(inc_out);
++    for (i = 0; i < span; i++) { double d = o_lap[i] - g_lap[i]; if (d < 0) d = -d; if (d > maxdiff) maxdiff = d; }
++    return maxdiff;
++}
++#endif
++
++#define LAP_CTEST(inc_in, inc_out, name)                    \
++CTEST(zlap7, name)                                        \
++{                                                           \
++    double diff = check_lap7(DATASIZE, inc_in, inc_out);    \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, DOUBLE_EPS);          \
++}
++#define LAP_CTEST_C(inc_in, inc_out, name)                      \
++CTEST(zlap7, c_api_##name)                                    \
++{                                                               \
++    double diff = c_api_check_lap7(DATASIZE, inc_in, inc_out);  \
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, DOUBLE_EPS);              \
++}
++
++LAP_CTEST(1, 1, inc_1_1)
++LAP_CTEST(2, 2, inc_2_2)
++LAP_CTEST(-1, 1, inc_m1_1)
++LAP_CTEST(1, -1, inc_1_m1)
++LAP_CTEST(2, 1, inc_2_1)
++LAP_CTEST(-2, -1, inc_m2_m1)
++LAP_CTEST(0, 1, inc_0_1)
++
++#ifndef NO_CBLAS
++LAP_CTEST_C(1, 1, inc_1_1)
++LAP_CTEST_C(2, 2, inc_2_2)
++LAP_CTEST_C(-1, 1, inc_m1_1)
++LAP_CTEST_C(1, -1, inc_1_m1)
++LAP_CTEST_C(2, 1, inc_2_1)
++LAP_CTEST_C(-2, -1, inc_m2_m1)
++LAP_CTEST_C(0, 1, inc_0_1)
++#endif
++
++CTEST(zlap7, n_zero)
++{
++    double diff = check_lap7(0, 1, 1);
++    ASSERT_DBL_NEAR_TOL(0.0, (double)diff, DOUBLE_EPS);
++}
++
++#endif
+diff --git a/utest/test_lap5.c b/utest/test_lap5.c
+new file mode 100644
+index 0000000..86ecf90
+--- /dev/null
++++ b/utest/test_lap5.c
+@@ -0,0 +1,59 @@
++/**********************************************************************************/
++/*                                                                                */
++/*  lap5 kernel unit tests                                                        */
++/*                                                                                */
++/**********************************************************************************/
++
++#include "openblas_utest.h"
++
++#ifdef BUILD_SINGLE
++CTEST(lap5,slap5_inc_1)
++{
++	float u[12]={0.0f,1.0f,4.0f,9.0f,16.0f,25.0f,36.0f,49.0f,64.0f,81.0f,100.0f,121.0f};
++	float y[2]={0.0f,0.0f};
++	float e[2]={8.5f,8.5f};
++	blasint i, N=2, inc=1;
++	float alpha=0.25f, jx=1.0f, jy=4.0f;
++	BLASFUNC(slap5)(&N,&alpha,&u[5],&inc,&jx,&jy,y,&inc);
++	for(i=0; i<2; i++) ASSERT_DBL_NEAR_TOL(e[i], y[i], SINGLE_EPS);
++}
++#endif
++
++#ifdef BUILD_DOUBLE
++CTEST(lap5,dlap5_inc_1)
++{
++	double u[12]={0.0,1.0,4.0,9.0,16.0,25.0,36.0,49.0,64.0,81.0,100.0,121.0};
++	double y[2]={0.0,0.0};
++	double e[2]={8.5,8.5};
++	blasint i, N=2, inc=1;
++	double alpha=0.25, jx=1.0, jy=4.0f;
++	BLASFUNC(dlap5)(&N,&alpha,&u[5],&inc,&jx,&jy,y,&inc);
++	for(i=0; i<2; i++) ASSERT_DBL_NEAR_TOL(e[i], y[i], DOUBLE_EPS);
++}
++#endif
++
++#ifdef BUILD_COMPLEX
++CTEST(lap5,clap5_inc_1)
++{
++	float u[24]={0.0f,0.0f,1.0f,1.0f,4.0f,0.0f,9.0f,0.0f,16.0f,0.0f,25.0f,5.0f,36.0f,0.0f,49.0f,7.0f,64.0f,0.0f,81.0f,0.0f,100.0f,0.0f,121.0f,0.0f};
++	float y[4]={0.0f,0.0f,0.0f,0.0f};
++	float e[4]={8.5f,-4.75f,8.5f,3.0f};
++	blasint i, N=2, inc=1;
++	float alpha=0.25f, jx=1.0f, jy=4.0f;
++	BLASFUNC(clap5)(&N,&alpha,&u[2*5],&inc,&jx,&jy,y,&inc);
++	for(i=0; i<4; i++) ASSERT_DBL_NEAR_TOL(e[i], y[i], SINGLE_EPS);
++}
++#endif
++
++#ifdef BUILD_COMPLEX16
++CTEST(lap5,zlap5_inc_1)
++{
++	double u[24]={0.0,0.0,1.0,1.0,4.0,0.0,9.0,0.0,16.0,0.0,25.0,5.0,36.0,0.0,49.0,7.0,64.0,0.0,81.0,0.0,100.0,0.0,121.0,0.0};
++	double y[4]={0.0,0.0,0.0,0.0};
++	double e[4]={8.5,-4.75,8.5,3.0};
++	blasint i, N=2, inc=1;
++	double alpha=0.25, jx=1.0, jy=4.0f;
++	BLASFUNC(zlap5)(&N,&alpha,&u[2*5],&inc,&jx,&jy,y,&inc);
++	for(i=0; i<4; i++) ASSERT_DBL_NEAR_TOL(e[i], y[i], DOUBLE_EPS);
++}
++#endif
+diff --git a/utest/test_lap7.c b/utest/test_lap7.c
+new file mode 100644
+index 0000000..cdfacb1
+--- /dev/null
++++ b/utest/test_lap7.c
+@@ -0,0 +1,63 @@
++/**********************************************************************************/
++/*                                                                                */
++/*  lap7 kernel unit tests                                                        */
++/*                                                                                */
++/**********************************************************************************/
++
++#include "openblas_utest.h"
++
++#ifdef BUILD_SINGLE
++CTEST(lap7,slap7_inc_1)
++{
++	float u[27]={0.0f,1.0f,4.0f,9.0f,16.0f,25.0f,36.0f,49.0f,64.0f,81.0f,100.0f,121.0f,144.0f,169.0f,196.0f,225.0f,256.0f,289.0f,324.0f,361.0f,400.0f,441.0f,484.0f,529.0f,576.0f,625.0f,676.0f};
++	float y[1]={0.0f};
++	float e[1]={91.0f};
++	blasint i, N=1, inc=1;
++	float alpha=0.5f, jx=1.0f, jy=3.0f, jz=9.0f;
++	BLASFUNC(slap7)(&N,&alpha,&u[13],&inc,&jx,&jy,&jz,y,&inc);
++	for(i=0; i<1; i++) ASSERT_DBL_NEAR_TOL(e[i], y[i], SINGLE_EPS);
++}
++#endif
++
++#ifdef BUILD_DOUBLE
++CTEST(lap7,dlap7_inc_1)
++{
++	double u[27]={0.0,1.0,4.0,9.0,16.0,25.0,36.0,49.0,64.0,81.0,100.0,121.0,144.0,169.0,196.0,225.0,256.0,289.0,324.0,361.0,400.0,441.0,484.0,529.0,576.0,625.0,676.0};
++	double y[1]={0.0};
++	double e[1]={91.0};
++	blasint i, N=1, inc=1;
++	double alpha=0.5, jx=1.0, jy=3.0, jz=9.0;
++	BLASFUNC(dlap7)(&N,&alpha,&u[13],&inc,&jx,&jy,&jz,y,&inc);
++	for(i=0; i<1; i++) ASSERT_DBL_NEAR_TOL(e[i], y[i], DOUBLE_EPS);
++}
++#endif
++
++#ifdef BUILD_COMPLEX
++CTEST(lap7,clap7_inc_1)
++{
++	float u[54];
++	float y[2]={0.0f,0.0f};
++	float e[2]={91.0f,3.5f};
++	blasint i, N=1, inc=1;
++	float alpha=0.5f, jx=1.0f, jy=3.0f, jz=9.0f;
++	for (i = 0; i < 27; i++) { u[2*i] = (float)(i*i); u[2*i+1] = 0.0f; }
++	u[2*12+1] = 7.0f;
++	BLASFUNC(clap7)(&N,&alpha,&u[2*13],&inc,&jx,&jy,&jz,y,&inc);
++	for(i=0; i<2; i++) ASSERT_DBL_NEAR_TOL(e[i], y[i], SINGLE_EPS);
++}
++#endif
++
++#ifdef BUILD_COMPLEX16
++CTEST(lap7,zlap7_inc_1)
++{
++	double u[54];
++	double y[2]={0.0,0.0};
++	double e[2]={91.0,3.5};
++	blasint i, N=1, inc=1;
++	double alpha=0.5, jx=1.0, jy=3.0, jz=9.0;
++	for (i = 0; i < 27; i++) { u[2*i] = (double)(i*i); u[2*i+1] = 0.0; }
++	u[2*12+1] = 7.0;
++	BLASFUNC(zlap7)(&N,&alpha,&u[2*13],&inc,&jx,&jy,&jz,y,&inc);
++	for(i=0; i<2; i++) ASSERT_DBL_NEAR_TOL(e[i], y[i], DOUBLE_EPS);
++}
 +#endif
 diff --git a/v3blas.f90 b/v3blas.f90
 new file mode 100644

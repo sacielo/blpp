@@ -1124,6 +1124,135 @@ Result bench_xypa_x(int n, const char *nm, double eps, const T a[2],
 #endif
 }
 
+// lap5: lap = a*((u(-jx)+u(+jx)) + (u(-jy)+u(+jy)) - 4u), signed offsets
+// jx, jy passed as scalars; u is padded so the stencil stays in range.
+template <typename T, typename Call>
+Result bench_lap5_t(int n, const char *nm, double eps, T alpha, Call call)
+{
+    const T jx = 3, jy = 7;
+    const int pad = 16;
+    std::vector<T> u(n + 2 * pad), lap(n);
+    std::vector<ld> ref(n);
+    seeded(u, 5);
+    for (int i = 0; i < n; ++i) {
+        const T *p = u.data() + pad;
+        ref[i] = (ld)alpha * (((ld)p[i - 3] + p[i + 3]) +
+                              ((ld)p[i - 7] + p[i + 7]) - 4 * (ld)p[i]);
+    }
+
+    const double flops = 6.0, fcyc = 1.5;
+    const char *eq = "lap=a*((u(-jx)+u(jx))+(u(-jy)+u(jy))-4u)";
+#ifndef NDEBUG
+    call(n, alpha, u.data() + pad, 1, jx, jy, lap.data(), 1);
+    double err = max_rel_err(lap.data(), ref.data(), n);
+    std::printf("%s[0]: a*((u(-3)+u(3))+(u(-7)+u(7))-4*u) = %g*((%g+%g)+(%g+%g)-4*%g) = %g\n",
+                nm, (double)alpha, (double)u[pad - 3], (double)u[pad + 3],
+                (double)u[pad - 7], (double)u[pad + 7], (double)u[pad], (double)lap[0]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing tm = timed_run([&] { call(n, alpha, u.data() + pad, 1, jx, jy, lap.data(), 1); });
+    double err = max_rel_err(lap.data(), ref.data(), n);
+    return make_result(nm, flops, fcyc, tm.t_run / tm.iters, n, tm.iters, err, eps, eq);
+#endif
+}
+
+// lap7: lap = a*((u(-jx)+u(+jx)) + (u(-jy)+u(+jy)) + (u(-jz)+u(+jz)) - 6u)
+template <typename T, typename Call>
+Result bench_lap7_t(int n, const char *nm, double eps, T alpha, Call call)
+{
+    const T jx = 3, jy = 7, jz = 11;
+    const int pad = 16;
+    std::vector<T> u(n + 2 * pad), lap(n);
+    std::vector<ld> ref(n);
+    seeded(u, 5);
+    for (int i = 0; i < n; ++i) {
+        const T *p = u.data() + pad;
+        ref[i] = (ld)alpha * ((((ld)p[i - 3] + p[i + 3]) +
+                               ((ld)p[i - 7] + p[i + 7])) +
+                              ((ld)p[i - 11] + p[i + 11]) - 6 * (ld)p[i]);
+    }
+
+    const double flops = 9.0, fcyc = 2.0;
+    const char *eq = "lap=a*((u(-jx)+u(jx))+(u(-jy)+u(jy))+(u(-jz)+u(jz))-6u)";
+#ifndef NDEBUG
+    call(n, alpha, u.data() + pad, 1, jx, jy, jz, lap.data(), 1);
+    double err = max_rel_err(lap.data(), ref.data(), n);
+    std::printf("%s[0]: a*((u(-3)+u(3))+(u(-7)+u(7))+(u(-11)+u(11))-6*u) = %g*((%g+%g)+(%g+%g)+(%g+%g)-6*%g) = %g\n",
+                nm, (double)alpha, (double)u[pad - 3], (double)u[pad + 3],
+                (double)u[pad - 7], (double)u[pad + 7],
+                (double)u[pad - 11], (double)u[pad + 11], (double)u[pad], (double)lap[0]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing tm = timed_run([&] { call(n, alpha, u.data() + pad, 1, jx, jy, jz, lap.data(), 1); });
+    double err = max_rel_err(lap.data(), ref.data(), n);
+    return make_result(nm, flops, fcyc, tm.t_run / tm.iters, n, tm.iters, err, eps, eq);
+#endif
+}
+
+// complex lap5: componentwise, real alpha (pairs interleaved)
+template <typename T, typename Call>
+Result bench_lap5_x(int n, const char *nm, double eps, T alpha, Call call)
+{
+    const T jx = 3, jy = 7;
+    const int pad = 16;
+    std::vector<T> u(2 * (n + 2 * pad)), lap(2 * n);
+    std::vector<ld> ref(2 * n);
+    seeded_c(u, 5);
+    for (int i = 0; i < n; ++i) {
+        const T *p = u.data() + 2 * pad;
+        ref[2 * i]     = (ld)alpha * (((ld)p[2 * i - 6] + p[2 * i + 6]) +
+                                      ((ld)p[2 * i - 14] + p[2 * i + 14]) - 4 * (ld)p[2 * i]);
+        ref[2 * i + 1] = (ld)alpha * (((ld)p[2 * i - 5] + p[2 * i + 7]) +
+                                      ((ld)p[2 * i - 13] + p[2 * i + 15]) - 4 * (ld)p[2 * i + 1]);
+    }
+
+    const double flops = 12.0, fcyc = 3.0;
+    const char *eq = "lap=a*((u(-jx)+u(jx))+(u(-jy)+u(jy))-4u)";
+#ifndef NDEBUG
+    call(n, alpha, u.data() + 2 * pad, 1, jx, jy, lap.data(), 1);
+    double err = max_rel_err_c(lap.data(), ref.data(), n);
+    std::printf("%s[0]: re = %g  im = %g\n", nm, (double)lap[0], (double)lap[1]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing tm = timed_run([&] { call(n, alpha, u.data() + 2 * pad, 1, jx, jy, lap.data(), 1); });
+    double err = max_rel_err_c(lap.data(), ref.data(), n);
+    return make_result(nm, flops, fcyc, tm.t_run / tm.iters, n, tm.iters, err, eps, eq);
+#endif
+}
+
+// complex lap7
+template <typename T, typename Call>
+Result bench_lap7_x(int n, const char *nm, double eps, T alpha, Call call)
+{
+    const T jx = 3, jy = 7, jz = 11;
+    const int pad = 16;
+    std::vector<T> u(2 * (n + 2 * pad)), lap(2 * n);
+    std::vector<ld> ref(2 * n);
+    seeded_c(u, 5);
+    for (int i = 0; i < n; ++i) {
+        const T *p = u.data() + 2 * pad;
+        ref[2 * i]     = (ld)alpha * ((((ld)p[2 * i - 6] + p[2 * i + 6]) +
+                                       ((ld)p[2 * i - 14] + p[2 * i + 14])) +
+                                      ((ld)p[2 * i - 22] + p[2 * i + 22]) - 6 * (ld)p[2 * i]);
+        ref[2 * i + 1] = (ld)alpha * ((((ld)p[2 * i - 5] + p[2 * i + 7]) +
+                                       ((ld)p[2 * i - 13] + p[2 * i + 15])) +
+                                      ((ld)p[2 * i - 21] + p[2 * i + 23]) - 6 * (ld)p[2 * i + 1]);
+    }
+
+    const double flops = 18.0, fcyc = 4.0;
+    const char *eq = "lap=a*((u(-jx)+u(jx))+(u(-jy)+u(jy))+(u(-jz)+u(jz))-6u)";
+#ifndef NDEBUG
+    call(n, alpha, u.data() + 2 * pad, 1, jx, jy, jz, lap.data(), 1);
+    double err = max_rel_err_c(lap.data(), ref.data(), n);
+    std::printf("%s[0]: re = %g  im = %g\n", nm, (double)lap[0], (double)lap[1]);
+    return {nm, flops, fcyc, 0.0, 0.0, 0.0, err, 0, err <= eps, eq};
+#else
+    Timing tm = timed_run([&] { call(n, alpha, u.data() + 2 * pad, 1, jx, jy, jz, lap.data(), 1); });
+    double err = max_rel_err_c(lap.data(), ref.data(), n);
+    return make_result(nm, flops, fcyc, tm.t_run / tm.iters, n, tm.iters, err, eps, eq);
+#endif
+}
+
 // r = x1y1 + x2y2 + x3y3 (bilinear products)
 template <typename T, typename Call>
 Result bench_3dot_x(int n, const char *nm, double eps, Call call)
@@ -2011,6 +2140,26 @@ Result bench_xypa(int n, char prec)
     }
 }
 
+Result bench_lap5(int n, char prec)
+{
+    switch (prec) {
+    case 's': return bench_lap5_t<float>(n, "slap5", kEpsF, 0.25f, cblas_slap5);
+    case 'd': return bench_lap5_t<double>(n, "dlap5", kEps, 0.25, cblas_dlap5);
+    case 'c': return bench_lap5_x<float>(n, "clap5", kEpsF, 0.25f, cblas_clap5);
+    default:  return bench_lap5_x<double>(n, "zlap5", kEps, 0.25, cblas_zlap5);
+    }
+}
+
+Result bench_lap7(int n, char prec)
+{
+    switch (prec) {
+    case 's': return bench_lap7_t<float>(n, "slap7", kEpsF, 0.25f, cblas_slap7);
+    case 'd': return bench_lap7_t<double>(n, "dlap7", kEps, 0.25, cblas_dlap7);
+    case 'c': return bench_lap7_x<float>(n, "clap7", kEpsF, 0.25f, cblas_clap7);
+    default:  return bench_lap7_x<double>(n, "zlap7", kEps, 0.25, cblas_zlap7);
+    }
+}
+
 Result bench_3dot(int n, char prec)
 {
     switch (prec) {
@@ -2230,6 +2379,8 @@ int main(int argc, char **argv)
     std::vector<Result> results;
     results.push_back(bench_axpy(n, prec));
     results.push_back(bench_xypa(n, prec));
+    results.push_back(bench_lap5(n, prec));
+    results.push_back(bench_lap7(n, prec));
     results.push_back(bench_3dot(n, prec));
     results.push_back(bench_3had(n, prec));
     results.push_back(bench_3sqr(n, prec));

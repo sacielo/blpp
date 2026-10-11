@@ -23,6 +23,18 @@ All work lives in `/home/sac/blpp/openblas`.
 | 11 | `<p>3dotxy_dotxz` | `r = x·y`, `q = x·w` | done 2026-10-07 — unit + cblas tests pass, bench 0.379 ms/run @ n=1000 |
 | 12 | `<p>1norm` | `r = √(q·q)` | done 2026-10-07 — unit + cblas tests pass, bench 0.084 ms/run @ n=1000 |
 
+## Stencils — `lap5` / `lap7` (done 2026-10-11)
+
+`<p>lap5` / `<p>lap7` (s d c z): signed element offsets `jx jy [jz]` and
+scale `alpha` carried as the scalar type, so one call maps a strided row of
+a 2-D/3-D grid (`jy = ld*incy`); summation order pinned in the spec
+(pairwise ± neighbours, pairs last) for bitwise conformance; complex is
+linear, no conjugates, real `alpha`; no v3blas front-end (stride-stencil
+RFC track). utest 220 (8 f77), utest_ext 2765 (+120), bench rows live.
+Gotchas on the way: the f77 hand-expectation for `dlap5` was miscomputed
+(kernel was right, test fixed); the interface-list wiring exposed a stale
+duplicate block in `interface/CMakeLists.txt` (cleaned).
+
 ## CFD menu ops — six 3-vector composites (done 2026-10-10)
 
 `3crosscross` `r=(x∧y)∧z`, `3norm_unit` `r=√(x·x+eps), u=x/r`,
@@ -177,6 +189,24 @@ they must trust.
 - [ ] BLAS Extensions forum proposal for the subset whose shape fits
       their Level-1 grammar (1xypa/3had/3dot family); fused ops as a
       separate API-extension request.
+
+## Benchmark/test suite restructure (user)
+
+- [ ] Separate correctness tests from benchmarks: benchmarks must not be
+      compiled with the debug/verify path (`#ifndef NDEBUG` equation printf
+      branch); tests must not time anything.
+- [ ] Complete matrix of programs, one per cell:
+      `{cblas, v3blas_cpp, v3blas_f90} × {test, bench, example}`
+      (current: v3blas C test + hpp test + f90 test, one combined bench,
+      two examples; missing: a cblas_* test/bench/example trio as such).
+- [ ] Only TESTS print the worked first-element equation, and in a form
+      pasteable into MATLAB/Octave, e.g. for the cross kernel:
+      `w = cross([0 1 0],[0 1 1])  % kernel gave [1 0 0]` — plain
+      Octave/MATLAB syntax (row vectors `[a b c]`, `.*` and `.'` where
+      needed), so a human can verify the arithmetic in another engine.
+      Benches print tables only.
+- [ ] EXAMPLES = pure tutorials: one `main`, textbook-shaped calls, no
+      checks, no timing, minimal output.
 
 ## Benchmark data and linking
 
