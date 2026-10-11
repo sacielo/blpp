@@ -1098,10 +1098,59 @@ index 2610763..3b0d5ca 100644
  void    BLASFUNC(scopy) (blasint *, float  *, blasint *, float  *, blasint *);
  void    BLASFUNC(dcopy) (blasint *, double *, blasint *, double *, blasint *);
 diff --git a/common_level1.h b/common_level1.h
-index 7ab45a4..a587160 100644
+index 7ab45a4..ce24c0d 100644
 --- a/common_level1.h
 +++ b/common_level1.h
-@@ -80,7 +80,181 @@ int    zaxpyc_k (BLASLONG, BLASLONG, BLASLONG, double, double,
+@@ -39,6 +39,48 @@
+ 
+ #ifndef ASSEMBLER
+ 
++/* Multi-thread dispatch for element-wise physics (CFD) kernels.
++   See driver/others/blas_physics_thread.c.  Reduction/recurrence ops
++   (3dot*, 3sqr*, 1norm, 1xypa, 3crossdot, 3crosssqr, *_dotxz) must
++   stay serial to keep their pinned summation order. */
++#define PHYS_3HAD             1
++#define PHYS_3CROSS           2
++#define PHYS_3CROSSSCAL       3
++#define PHYS_3CROSSCROSS      4
++#define PHYS_3CROSSXY_CROSSXZ 5
++#define PHYS_3NORM_UNIT       6
++#define PHYS_3REFL            7
++#define PHYS_3EXB             8
++#define PHYS_3DRAG            9
++#define PHYS_3MOM_KE         10
++#define PHYS_LAP5            11
++#define PHYS_LAP7            12
++
++#define PHYS_MAX_PTR 16
++#define PHYS_MAX_SC   4
++
++#if defined(Z13)
++#define PHYS_MT_MIN 200000
++#else
++#define PHYS_MT_MIN  10000
++#endif
++
++typedef struct {
++  BLASLONG n;
++  BLASLONG shape;
++  BLASLONG nptr;
++  int      mode;		/* BLAS_SINGLE/DOUBLE | BLAS_REAL/COMPLEX */
++  void    *kfunc;
++  void    *s[PHYS_MAX_SC];	/* scalar slots (typed, unused = NULL)    */
++  void    *p[PHYS_MAX_PTR];	/* array bases (slice-local)              */
++  BLASLONG  inc[PHYS_MAX_PTR];	/* strides in FLOAT units                 */
++} phys_slice_t;
++
++int blas_physics_thread(BLASLONG shape, int mode, BLASLONG n,
++			void **scalars, void **ptrs, BLASLONG *incs,
++			BLASLONG nptr, int (*function)(void),
++			int nthreads);
++
+ #ifdef __CUDACC__
+ extern "C" {
+ #endif
+@@ -80,7 +122,181 @@ int    zaxpyc_k (BLASLONG, BLASLONG, BLASLONG, double, double,
  int    xaxpyc_k (BLASLONG, BLASLONG, BLASLONG, xdouble, xdouble,
  	       xdouble *, BLASLONG, xdouble *, BLASLONG, xdouble *, BLASLONG);
  
@@ -1587,6 +1636,361 @@ index c12d71b..8d1b049 100644
  
  #define ZGEMM_SMALL_MATRIX_PERMIT	gotoblas -> zgemm_small_matrix_permit
  
+diff --git a/driver/others/CMakeLists.txt b/driver/others/CMakeLists.txt
+index 72abdc4..8cd7150 100644
+--- a/driver/others/CMakeLists.txt
++++ b/driver/others/CMakeLists.txt
+@@ -9,6 +9,8 @@ endif ()
+ 
+ if (USE_THREAD)
+ 
++GenerateNamedObjects("blas_physics_thread.c" "" "" false "" "" true -1)
++
+   if (USE_OPENMP)
+     set(BLAS_SERVER blas_server_omp.c)
+   elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+diff --git a/driver/others/Makefile b/driver/others/Makefile
+index 0a1bcff..f08713f 100644
+--- a/driver/others/Makefile
++++ b/driver/others/Makefile
+@@ -6,7 +6,7 @@ COMMONOBJS	 = memory.$(SUFFIX) xerbla.$(SUFFIX) c_abs.$(SUFFIX) z_abs.$(SUFFIX)
+ #COMMONOBJS	+= slamch.$(SUFFIX) slamc3.$(SUFFIX) dlamch.$(SUFFIX)  dlamc3.$(SUFFIX)
+ 
+ ifdef SMP
+-COMMONOBJS	+= blas_server.$(SUFFIX) divtable.$(SUFFIX) blasL1thread.$(SUFFIX)
++COMMONOBJS	+= blas_server.$(SUFFIX) divtable.$(SUFFIX) blasL1thread.$(SUFFIX) blasPhysicsThread.$(SUFFIX)
+ ifneq ($(NO_AFFINITY), 1)
+ COMMONOBJS	+= init.$(SUFFIX)
+ endif
+@@ -172,6 +172,9 @@ openblas_error_handle.$(SUFFIX) : openblas_error_handle.c
+ openblas_env.$(SUFFIX) : openblas_env.c
+ 	$(CC) $(CFLAGS) -c $< -o $(@F)
+ 
++blasPhysicsThread.$(SUFFIX) : blas_physics_thread.c ../../common.h ../../common_thread.h
++	$(CC) $(CFLAGS) -c $< -o $(@F)
++
+ blasL1thread.$(SUFFIX) : blas_l1_thread.c ../../common.h ../../common_thread.h
+ 	$(CC) $(CFLAGS) -c $< -o $(@F)
+ 
+@@ -238,6 +241,9 @@ memory.$(PSUFFIX) : $(MEMORY) ../../common.h ../../param.h
+ blas_server.$(PSUFFIX) : $(BLAS_SERVER) ../../common.h ../../common_thread.h
+ 	$(CC) $(PFLAGS) -c $< -o $(@F)
+ 
++blasPhysicsThread.$(PSUFFIX) : blas_physics_thread.c ../../common.h ../../common_thread.h
++	$(CC) $(CFLAGS) -c $< -o $(@F)
++
+ blasL1thread.$(PSUFFIX) : blas_l1_thread.c ../../common.h ../../common_thread.h
+ 	$(CC) $(PFLAGS) -c $< -o $(@F)
+ 
+diff --git a/driver/others/blas_physics_thread.c b/driver/others/blas_physics_thread.c
+new file mode 100644
+index 0000000..7a765e2
+--- /dev/null
++++ b/driver/others/blas_physics_thread.c
+@@ -0,0 +1,303 @@
++/*********************************************************************/
++/* Copyright 2009, 2010 The University of Texas at Austin.           */
++/* All rights reserved.                                              */
++/*                                                                   */
++/* Redistribution and use in source and binary forms, with or        */
++/* without modification, are permitted provided that the following   */
++/* conditions are met:                                               */
++/*                                                                   */
++/*   1. Redistributions of source code must retain the above         */
++/*      copyright notice, this list of conditions and the following  */
++/*      disclaimer.                                                  */
++/*                                                                   */
++/*   2. Redistributions in binary form must reproduce the above      */
++/*      copyright notice, this list of conditions and the following  */
++/*      disclaimer in the documentation and/or other materials       */
++/*      provided with the distribution.                              */
++/*                                                                   */
++/*    THIS  SOFTWARE IS PROVIDED  BY THE  UNIVERSITY OF  TEXAS AT    */
++/*    AUSTIN  ``AS IS''  AND ANY  EXPRESS OR  IMPLIED WARRANTIES,    */
++/*    INCLUDING, BUT  NOT LIMITED  TO, THE IMPLIED  WARRANTIES OF    */
++/*    MERCHANTABILITY  AND FITNESS FOR  A PARTICULAR  PURPOSE ARE    */
++/*    DISCLAIMED.  IN  NO EVENT SHALL THE UNIVERSITY  OF TEXAS AT    */
++/*    AUSTIN OR CONTRIBUTORS BE  LIABLE FOR ANY DIRECT, INDIRECT,    */
++/*    INCIDENTAL,  SPECIAL, EXEMPLARY,  OR  CONSEQUENTIAL DAMAGES    */
++/*    (INCLUDING, BUT  NOT LIMITED TO,  PROCUREMENT OF SUBSTITUTE    */
++/*    GOODS  OR  SERVICES; LOSS  OF  USE,  DATA,  OR PROFITS;  OR    */
++/*    BUSINESS INTERRUPTION) HOWEVER CAUSED  AND ON ANY THEORY OF    */
++/*    LIABILITY, WHETHER  IN CONTRACT, STRICT  LIABILITY, OR TORT    */
++/*    (INCLUDING NEGLIGENCE OR OTHERWISE)  ARISING IN ANY WAY OUT    */
++/*    OF  THE  USE  OF  THIS  SOFTWARE,  EVEN  IF ADVISED  OF  THE    */
++/*    POSSIBILITY OF SUCH DAMAGE.                                    */
++/*                                                                   */
++/* The views and conclusions contained in the software and           */
++/* documentation are those of the authors and should not be          */
++/* interpreted as representing official policies, either expressed   */
++/* or implied, of The University of Texas at Austin.                 */
++/*********************************************************************/
++
++/*
++ * blas_physics_thread: multi-threaded dispatch for the element-wise
++ * physics (CFD) level-1 kernels.  It follows the same queue/slicing
++ * scheme as blas_level1_thread(), but instead of the fixed
++ * (alpha, a, b, c) level-1 argument shape it marshals a phys_slice_t:
++ * up to 4 scalar slots plus up to 16 (pointer, stride) pairs, so that
++ * kernels with 3-vector component groups and signed stencil offsets
++ * can be sliced along n.
++ *
++ * Only element-wise operations are dispatched here.  Kernels with a
++ * recurrence (1xypa) or a global reduction (3dot, 3sqr, 3crossdot,
++ * 3crosssqr, 1norm, 3dotxy_dotxz, 3crossxy_dotxz) must stay serial to
++ * preserve their pinned summation order.  For stencils (lap5, lap7)
++ * the input and output must not overlap; threads read across slice
++ * boundaries, which is safe for read-only inputs.
++ */
++
++#include "common.h"
++
++/* Function-pointer shapes: (n, 0, 0, [FLOAT scalars], (ptr, inc) pairs) */
++typedef int (*t_pp8_f)(BLASLONG, BLASLONG, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG);
++typedef int (*t_pp8_d)(BLASLONG, BLASLONG, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG);
++typedef int (*t_pp9_f)(BLASLONG, BLASLONG, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG);
++typedef int (*t_pp9_d)(BLASLONG, BLASLONG, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG);
++typedef int (*t_pp12_f)(BLASLONG, BLASLONG, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG);
++typedef int (*t_pp12_d)(BLASLONG, BLASLONG, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG);
++typedef int (*t_pp15_f)(BLASLONG, BLASLONG, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG);
++typedef int (*t_pp15_d)(BLASLONG, BLASLONG, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG);
++typedef int (*t_pf7_f)(BLASLONG, BLASLONG, BLASLONG, float,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG);
++typedef int (*t_pf7_d)(BLASLONG, BLASLONG, BLASLONG, double,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG);
++typedef int (*t_pf9_f)(BLASLONG, BLASLONG, BLASLONG, float,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG);
++typedef int (*t_pf9_d)(BLASLONG, BLASLONG, BLASLONG, double,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG);
++typedef int (*t_p2f9_f)(BLASLONG, BLASLONG, BLASLONG, float, float,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG);
++typedef int (*t_p2f9_d)(BLASLONG, BLASLONG, BLASLONG, double, double,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG);
++typedef int (*t_p2f6_f)(BLASLONG, BLASLONG, BLASLONG, float, float,
++    float *, BLASLONG, float *, BLASLONG, float *, BLASLONG, float *, BLASLONG,
++    float *, BLASLONG, float *, BLASLONG);
++typedef int (*t_p2f6_d)(BLASLONG, BLASLONG, BLASLONG, double, double,
++    double *, BLASLONG, double *, BLASLONG, double *, BLASLONG, double *, BLASLONG,
++    double *, BLASLONG, double *, BLASLONG);
++typedef int (*t_p3f2_f)(BLASLONG, BLASLONG, BLASLONG, float, float, float,
++    float *, BLASLONG, float *, BLASLONG);
++typedef int (*t_p3f2_d)(BLASLONG, BLASLONG, BLASLONG, double, double, double,
++    double *, BLASLONG, double *, BLASLONG);
++typedef int (*t_p4f2_f)(BLASLONG, BLASLONG, BLASLONG, float, float, float, float,
++    float *, BLASLONG, float *, BLASLONG);
++typedef int (*t_p4f2_d)(BLASLONG, BLASLONG, BLASLONG, double, double, double, double,
++    double *, BLASLONG, double *, BLASLONG);
++
++#define PT(k) ((FT *)sl->p[k]), sl->inc[k]
++#define PS(k)  (((FT *)sl->s[k])[0])
++
++#define PX0
++#define PX1 PS(0)
++#define PX2 PX1, PS(1)
++#define PX3 PX2, PS(2)
++#define PX4 PX3, PS(3)
++
++#define PA2  PT(0), PT(1)
++#define PA3  PA2,  PT(2)
++#define PA4  PA3,  PT(3)
++#define PA5  PA4,  PT(4)
++#define PA6  PA5,  PT(5)
++#define PA7  PA6,  PT(6)
++#define PA8  PA7,  PT(7)
++#define PA9  PA8,  PT(8)
++#define PA10 PA9,  PT(9)
++#define PA11 PA10, PT(10)
++#define PA12 PA11, PT(11)
++#define PA13 PA12, PT(12)
++#define PA14 PA13, PT(13)
++#define PA15 PA14, PT(14)
++
++/* Expand the kernel call for one float width; FT is supplied by the
++   calling function as a local typedef, SFX selects the typedef set. */
++#define CSC_F  ((t_pf9_f)sl->kfunc)(n, 0, 0, PX1, PA9)
++#define CSC_C  ((t_p2f9_f)sl->kfunc)(n, 0, 0, PX2, PA9)
++#define CSC_D  ((t_pf9_d)sl->kfunc)(n, 0, 0, PX1, PA9)
++#define CSC_Z  ((t_p2f9_d)sl->kfunc)(n, 0, 0, PX2, PA9)
++
++#define RUNBODY(SFX, CSC)                                              \
++  switch (sl->shape) {                                                 \
++  case PHYS_3HAD:                                                      \
++    ((t_pp9_##SFX)sl->kfunc)(n, 0, 0, PA9); break;                     \
++  case PHYS_3CROSS:                                                    \
++    ((t_pp9_##SFX)sl->kfunc)(n, 0, 0, PA9); break;                     \
++  case PHYS_3CROSSSCAL:                                                \
++    CSC; break;                                                        \
++  case PHYS_3CROSSCROSS:                                               \
++    ((t_pp12_##SFX)sl->kfunc)(n, 0, 0, PA12); break;                   \
++  case PHYS_3CROSSXY_CROSSXZ:                                          \
++    ((t_pp15_##SFX)sl->kfunc)(n, 0, 0, PA15); break;                   \
++  case PHYS_3NORM_UNIT:                                                \
++    ((t_pf7_##SFX)sl->kfunc)(n, 0, 0, PX1, PA7); break;                \
++  case PHYS_3REFL:                                                     \
++    ((t_p2f9_##SFX)sl->kfunc)(n, 0, 0, PX2, PA9); break;               \
++  case PHYS_3EXB:                                                      \
++    ((t_p2f9_##SFX)sl->kfunc)(n, 0, 0, PX2, PA9); break;               \
++  case PHYS_3DRAG:                                                     \
++    ((t_p2f6_##SFX)sl->kfunc)(n, 0, 0, PX2, PA6); break;               \
++  case PHYS_3MOM_KE:                                                   \
++    ((t_pp8_##SFX)sl->kfunc)(n, 0, 0, PA8); break;                     \
++  case PHYS_LAP5:                                                      \
++    ((t_p3f2_##SFX)sl->kfunc)(n, 0, 0, PX3, PA2); break;               \
++  case PHYS_LAP7:                                                      \
++    ((t_p4f2_##SFX)sl->kfunc)(n, 0, 0, PX4, PA2); break;               \
++  default:                                                             \
++    break;                                                             \
++  }
++
++static void physics_exec_f(void *args){
++
++  typedef float FT;
++  phys_slice_t *sl = (phys_slice_t *)args;
++  BLASLONG n = sl->n;
++
++  RUNBODY(f, CSC_F)
++}
++
++static void physics_exec_c(void *args){
++
++  typedef float FT;
++  phys_slice_t *sl = (phys_slice_t *)args;
++  BLASLONG n = sl->n;
++
++  RUNBODY(f, CSC_C)
++}
++
++static void physics_exec_d(void *args){
++
++  typedef double FT;
++  phys_slice_t *sl = (phys_slice_t *)args;
++  BLASLONG n = sl->n;
++
++  RUNBODY(d, CSC_D)
++}
++
++static void physics_exec_z(void *args){
++
++  typedef double FT;
++  phys_slice_t *sl = (phys_slice_t *)args;
++  BLASLONG n = sl->n;
++
++  RUNBODY(d, CSC_Z)
++}
++
++static void physics_exec(void *args){
++
++  phys_slice_t *sl = (phys_slice_t *)args;
++
++  if (sl->mode & BLAS_COMPLEX) {
++    if ((sl->mode & BLAS_PREC) == BLAS_SINGLE) physics_exec_c(args);
++    else                                       physics_exec_z(args);
++  } else {
++    if ((sl->mode & BLAS_PREC) == BLAS_SINGLE) physics_exec_f(args);
++    else                                       physics_exec_d(args);
++  }
++}
++
++int blas_physics_thread(BLASLONG shape, int mode, BLASLONG n,
++			void **scalars, void **ptrs, BLASLONG *incs,
++			BLASLONG nptr, int (*function)(void),
++			int nthreads){
++
++  blas_queue_t queue[MAX_CPU_NUMBER];
++  phys_slice_t slice[MAX_CPU_NUMBER];
++
++  BLASLONG i, j, width, offset;
++  int num_cpu;
++  void *base[PHYS_MAX_PTR];
++  /* one array element in FLOAT units: complex pairs count twice */
++  int mult = ((mode & BLAS_COMPLEX) != 0) ? 2 : 1;
++  /* FLOAT storage size in bytes */
++  int esz  = ((mode & BLAS_PREC) == BLAS_SINGLE) ? (int)sizeof(float)
++                                                 : (int)sizeof(double);
++
++  for (i = 0; i < nthreads; i++) blas_queue_init(&queue[i]);
++
++  for (j = 0; j < nptr; j++) base[j] = ptrs[j];
++
++  num_cpu = 0;
++  i = n;
++
++  while (i > 0){
++
++    width = blas_quickdivide(i + nthreads - num_cpu - 1,
++			     nthreads - num_cpu);
++
++    i -= width;
++    if (i < 0) width = width + i;
++
++    slice[num_cpu].n     = width;
++    slice[num_cpu].shape = shape;
++    slice[num_cpu].mode  = mode;
++    slice[num_cpu].kfunc = (void *)function;
++    slice[num_cpu].nptr  = nptr;
++
++    for (j = 0; j < PHYS_MAX_SC; j++) slice[num_cpu].s[j] = scalars[j];
++
++    for (j = 0; j < nptr; j++) {
++
++      slice[num_cpu].p[j]   = base[j];
++      slice[num_cpu].inc[j] = incs[j];
++
++      offset = width * incs[j] * mult * esz;
++
++      base[j] = (void *)((BLASULONG)base[j] + (BLASLONG)offset);
++    }
++
++    queue[num_cpu].mode    = mode | BLAS_PTHREAD;
++    queue[num_cpu].routine = (void *)physics_exec;
++    queue[num_cpu].args    = (blas_arg_t *)&slice[num_cpu];
++    queue[num_cpu].next    = &queue[num_cpu + 1];
++
++    num_cpu ++;
++  }
++
++  if (num_cpu) {
++    queue[num_cpu - 1].next = NULL;
++
++    exec_blas(num_cpu, queue);
++  }
++
++  return 0;
++}
 diff --git a/exports/gensymbol b/exports/gensymbol
 old mode 100755
 new mode 100644
@@ -1829,10 +2233,10 @@ index 0000000..bfe78c5
 +}
 diff --git a/interface/3cross.c b/interface/3cross.c
 new file mode 100644
-index 0000000..bf32d37
+index 0000000..3106048
 --- /dev/null
 +++ b/interface/3cross.c
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,132 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -1865,6 +2269,19 @@ index 0000000..bf32d37
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3,
@@ -1898,6 +2315,10 @@ index 0000000..bf32d37
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -1912,8 +2333,34 @@ index 0000000..bf32d37
 +  if (incw2 < 0) w2 -= (n - 1) * incw2;
 +  if (incw3 < 0) w3 -= (n - 1) * incw3;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incw1 == 0 || incw2 == 0 || incw3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  CROSS3_K(n, 0, 0, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3,
 +         w1, incw1, w2, incw2, w3, incw3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[9];
++    BLASLONG pinc[9];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)w1; pinc[6] = incw1;
++    pp[7] = (void *)w2; pinc[7] = incw2;
++    pp[8] = (void *)w3; pinc[8] = incw3;
++    blas_physics_thread(PHYS_3CROSS, PHYS_MODE, n, ps, pp, pinc, 9,
++                        (int (*)(void))CROSS3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(9, 6 * n, 3 * n);
 +
@@ -1924,10 +2371,10 @@ index 0000000..bf32d37
 +}
 diff --git a/interface/3crosscross.c b/interface/3crosscross.c
 new file mode 100644
-index 0000000..589b702
+index 0000000..cfa9437
 --- /dev/null
 +++ b/interface/3crosscross.c
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,135 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -1959,6 +2406,19 @@ index 0000000..589b702
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3, FLOAT *y1, blasint *INCY1, FLOAT *y2, blasint *INCY2, FLOAT *y3, blasint *INCY3, FLOAT *z1, blasint *INCZ1, FLOAT *z2, blasint *INCZ2, FLOAT *z3, blasint *INCZ3, FLOAT *r1, blasint *INCR1, FLOAT *r2, blasint *INCR2, FLOAT *r3, blasint *INCR3)
@@ -1991,6 +2451,10 @@ index 0000000..589b702
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -2008,7 +2472,36 @@ index 0000000..589b702
 +  if (incr2 < 0) r2 -= (n - 1) * incr2;
 +  if (incr3 < 0) r3 -= (n - 1) * incr3;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incz1 == 0 || incz2 == 0 || incz3 == 0 || incr1 == 0 || incr2 == 0 || incr3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  CROSSCROSS3_K(n, 0, 0, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3, z1, incz1, z2, incz2, z3, incz3, r1, incr1, r2, incr2, r3, incr3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[12];
++    BLASLONG pinc[12];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)z1; pinc[6] = incz1;
++    pp[7] = (void *)z2; pinc[7] = incz2;
++    pp[8] = (void *)z3; pinc[8] = incz3;
++    pp[9] = (void *)r1; pinc[9] = incr1;
++    pp[10] = (void *)r2; pinc[10] = incr2;
++    pp[11] = (void *)r3; pinc[11] = incr3;
++    blas_physics_thread(PHYS_3CROSSCROSS, PHYS_MODE, n, ps, pp, pinc, 12,
++                        (int (*)(void))CROSSCROSS3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(9, 9 * n, 6 * n);
 +
@@ -2118,10 +2611,10 @@ index 0000000..5c01516
 +}
 diff --git a/interface/3crossscal.c b/interface/3crossscal.c
 new file mode 100644
-index 0000000..23e7711
+index 0000000..1b2cf6d
 --- /dev/null
 +++ b/interface/3crossscal.c
-@@ -0,0 +1,93 @@
+@@ -0,0 +1,137 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -2154,6 +2647,19 @@ index 0000000..23e7711
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *A, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3,
@@ -2187,6 +2693,10 @@ index 0000000..23e7711
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -2205,8 +2715,35 @@ index 0000000..23e7711
 +  FLOAT a = *A;
 +#endif
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incw1 == 0 || incw2 == 0 || incw3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  CROSSSCAL3_K(n, 0, 0, a, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3,
 +           w1, incw1, w2, incw2, w3, incw3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[9];
++    BLASLONG pinc[9];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&a;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)w1; pinc[6] = incw1;
++    pp[7] = (void *)w2; pinc[7] = incw2;
++    pp[8] = (void *)w3; pinc[8] = incw3;
++    blas_physics_thread(PHYS_3CROSSSCAL, PHYS_MODE, n, ps, pp, pinc, 9,
++                        (int (*)(void))CROSSSCAL3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(9, 6 * n, 3 * n);
 +
@@ -2307,10 +2844,10 @@ index 0000000..91a2879
 +}
 diff --git a/interface/3crossxy_crossxz.c b/interface/3crossxy_crossxz.c
 new file mode 100644
-index 0000000..be68da7
+index 0000000..8b99ff4
 --- /dev/null
 +++ b/interface/3crossxy_crossxz.c
-@@ -0,0 +1,106 @@
+@@ -0,0 +1,155 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -2343,6 +2880,19 @@ index 0000000..be68da7
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3,
@@ -2386,6 +2936,10 @@ index 0000000..be68da7
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -2406,9 +2960,41 @@ index 0000000..be68da7
 +  if (incv2 < 0) v2 -= (n - 1) * incv2;
 +  if (incv3 < 0) v3 -= (n - 1) * incv3;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incw1 == 0 || incw2 == 0 || incw3 == 0 || incu1 == 0 || incu2 == 0 || incu3 == 0 || incv1 == 0 || incv2 == 0 || incv3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  CROSSXY_CROSSXZ_K(n, 0, 0, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3,
 +                    w1, incw1, w2, incw2, w3, incw3, u1, incu1, u2, incu2, u3, incu3,
 +                    v1, incv1, v2, incv2, v3, incv3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[15];
++    BLASLONG pinc[15];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)w1; pinc[6] = incw1;
++    pp[7] = (void *)w2; pinc[7] = incw2;
++    pp[8] = (void *)w3; pinc[8] = incw3;
++    pp[9] = (void *)u1; pinc[9] = incu1;
++    pp[10] = (void *)u2; pinc[10] = incu2;
++    pp[11] = (void *)u3; pinc[11] = incu3;
++    pp[12] = (void *)v1; pinc[12] = incv1;
++    pp[13] = (void *)v2; pinc[13] = incv2;
++    pp[14] = (void *)v3; pinc[14] = incv3;
++    blas_physics_thread(PHYS_3CROSSXY_CROSSXZ, PHYS_MODE, n, ps, pp, pinc, 15,
++                        (int (*)(void))CROSSXY_CROSSXZ_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(15, 9 * n, 6 * n);
 +
@@ -2718,10 +3304,10 @@ index 0000000..a5401a9
 +}
 diff --git a/interface/3drag.c b/interface/3drag.c
 new file mode 100644
-index 0000000..b33aec5
+index 0000000..5a06ffc
 --- /dev/null
 +++ b/interface/3drag.c
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,121 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -2753,6 +3339,19 @@ index 0000000..b33aec5
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3, FLOAT *A, FLOAT *EPS, FLOAT *r1, blasint *INCR1, FLOAT *r2, blasint *INCR2, FLOAT *r3, blasint *INCR3)
@@ -2781,6 +3380,10 @@ index 0000000..b33aec5
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -2792,7 +3395,32 @@ index 0000000..b33aec5
 +  if (incr2 < 0) r2 -= (n - 1) * incr2;
 +  if (incr3 < 0) r3 -= (n - 1) * incr3;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incr1 == 0 || incr2 == 0 || incr3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  DRAG3_K(n, 0, 0, a, eps, x1, incx1, x2, incx2, x3, incx3, r1, incr1, r2, incr2, r3, incr3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[6];
++    BLASLONG pinc[6];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&a;
++    ps[1] = (void *)&eps;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)r1; pinc[3] = incr1;
++    pp[4] = (void *)r2; pinc[4] = incr2;
++    pp[5] = (void *)r3; pinc[5] = incr3;
++    blas_physics_thread(PHYS_3DRAG, PHYS_MODE, n, ps, pp, pinc, 6,
++                        (int (*)(void))DRAG3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(6, 6 * n, 5 * n);
 +
@@ -2803,10 +3431,10 @@ index 0000000..b33aec5
 +}
 diff --git a/interface/3exb.c b/interface/3exb.c
 new file mode 100644
-index 0000000..e0f1ac1
+index 0000000..41b5272
 --- /dev/null
 +++ b/interface/3exb.c
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,130 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -2838,6 +3466,19 @@ index 0000000..e0f1ac1
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3, FLOAT *y1, blasint *INCY1, FLOAT *y2, blasint *INCY2, FLOAT *y3, blasint *INCY3, FLOAT *A, FLOAT *EPS, FLOAT *r1, blasint *INCR1, FLOAT *r2, blasint *INCR2, FLOAT *r3, blasint *INCR3)
@@ -2869,6 +3510,10 @@ index 0000000..e0f1ac1
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -2883,7 +3528,35 @@ index 0000000..e0f1ac1
 +  if (incr2 < 0) r2 -= (n - 1) * incr2;
 +  if (incr3 < 0) r3 -= (n - 1) * incr3;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incr1 == 0 || incr2 == 0 || incr3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  EXB3_K(n, 0, 0, a, eps, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3, r1, incr1, r2, incr2, r3, incr3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[9];
++    BLASLONG pinc[9];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&a;
++    ps[1] = (void *)&eps;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)r1; pinc[6] = incr1;
++    pp[7] = (void *)r2; pinc[7] = incr2;
++    pp[8] = (void *)r3; pinc[8] = incr3;
++    blas_physics_thread(PHYS_3EXB, PHYS_MODE, n, ps, pp, pinc, 9,
++                        (int (*)(void))EXB3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(9, 9 * n, 8 * n);
 +
@@ -2894,10 +3567,10 @@ index 0000000..e0f1ac1
 +}
 diff --git a/interface/3had.c b/interface/3had.c
 new file mode 100644
-index 0000000..3d1b210
+index 0000000..7c53889
 --- /dev/null
 +++ b/interface/3had.c
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,132 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -2930,6 +3603,19 @@ index 0000000..3d1b210
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3,
@@ -2963,6 +3649,10 @@ index 0000000..3d1b210
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -2977,8 +3667,34 @@ index 0000000..3d1b210
 +  if (incw2 < 0) w2 -= (n - 1) * incw2;
 +  if (incw3 < 0) w3 -= (n - 1) * incw3;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incw1 == 0 || incw2 == 0 || incw3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  HAD3_K(n, 0, 0, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3,
 +         w1, incw1, w2, incw2, w3, incw3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[9];
++    BLASLONG pinc[9];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)w1; pinc[6] = incw1;
++    pp[7] = (void *)w2; pinc[7] = incw2;
++    pp[8] = (void *)w3; pinc[8] = incw3;
++    blas_physics_thread(PHYS_3HAD, PHYS_MODE, n, ps, pp, pinc, 9,
++                        (int (*)(void))HAD3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(9, 6 * n, 3 * n);
 +
@@ -2989,10 +3705,10 @@ index 0000000..3d1b210
 +}
 diff --git a/interface/3mom_ke.c b/interface/3mom_ke.c
 new file mode 100644
-index 0000000..48fd4ed
+index 0000000..917e982
 --- /dev/null
 +++ b/interface/3mom_ke.c
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,123 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -3024,6 +3740,19 @@ index 0000000..48fd4ed
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *s, blasint *INCS, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3, FLOAT *m1, blasint *INCM1, FLOAT *m2, blasint *INCM2, FLOAT *m3, blasint *INCM3, FLOAT *k, blasint *INCK)
@@ -3052,6 +3781,10 @@ index 0000000..48fd4ed
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -3065,7 +3798,32 @@ index 0000000..48fd4ed
 +  if (incm3 < 0) m3 -= (n - 1) * incm3;
 +  if (inck < 0) k -= (n - 1) * inck;
 +
++#ifdef SMP
++  nthreads = (incs == 0 || incx1 == 0 || incx2 == 0 || incx3 == 0 || incm1 == 0 || incm2 == 0 || incm3 == 0 || inck == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  MOM_KE_K(n, 0, 0, s, incs, x1, incx1, x2, incx2, x3, incx3, m1, incm1, m2, incm2, m3, incm3, k, inck);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[8];
++    BLASLONG pinc[8];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    pp[0] = (void *)s; pinc[0] = incs;
++    pp[1] = (void *)x1; pinc[1] = incx1;
++    pp[2] = (void *)x2; pinc[2] = incx2;
++    pp[3] = (void *)x3; pinc[3] = incx3;
++    pp[4] = (void *)m1; pinc[4] = incm1;
++    pp[5] = (void *)m2; pinc[5] = incm2;
++    pp[6] = (void *)m3; pinc[6] = incm3;
++    pp[7] = (void *)k; pinc[7] = inck;
++    blas_physics_thread(PHYS_3MOM_KE, PHYS_MODE, n, ps, pp, pinc, 8,
++                        (int (*)(void))MOM_KE_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(8, 8 * n, 5 * n);
 +
@@ -3076,10 +3834,10 @@ index 0000000..48fd4ed
 +}
 diff --git a/interface/3norm_unit.c b/interface/3norm_unit.c
 new file mode 100644
-index 0000000..e2f21cb
+index 0000000..76aec5c
 --- /dev/null
 +++ b/interface/3norm_unit.c
-@@ -0,0 +1,80 @@
+@@ -0,0 +1,122 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -3111,6 +3869,19 @@ index 0000000..e2f21cb
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3, FLOAT *EPS, FLOAT *r, blasint *INCR, FLOAT *u1, blasint *INCU1, FLOAT *u2, blasint *INCU2, FLOAT *u3, blasint *INCU3)
@@ -3139,6 +3910,10 @@ index 0000000..e2f21cb
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -3151,7 +3926,32 @@ index 0000000..e2f21cb
 +  if (incu2 < 0) u2 -= (n - 1) * incu2;
 +  if (incu3 < 0) u3 -= (n - 1) * incu3;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incr == 0 || incu1 == 0 || incu2 == 0 || incu3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  NORM_UNIT_K(n, 0, 0, eps, x1, incx1, x2, incx2, x3, incx3, r, incr, u1, incu1, u2, incu2, u3, incu3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[7];
++    BLASLONG pinc[7];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&eps;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)r; pinc[3] = incr;
++    pp[4] = (void *)u1; pinc[4] = incu1;
++    pp[5] = (void *)u2; pinc[5] = incu2;
++    pp[6] = (void *)u3; pinc[6] = incu3;
++    blas_physics_thread(PHYS_3NORM_UNIT, PHYS_MODE, n, ps, pp, pinc, 7,
++                        (int (*)(void))NORM_UNIT_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(7, 7 * n, 5 * n);
 +
@@ -3162,10 +3962,10 @@ index 0000000..e2f21cb
 +}
 diff --git a/interface/3refl.c b/interface/3refl.c
 new file mode 100644
-index 0000000..21680c5
+index 0000000..3b610c6
 --- /dev/null
 +++ b/interface/3refl.c
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,130 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -3197,6 +3997,19 @@ index 0000000..21680c5
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3, FLOAT *y1, blasint *INCY1, FLOAT *y2, blasint *INCY2, FLOAT *y3, blasint *INCY3, FLOAT *A, FLOAT *EPS, FLOAT *q1, blasint *INCQ1, FLOAT *q2, blasint *INCQ2, FLOAT *q3, blasint *INCQ3)
@@ -3228,6 +4041,10 @@ index 0000000..21680c5
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -3242,7 +4059,35 @@ index 0000000..21680c5
 +  if (incq2 < 0) q2 -= (n - 1) * incq2;
 +  if (incq3 < 0) q3 -= (n - 1) * incq3;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incq1 == 0 || incq2 == 0 || incq3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  REFL3_K(n, 0, 0, a, eps, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3, q1, incq1, q2, incq2, q3, incq3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[9];
++    BLASLONG pinc[9];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&a;
++    ps[1] = (void *)&eps;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)q1; pinc[6] = incq1;
++    pp[7] = (void *)q2; pinc[7] = incq2;
++    pp[8] = (void *)q3; pinc[8] = incq3;
++    blas_physics_thread(PHYS_3REFL, PHYS_MODE, n, ps, pp, pinc, 9,
++                        (int (*)(void))REFL3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(9, 9 * n, 8 * n);
 +
@@ -3757,10 +4602,10 @@ index 2b6b60c..9e48217 100644
 +	$(CC) $(CFLAGS) -DCBLAS -c $< -o $(@F)
 diff --git a/interface/lap5.c b/interface/lap5.c
 new file mode 100644
-index 0000000..c7a9656
+index 0000000..c7d2eee
 --- /dev/null
 +++ b/interface/lap5.c
-@@ -0,0 +1,74 @@
+@@ -0,0 +1,113 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -3792,6 +4637,19 @@ index 0000000..c7a9656
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *ALPHA, FLOAT *X, blasint *INCX, FLOAT *JX, FLOAT *JY, FLOAT *Y, blasint *INCY)
@@ -3819,6 +4677,10 @@ index 0000000..c7a9656
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -3826,7 +4688,29 @@ index 0000000..c7a9656
 +  if (incx < 0) x -= (n - 1) * incx;
 +  if (incy < 0) y -= (n - 1) * incy;
 +
++#ifdef SMP
++  nthreads = (incx == 0 || incy == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  LAP5_K(n, 0, 0, alpha, jx, jy, x, incx, y, incy);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[2];
++    BLASLONG pinc[2];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&alpha;
++    ps[1] = (void *)&jx;
++    ps[2] = (void *)&jy;
++    pp[0] = (void *)x; pinc[0] = incx;
++    pp[1] = (void *)y; pinc[1] = incy;
++    blas_physics_thread(PHYS_LAP5, PHYS_MODE, n, ps, pp, pinc, 2,
++                        (int (*)(void))LAP5_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(2, n, n);
 +
@@ -3837,10 +4721,10 @@ index 0000000..c7a9656
 +}
 diff --git a/interface/lap7.c b/interface/lap7.c
 new file mode 100644
-index 0000000..a2055ab
+index 0000000..283f692
 --- /dev/null
 +++ b/interface/lap7.c
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,115 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -3872,6 +4756,19 @@ index 0000000..a2055ab
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *ALPHA, FLOAT *X, blasint *INCX, FLOAT *JX, FLOAT *JY, FLOAT *JZ, FLOAT *Y, blasint *INCY)
@@ -3900,6 +4797,10 @@ index 0000000..a2055ab
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -3907,7 +4808,30 @@ index 0000000..a2055ab
 +  if (incx < 0) x -= (n - 1) * incx;
 +  if (incy < 0) y -= (n - 1) * incy;
 +
++#ifdef SMP
++  nthreads = (incx == 0 || incy == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  LAP7_K(n, 0, 0, alpha, jx, jy, jz, x, incx, y, incy);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[2];
++    BLASLONG pinc[2];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&alpha;
++    ps[1] = (void *)&jx;
++    ps[2] = (void *)&jy;
++    ps[3] = (void *)&jz;
++    pp[0] = (void *)x; pinc[0] = incx;
++    pp[1] = (void *)y; pinc[1] = incy;
++    blas_physics_thread(PHYS_LAP7, PHYS_MODE, n, ps, pp, pinc, 2,
++                        (int (*)(void))LAP7_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(2, n, n);
 +
@@ -4086,10 +5010,10 @@ index 0000000..a60793b
 +}
 diff --git a/interface/z3cross.c b/interface/z3cross.c
 new file mode 100644
-index 0000000..da7b66a
+index 0000000..3f7545e
 --- /dev/null
 +++ b/interface/z3cross.c
-@@ -0,0 +1,99 @@
+@@ -0,0 +1,142 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4122,6 +5046,19 @@ index 0000000..da7b66a
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3,
@@ -4165,6 +5102,10 @@ index 0000000..da7b66a
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -4179,8 +5120,34 @@ index 0000000..da7b66a
 +  if (incw2 < 0) w2 -= (n - 1) * incw2 * 2;
 +  if (incw3 < 0) w3 -= (n - 1) * incw3 * 2;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incw1 == 0 || incw2 == 0 || incw3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  CROSS3_K(n, 0, 0, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3,
 +         w1, incw1, w2, incw2, w3, incw3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[9];
++    BLASLONG pinc[9];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)w1; pinc[6] = incw1;
++    pp[7] = (void *)w2; pinc[7] = incw2;
++    pp[8] = (void *)w3; pinc[8] = incw3;
++    blas_physics_thread(PHYS_3CROSS, PHYS_MODE, n, ps, pp, pinc, 9,
++                        (int (*)(void))CROSS3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(9, 6 * n, 3 * n);
 +
@@ -4191,10 +5158,10 @@ index 0000000..da7b66a
 +}
 diff --git a/interface/z3crosscross.c b/interface/z3crosscross.c
 new file mode 100644
-index 0000000..c8484d6
+index 0000000..c909227
 --- /dev/null
 +++ b/interface/z3crosscross.c
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,147 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4226,6 +5193,19 @@ index 0000000..c8484d6
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3, FLOAT *y1, blasint *INCY1, FLOAT *y2, blasint *INCY2, FLOAT *y3, blasint *INCY3, FLOAT *z1, blasint *INCZ1, FLOAT *z2, blasint *INCZ2, FLOAT *z3, blasint *INCZ3, FLOAT *r1, blasint *INCR1, FLOAT *r2, blasint *INCR2, FLOAT *r3, blasint *INCR3)
@@ -4270,6 +5250,10 @@ index 0000000..c8484d6
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -4287,7 +5271,36 @@ index 0000000..c8484d6
 +  if (incr2 < 0) r2 -= (n - 1) * incr2 * 2;
 +  if (incr3 < 0) r3 -= (n - 1) * incr3 * 2;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incz1 == 0 || incz2 == 0 || incz3 == 0 || incr1 == 0 || incr2 == 0 || incr3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  CROSSCROSS3_K(n, 0, 0, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3, z1, incz1, z2, incz2, z3, incz3, r1, incr1, r2, incr2, r3, incr3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[12];
++    BLASLONG pinc[12];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)z1; pinc[6] = incz1;
++    pp[7] = (void *)z2; pinc[7] = incz2;
++    pp[8] = (void *)z3; pinc[8] = incz3;
++    pp[9] = (void *)r1; pinc[9] = incr1;
++    pp[10] = (void *)r2; pinc[10] = incr2;
++    pp[11] = (void *)r3; pinc[11] = incr3;
++    blas_physics_thread(PHYS_3CROSSCROSS, PHYS_MODE, n, ps, pp, pinc, 12,
++                        (int (*)(void))CROSSCROSS3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(9, 9 * n, 6 * n);
 +
@@ -4408,10 +5421,10 @@ index 0000000..ed9e811
 +}
 diff --git a/interface/z3crossscal.c b/interface/z3crossscal.c
 new file mode 100644
-index 0000000..bbaca5f
+index 0000000..ababd49
 --- /dev/null
 +++ b/interface/z3crossscal.c
-@@ -0,0 +1,103 @@
+@@ -0,0 +1,148 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4444,6 +5457,19 @@ index 0000000..bbaca5f
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *A, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3,
@@ -4488,6 +5514,10 @@ index 0000000..bbaca5f
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -4505,8 +5535,36 @@ index 0000000..bbaca5f
 +  if (incw2 < 0) w2 -= (n - 1) * incw2 * 2;
 +  if (incw3 < 0) w3 -= (n - 1) * incw3 * 2;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incw1 == 0 || incw2 == 0 || incw3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  CROSSSCAL3_K(n, 0, 0, ar, ai, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3,
 +           w1, incw1, w2, incw2, w3, incw3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[9];
++    BLASLONG pinc[9];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&ar;
++    ps[1] = (void *)&ai;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)w1; pinc[6] = incw1;
++    pp[7] = (void *)w2; pinc[7] = incw2;
++    pp[8] = (void *)w3; pinc[8] = incw3;
++    blas_physics_thread(PHYS_3CROSSSCAL, PHYS_MODE, n, ps, pp, pinc, 9,
++                        (int (*)(void))CROSSSCAL3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(9, 6 * n, 3 * n);
 +
@@ -4615,10 +5673,10 @@ index 0000000..7f97381
 +}
 diff --git a/interface/z3crossxy_crossxz.c b/interface/z3crossxy_crossxz.c
 new file mode 100644
-index 0000000..59488ff
+index 0000000..4a3d9f4
 --- /dev/null
 +++ b/interface/z3crossxy_crossxz.c
-@@ -0,0 +1,122 @@
+@@ -0,0 +1,171 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -4651,6 +5709,19 @@ index 0000000..59488ff
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3,
@@ -4710,6 +5781,10 @@ index 0000000..59488ff
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -4730,9 +5805,41 @@ index 0000000..59488ff
 +  if (incv2 < 0) v2 -= (n - 1) * incv2 * 2;
 +  if (incv3 < 0) v3 -= (n - 1) * incv3 * 2;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incw1 == 0 || incw2 == 0 || incw3 == 0 || incu1 == 0 || incu2 == 0 || incu3 == 0 || incv1 == 0 || incv2 == 0 || incv3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  CROSSXY_CROSSXZ_K(n, 0, 0, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3,
 +                    w1, incw1, w2, incw2, w3, incw3, u1, incu1, u2, incu2, u3, incu3,
 +                    v1, incv1, v2, incv2, v3, incv3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[15];
++    BLASLONG pinc[15];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)w1; pinc[6] = incw1;
++    pp[7] = (void *)w2; pinc[7] = incw2;
++    pp[8] = (void *)w3; pinc[8] = incw3;
++    pp[9] = (void *)u1; pinc[9] = incu1;
++    pp[10] = (void *)u2; pinc[10] = incu2;
++    pp[11] = (void *)u3; pinc[11] = incu3;
++    pp[12] = (void *)v1; pinc[12] = incv1;
++    pp[13] = (void *)v2; pinc[13] = incv2;
++    pp[14] = (void *)v3; pinc[14] = incv3;
++    blas_physics_thread(PHYS_3CROSSXY_CROSSXZ, PHYS_MODE, n, ps, pp, pinc, 15,
++                        (int (*)(void))CROSSXY_CROSSXZ_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(15, 9 * n, 6 * n);
 +
@@ -5076,10 +6183,10 @@ index 0000000..3c4577a
 +}
 diff --git a/interface/z3drag.c b/interface/z3drag.c
 new file mode 100644
-index 0000000..ce1a6ff
+index 0000000..73fbe1f
 --- /dev/null
 +++ b/interface/z3drag.c
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,127 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5111,6 +6218,19 @@ index 0000000..ce1a6ff
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3, FLOAT *A, FLOAT *EPS, FLOAT *r1, blasint *INCR1, FLOAT *r2, blasint *INCR2, FLOAT *r3, blasint *INCR3)
@@ -5145,6 +6265,10 @@ index 0000000..ce1a6ff
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -5156,7 +6280,32 @@ index 0000000..ce1a6ff
 +  if (incr2 < 0) r2 -= (n - 1) * incr2 * 2;
 +  if (incr3 < 0) r3 -= (n - 1) * incr3 * 2;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incr1 == 0 || incr2 == 0 || incr3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  DRAG3_K(n, 0, 0, a, eps, x1, incx1, x2, incx2, x3, incx3, r1, incr1, r2, incr2, r3, incr3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[6];
++    BLASLONG pinc[6];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&a;
++    ps[1] = (void *)&eps;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)r1; pinc[3] = incr1;
++    pp[4] = (void *)r2; pinc[4] = incr2;
++    pp[5] = (void *)r3; pinc[5] = incr3;
++    blas_physics_thread(PHYS_3DRAG, PHYS_MODE, n, ps, pp, pinc, 6,
++                        (int (*)(void))DRAG3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(6, 6 * n, 5 * n);
 +
@@ -5167,10 +6316,10 @@ index 0000000..ce1a6ff
 +}
 diff --git a/interface/z3exb.c b/interface/z3exb.c
 new file mode 100644
-index 0000000..3e551b5
+index 0000000..8c674f1
 --- /dev/null
 +++ b/interface/z3exb.c
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,139 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5202,6 +6351,19 @@ index 0000000..3e551b5
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3, FLOAT *y1, blasint *INCY1, FLOAT *y2, blasint *INCY2, FLOAT *y3, blasint *INCY3, FLOAT *A, FLOAT *EPS, FLOAT *r1, blasint *INCR1, FLOAT *r2, blasint *INCR2, FLOAT *r3, blasint *INCR3)
@@ -5242,6 +6404,10 @@ index 0000000..3e551b5
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -5256,7 +6422,35 @@ index 0000000..3e551b5
 +  if (incr2 < 0) r2 -= (n - 1) * incr2 * 2;
 +  if (incr3 < 0) r3 -= (n - 1) * incr3 * 2;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incr1 == 0 || incr2 == 0 || incr3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  EXB3_K(n, 0, 0, a, eps, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3, r1, incr1, r2, incr2, r3, incr3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[9];
++    BLASLONG pinc[9];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&a;
++    ps[1] = (void *)&eps;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)r1; pinc[6] = incr1;
++    pp[7] = (void *)r2; pinc[7] = incr2;
++    pp[8] = (void *)r3; pinc[8] = incr3;
++    blas_physics_thread(PHYS_3EXB, PHYS_MODE, n, ps, pp, pinc, 9,
++                        (int (*)(void))EXB3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(9, 9 * n, 8 * n);
 +
@@ -5267,10 +6461,10 @@ index 0000000..3e551b5
 +}
 diff --git a/interface/z3had.c b/interface/z3had.c
 new file mode 100644
-index 0000000..fae28c6
+index 0000000..1717600
 --- /dev/null
 +++ b/interface/z3had.c
-@@ -0,0 +1,99 @@
+@@ -0,0 +1,142 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5303,6 +6497,19 @@ index 0000000..fae28c6
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3,
@@ -5346,6 +6553,10 @@ index 0000000..fae28c6
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -5360,8 +6571,34 @@ index 0000000..fae28c6
 +  if (incw2 < 0) w2 -= (n - 1) * incw2 * 2;
 +  if (incw3 < 0) w3 -= (n - 1) * incw3 * 2;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incw1 == 0 || incw2 == 0 || incw3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  HAD3_K(n, 0, 0, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3,
 +         w1, incw1, w2, incw2, w3, incw3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[9];
++    BLASLONG pinc[9];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)w1; pinc[6] = incw1;
++    pp[7] = (void *)w2; pinc[7] = incw2;
++    pp[8] = (void *)w3; pinc[8] = incw3;
++    blas_physics_thread(PHYS_3HAD, PHYS_MODE, n, ps, pp, pinc, 9,
++                        (int (*)(void))HAD3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(9, 6 * n, 3 * n);
 +
@@ -5372,10 +6609,10 @@ index 0000000..fae28c6
 +}
 diff --git a/interface/z3mom_ke.c b/interface/z3mom_ke.c
 new file mode 100644
-index 0000000..40e48fe
+index 0000000..5cc4479
 --- /dev/null
 +++ b/interface/z3mom_ke.c
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,131 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5407,6 +6644,19 @@ index 0000000..40e48fe
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *s, blasint *INCS, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3, FLOAT *m1, blasint *INCM1, FLOAT *m2, blasint *INCM2, FLOAT *m3, blasint *INCM3, FLOAT *k, blasint *INCK)
@@ -5443,6 +6693,10 @@ index 0000000..40e48fe
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -5456,7 +6710,32 @@ index 0000000..40e48fe
 +  if (incm3 < 0) m3 -= (n - 1) * incm3 * 2;
 +  if (inck < 0) k -= (n - 1) * inck * 2;
 +
++#ifdef SMP
++  nthreads = (incs == 0 || incx1 == 0 || incx2 == 0 || incx3 == 0 || incm1 == 0 || incm2 == 0 || incm3 == 0 || inck == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  MOM_KE_K(n, 0, 0, s, incs, x1, incx1, x2, incx2, x3, incx3, m1, incm1, m2, incm2, m3, incm3, k, inck);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[8];
++    BLASLONG pinc[8];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    pp[0] = (void *)s; pinc[0] = incs;
++    pp[1] = (void *)x1; pinc[1] = incx1;
++    pp[2] = (void *)x2; pinc[2] = incx2;
++    pp[3] = (void *)x3; pinc[3] = incx3;
++    pp[4] = (void *)m1; pinc[4] = incm1;
++    pp[5] = (void *)m2; pinc[5] = incm2;
++    pp[6] = (void *)m3; pinc[6] = incm3;
++    pp[7] = (void *)k; pinc[7] = inck;
++    blas_physics_thread(PHYS_3MOM_KE, PHYS_MODE, n, ps, pp, pinc, 8,
++                        (int (*)(void))MOM_KE_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(8, 8 * n, 5 * n);
 +
@@ -5467,10 +6746,10 @@ index 0000000..40e48fe
 +}
 diff --git a/interface/z3norm_unit.c b/interface/z3norm_unit.c
 new file mode 100644
-index 0000000..37e1c34
+index 0000000..512f5f2
 --- /dev/null
 +++ b/interface/z3norm_unit.c
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,129 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5502,6 +6781,19 @@ index 0000000..37e1c34
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3, FLOAT *EPS, FLOAT *r, blasint *INCR, FLOAT *u1, blasint *INCU1, FLOAT *u2, blasint *INCU2, FLOAT *u3, blasint *INCU3)
@@ -5537,6 +6829,10 @@ index 0000000..37e1c34
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -5549,7 +6845,32 @@ index 0000000..37e1c34
 +  if (incu2 < 0) u2 -= (n - 1) * incu2 * 2;
 +  if (incu3 < 0) u3 -= (n - 1) * incu3 * 2;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incr == 0 || incu1 == 0 || incu2 == 0 || incu3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  NORM_UNIT_K(n, 0, 0, eps, x1, incx1, x2, incx2, x3, incx3, r, incr, u1, incu1, u2, incu2, u3, incu3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[7];
++    BLASLONG pinc[7];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&eps;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)r; pinc[3] = incr;
++    pp[4] = (void *)u1; pinc[4] = incu1;
++    pp[5] = (void *)u2; pinc[5] = incu2;
++    pp[6] = (void *)u3; pinc[6] = incu3;
++    blas_physics_thread(PHYS_3NORM_UNIT, PHYS_MODE, n, ps, pp, pinc, 7,
++                        (int (*)(void))NORM_UNIT_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(7, 7 * n, 5 * n);
 +
@@ -5560,10 +6881,10 @@ index 0000000..37e1c34
 +}
 diff --git a/interface/z3refl.c b/interface/z3refl.c
 new file mode 100644
-index 0000000..8bb0939
+index 0000000..f01e4a2
 --- /dev/null
 +++ b/interface/z3refl.c
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,139 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5595,6 +6916,19 @@ index 0000000..8bb0939
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *x1, blasint *INCX1, FLOAT *x2, blasint *INCX2, FLOAT *x3, blasint *INCX3, FLOAT *y1, blasint *INCY1, FLOAT *y2, blasint *INCY2, FLOAT *y3, blasint *INCY3, FLOAT *A, FLOAT *EPS, FLOAT *q1, blasint *INCQ1, FLOAT *q2, blasint *INCQ2, FLOAT *q3, blasint *INCQ3)
@@ -5635,6 +6969,10 @@ index 0000000..8bb0939
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -5649,7 +6987,35 @@ index 0000000..8bb0939
 +  if (incq2 < 0) q2 -= (n - 1) * incq2 * 2;
 +  if (incq3 < 0) q3 -= (n - 1) * incq3 * 2;
 +
++#ifdef SMP
++  nthreads = (incx1 == 0 || incx2 == 0 || incx3 == 0 || incy1 == 0 || incy2 == 0 || incy3 == 0 || incq1 == 0 || incq2 == 0 || incq3 == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  REFL3_K(n, 0, 0, a, eps, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, incy2, y3, incy3, q1, incq1, q2, incq2, q3, incq3);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[9];
++    BLASLONG pinc[9];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&a;
++    ps[1] = (void *)&eps;
++    pp[0] = (void *)x1; pinc[0] = incx1;
++    pp[1] = (void *)x2; pinc[1] = incx2;
++    pp[2] = (void *)x3; pinc[2] = incx3;
++    pp[3] = (void *)y1; pinc[3] = incy1;
++    pp[4] = (void *)y2; pinc[4] = incy2;
++    pp[5] = (void *)y3; pinc[5] = incy3;
++    pp[6] = (void *)q1; pinc[6] = incq1;
++    pp[7] = (void *)q2; pinc[7] = incq2;
++    pp[8] = (void *)q3; pinc[8] = incq3;
++    blas_physics_thread(PHYS_3REFL, PHYS_MODE, n, ps, pp, pinc, 9,
++                        (int (*)(void))REFL3_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(9, 9 * n, 8 * n);
 +
@@ -5747,10 +7113,10 @@ index 0000000..7d950df
 +}
 diff --git a/interface/zlap5.c b/interface/zlap5.c
 new file mode 100644
-index 0000000..ba41b4e
+index 0000000..9ec4b1a
 --- /dev/null
 +++ b/interface/zlap5.c
-@@ -0,0 +1,77 @@
+@@ -0,0 +1,116 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5782,6 +7148,19 @@ index 0000000..ba41b4e
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *ALPHA, FLOAT *X, blasint *INCX, FLOAT *JX, FLOAT *JY, FLOAT *Y, blasint *INCY)
@@ -5812,6 +7191,10 @@ index 0000000..ba41b4e
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -5819,7 +7202,29 @@ index 0000000..ba41b4e
 +  if (incx < 0) x -= (n - 1) * incx * 2;
 +  if (incy < 0) y -= (n - 1) * incy * 2;
 +
++#ifdef SMP
++  nthreads = (incx == 0 || incy == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  LAP5_K(n, 0, 0, alpha, jx, jy, x, incx, y, incy);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[2];
++    BLASLONG pinc[2];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&alpha;
++    ps[1] = (void *)&jx;
++    ps[2] = (void *)&jy;
++    pp[0] = (void *)x; pinc[0] = incx;
++    pp[1] = (void *)y; pinc[1] = incy;
++    blas_physics_thread(PHYS_LAP5, PHYS_MODE, n, ps, pp, pinc, 2,
++                        (int (*)(void))LAP5_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(2, n, n);
 +
@@ -5830,10 +7235,10 @@ index 0000000..ba41b4e
 +}
 diff --git a/interface/zlap7.c b/interface/zlap7.c
 new file mode 100644
-index 0000000..534ab11
+index 0000000..e3b1c57
 --- /dev/null
 +++ b/interface/zlap7.c
-@@ -0,0 +1,78 @@
+@@ -0,0 +1,118 @@
 +/***************************************************************************
 +Copyright (c) 2026, The OpenBLAS Project
 +All rights reserved.
@@ -5865,6 +7270,19 @@ index 0000000..534ab11
 +#ifdef FUNCTION_PROFILE
 +#include "functable.h"
 +#endif
++#ifdef SMP
++#if defined(DOUBLE)
++#define PHYS_PREC BLAS_DOUBLE
++#else
++#define PHYS_PREC BLAS_SINGLE
++#endif
++#ifdef COMPLEX
++#define PHYS_MODE (PHYS_PREC | BLAS_COMPLEX)
++#else
++#define PHYS_MODE (PHYS_PREC | BLAS_REAL)
++#endif
++#endif
++
 +#ifndef CBLAS
 +
 +void NAME(blasint *N, FLOAT *ALPHA, FLOAT *X, blasint *INCX, FLOAT *JX, FLOAT *JY, FLOAT *JZ, FLOAT *Y, blasint *INCY)
@@ -5896,6 +7314,10 @@ index 0000000..534ab11
 +
 +  if (n <= 0) return;
 +
++#ifdef SMP
++  int nthreads;
++#endif
++
 +  IDEBUG_START;
 +
 +  FUNCTION_PROFILE_START();
@@ -5903,7 +7325,30 @@ index 0000000..534ab11
 +  if (incx < 0) x -= (n - 1) * incx * 2;
 +  if (incy < 0) y -= (n - 1) * incy * 2;
 +
++#ifdef SMP
++  nthreads = (incx == 0 || incy == 0 || n <= PHYS_MT_MIN) ? 1 : num_cpu_avail(1);
++  if (nthreads == 1) {
++#endif
++
 +  LAP7_K(n, 0, 0, alpha, jx, jy, jz, x, incx, y, incy);
++
++#ifdef SMP
++  } else {
++    void *ps[PHYS_MAX_SC];
++    void *pp[2];
++    BLASLONG pinc[2];
++    int q;
++    for (q = 0; q < PHYS_MAX_SC; q++) ps[q] = NULL;
++    ps[0] = (void *)&alpha;
++    ps[1] = (void *)&jx;
++    ps[2] = (void *)&jy;
++    ps[3] = (void *)&jz;
++    pp[0] = (void *)x; pinc[0] = incx;
++    pp[1] = (void *)y; pinc[1] = incy;
++    blas_physics_thread(PHYS_LAP7, PHYS_MODE, n, ps, pp, pinc, 2,
++                        (int (*)(void))LAP7_K, nthreads);
++  }
++#endif
 +
 +  FUNCTION_PROFILE_END(2, n, n);
 +

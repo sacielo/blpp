@@ -127,21 +127,39 @@ MATLAB/Octave-style API over the 13 kernels, design in `V3BLAS_API.md`.
 
 - fix the 1xypa kernel template so that scalar argument a comes after vector argument x and y (6 arguments each)
 
-## Big iron (HPC target) — open, from the 1xypa threading bug (2026-10, commit a71d0d4)
+## Threading layer — `blas_physics_thread` (done 2026-10-11)
 
-Context: `blas_level1_thread()` (driver/others/blas_l1_thread.c) strides A and B
-per thread-chunk but never C — fine for upstream (they all mutate A/B; C is a
-`NULL,0` dummy), fatal for `1xypa`, which outputs through C. Interim fix: the
-1xypa interface is single-threaded; all 13 v3blas ops are now single-threaded
-except `v1axpy` (inherits axpy's threading through the B slot).
+The OpenBLAS way: interface decides, driver dispatches. New
+`driver/others/blas_physics_thread.c` adds
+`blas_physics_thread(shape, mode, n, scalars, ptrs, incs, nptr, kfunc, nthreads)`
+which slices `n` like `blas_level1_thread` but strides every pointer with its
+own increment (the old L1 marshaller never strides C — the 1xypa bug), then
+runs the kernel through the normal `exec_blas()` worker pool. Interfaces carry
+a small `#ifdef SMP` block: a shape id (`PHYS_3HAD … PHYS_LAP7` in
+`common_level1.h`), the scalar/pointer slots in `phys_slice_t`, and the serial
+gate `any inc == 0 || n <= PHYS_MT_MIN (10000) ? 1 : num_cpu_avail(1)`.
+Threaded: `3had 3cross 3crossscal 3crosscross 3crossxy_crossxz 3norm_unit
+3refl 3exb 3drag 3mom_ke lap5 lap7` × s d c z. Reductions (`3dot &co`) and
+`1xypa` stay serial by design (pinned summation order = bitwise contract);
+`lap` results are order-independent since each output reads inputs only.
+Validated on a forced `-DNUM_THREADS=4` build on the 1-core Pi: utest 220 +
+ext 2765 green with default and `OPENBLAS_NUM_THREADS=4`; an out-of-tree
+checker runs all 40 threaded cblas entries at T=1 then T=4 and `memcmp`s the
+outputs — 40/40 bitwise (`MT-CHECK-OK`). Gotchas: C macro params don't thread
+through nested file-level macros (solved with per-precision exec functions
+opening with `typedef float FT;`); `3crosscross` needs 12 pointer slots,
+`3crossxy_crossxz` 15; only `3crossscal` has a complex scalar (re/im pair in
+slots 0–1); driver entry compiled only under `if (USE_THREAD)` in CMake.
+(One "MT corruption" scare was the checker itself: `3crossxy_crossxz`'s third
+group is the INPUT `w` — passing the shared z region there poisoned the next
+op's input. Library was innocent.)
 
-- [ ] Real threading fix, if wanted: add `cstride = width * ldc` (with the
-      output's calc-type shift) to the `blas_level1_thread()` chunk loop, then
-      restore the `#ifdef SMP` else-branch in `1xypa.c`/`z1xypa.c`. Harmless to
-      current callers (ldc=0 keeps NULL at NULL; zscal's `NULL,1` dummy is never
-      dereferenced). UNTESTABLE on the 1-core dev box — needs a multicore host:
-      naive-reference checks at n ∈ {9999, 10001, 100000} ×
-      OPENBLAS_NUM_THREADS ∈ {1, 2, 4, 8}, all precisions, incl. inc=0/2/-1.
+## Big iron (HPC target) — remaining
+
+- [ ] Multicore perf check: Pi threading is correctness-only (1 core). Rerun
+      the bench + checker on a real box, n ∈ {9999, 10001, 100000} ×
+      OPENBLAS_NUM_THREADS ∈ {1, 2, 4, 8}, all precisions, incl. inc=0/2/-1,
+      and tune `PHYS_MT_MIN` from the crossover curve.
 - [ ] Measure first whether L1 threading is even worth it: these are
       bandwidth-bound streaming kernels; upstream itself disables L1 threading
       below n=10000 for perf reasons. Bench on a real multicore box before
