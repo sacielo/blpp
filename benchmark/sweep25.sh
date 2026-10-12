@@ -1,5 +1,5 @@
 #!/bin/bash
-# 25 repetitions x 17 sizes of `build/benchmark d n`; raw tables -> runs-<host>/rep_NN.tsv
+# 25 repetitions x 17 sizes of `build/cblas_bench d n`; raw tables -> runs-<host>/rep_NN.tsv
 # columns: rep n op ms flop_s
 #
 # Runs are machine-local and uncommitted; one runs-<hostname>/ folder per
@@ -15,14 +15,14 @@ NREP=${NREP:-25}
 HOST=$(hostname | cut -d. -f1)
 RUNS=runs-$HOST
 SIZES="16 32 64 128 256 512 1024 2048 4096 8192 16384 32768 65536 131072 262144 524288 1048576"
-[ -x build/benchmark ] || { echo "build/benchmark missing; see CMakeLists.txt"; exit 1; }
+[ -x build/cblas_bench ] || { echo "build/cblas_bench missing; see CMakeLists.txt"; exit 1; }
 mkdir -p "$RUNS"
 for r in $(seq 1 "$NREP"); do
     out=$RUNS/rep_$(printf %02d "$r").tsv
     : > "$out"
     for n in $SIZES; do
-        ./build/benchmark d "$n" \
-          | awk -v r="$r" -v n="$n" '$8 == "OK" && $3 + 0 > 0 { print r, n, $1, $2, $3 }' >> "$out"
+        ./build/cblas_bench d "$n" \
+          | awk -v r="$r" -v n="$n" '$2 + 0 > 0 { print r, n, $1, $2, $3 }' >> "$out"
     done
     echo "rep $r done $(date +%T)"
 done

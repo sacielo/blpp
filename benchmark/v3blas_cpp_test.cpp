@@ -1,4 +1,4 @@
-/* v3blas_hpp_test.cpp - verify the v3blas.hpp overloaded front-end.
+/* v3blas_cpp_test.cpp - verify the v3blas.hpp overloaded front-end.
  *
  * The overloads must (a) resolve the right precision purely from the
  * argument types and (b) be bitwise identical to the direct cblas_*
@@ -6,8 +6,8 @@
  *
  * Build:
  *   g++ -O2 -std=c++11 -I ../pkgs/openblas/include/openblas \
- *       v3blas_hpp_test.cpp -L ../pkgs/openblas/lib -lopenblas -lm \
- *       -o v3blas_hpp_test
+ *       v3blas_cpp_test.cpp -L ../pkgs/openblas/lib -lopenblas -lm \
+ *       -o v3blas_cpp_test
  */
 #include <cstdio>
 #include <cstdint>
@@ -172,7 +172,7 @@ int main(){
     RUN_ALL(d, double, s_ax, s_xa, s_cs);
     RUN_ALL(c, v3blas_floatcomplex, &s_ax, &s_xa, &s_cs);
     RUN_ALL(z, v3blas_doublecomplex, &s_ax, &s_xa, &s_cs);
-    printf("v3blas_hpp_test: %s (%d failures)\n",
+    printf("v3blas_cpp_test: %s (%d failures)\n",
            failures ? "FAILED" : "OK", failures);
     return failures != 0;
 }

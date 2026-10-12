@@ -126,23 +126,32 @@ cmake --install openblas/build --prefix "$PWD/pkgs/openblas"
 ./openblas/build/utest/openblas_utest
 ./openblas/build/utest/openblas_utest_ext
 
-# 4. Build the v3blas tests/examples/benchmarks against the installed
-#    tree and run them (every line must say OK; 212 + 2645 + 195 + 80 +
-#    76 checks in total)
+# 4. Build the test/bench/example suite against the installed tree and
+#    run the tests (every line must say OK; 220 + 2765 + 200 + 195 + 80
+#    + 76 checks in total)
 cmake -S benchmark -B benchmark/build
 cmake --build benchmark/build -j"$(nproc)"
-./benchmark/build/v3blas_test                     # all ops x 4 precisions vs long-double ref
-./benchmark/build/v3blas_example | tail -n 3      # API tour
-./benchmark/build/v3blas_bench                    # v3blas vs raw cblas: timing + bitwise err
-./benchmark/build/v3blas_hpp_test | tail -n 1     # C++ overloads, bitwise vs cblas
-./benchmark/build/v3blas_f90_test | tail -n 1     # Fortran generics vs Fortran-recomputed equations
+./benchmark/build/cblas_test                      # raw cblas_* x 4 prec vs long-double ref
+./benchmark/build/v3blas_test | tail -n 1         # v3blas.h C11 wrapper, same treatment
+./benchmark/build/v3blas_cpp_test | tail -n 1     # C++ overloads, bitwise vs cblas
+./benchmark/build/v3blas_f90_test | tail -n 1     # Fortran generics vs Fortran equations
+./benchmark/build/cblas_example                   # examples: tiny, the printed output is the doc
+./benchmark/build/v3blas_example | tail -n 3
+./benchmark/build/v3blas_cpp_example
+./benchmark/build/v3blas_f90_example
+./benchmark/build/cblas_bench                     # benches: timing tables, nothing verified
+./benchmark/build/v3blas_bench                    # adds the v3blas-vs-cblas overhead column
+./benchmark/build/v3blas_cpp_bench
+./benchmark/build/v3blas_f90_bench
 ```
 
 The OpenBLAS build takes ~1.5–2 h on a single ARMv6 core and minutes on
-a desktop; `v3blas_bench` re-times every op until stable (up to a few
-minutes on slow hardware). Benchmarks on this repo's dev box report
-v3blas == cblas with 0.000e+00 error (the interface costs only the call
-itself); numbers in [`TODO.md`](TODO.md).
+a desktop; the benches re-time every op until stable (up to a few
+minutes on slow hardware). Correctness lives only in the `*_test`
+programs — each one also prints a paste-ready MATLAB/Octave block for
+re-verify-by-hand; the interface layer then costs nothing but the call
+itself (`v3blas_bench`'s overhead column sits at ~1.0). Numbers in
+[`TODO.md`](TODO.md).
 
 ## Layout
 

@@ -26,35 +26,50 @@ endif()
 
 # OpenBLAS installs its headers (and v3blas.hpp / v3blas.f90) to
 # <prefix>/include/openblas - that is the only place these targets look.
+# The Fortran targets also compile the installed v3blas.f90 module; CMake
+# resolves the module dependency and the compile order.
 function(add_ob_target target)
   add_executable(${target} ${ARGN})
   target_include_directories(${target} PRIVATE ${OPENBLAS_PREFIX}/include/openblas)
   target_link_libraries(${target} PRIVATE ${OPENBLAS_PREFIX}/lib/libopenblas.a pthread m)
 endfunction()
 
-add_ob_target(benchmark benchmark.cpp)
+# Three roles, per interface (cblas_*, v3blas C11/C++/F90):
+#   *_test     correctness: every op x precision vs a long double
+#              reference; prints an Octave/MATLAB block to re-verify by
+#              hand.  Nothing is timed.
+#   *_bench    timing only: ms/run and FLOP/s tables.  Nothing is
+#              verified (v3blas_bench's "overhead" column is the v3blas
+#              call vs the cblas call it dispatches to).
+#   *_example  minimal copy-paste tutorials, no tables.
 
-# v3blas_bench: cost of the v3blas.h interface (call + result free) vs the
-# raw cblas extension kernels with pre-allocated outputs.
-add_ob_target(v3blas_bench v3blas_bench.cpp)
+# ---- raw cblas_* extension entry points --------------------------------
+add_ob_target(cblas_test cblas_test.c)
+add_ob_target(cblas_bench cblas_bench.cpp)
+add_ob_target(cblas_example cblas_example.c)
 
-# v3blas_test: correctness of every op x precision vs a long-double
-# reference (also the strided smoke case). Needs C11 for _Generic names.
+# ---- v3blas.h (C11 _Generic) --------------------------------------------
+# v3blas_bench also carries the per-kernel v3blas-vs-cblas overhead column.
 add_ob_target(v3blas_test v3blas_test.c)
-
-# v3blas_example: minimal C11 example of the v3blas.h interface (the
-# precision-generic names need C11 _Generic).
+add_ob_target(v3blas_bench v3blas_bench.cpp)
 add_ob_target(v3blas_example v3blas_example.c)
 
-# v3blas_hpp_test: C++ overloads from v3blas.hpp, bitwise vs cblas_*.
-add_ob_target(v3blas_hpp_test v3blas_hpp_test.cpp)
+# ---- v3blas.hpp (C++ overloads) ------------------------------------------
+add_ob_target(v3blas_cpp_test v3blas_cpp_test.cpp)
+add_ob_target(v3blas_cpp_bench v3blas_cpp_bench.cpp)
+add_ob_target(v3blas_cpp_example v3blas_cpp_example.cpp)
 
-# v3blas_f90_test: Fortran generic module procedures, vs equations
-# recomputed in Fortran.  The module itself comes from the installed
-# v3blas.f90; CMake resolves the module dependency and compile order.
+# ---- v3blas.f90 (Fortran generic module) ---------------------------------
 add_ob_target(v3blas_f90_test
   ${OPENBLAS_PREFIX}/include/openblas/v3blas.f90 v3blas_f90_test.f90)
+add_ob_target(v3blas_f90_bench
+  ${OPENBLAS_PREFIX}/include/openblas/v3blas.f90 v3blas_f90_bench.f90)
+add_ob_target(v3blas_f90_example
+  ${OPENBLAS_PREFIX}/include/openblas/v3blas.f90 v3blas_f90_example.f90)
 
-set_target_properties(benchmark v3blas_bench PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
-set_target_properties(v3blas_example v3blas_test PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
-set_target_properties(v3blas_hpp_test PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON)
+set_target_properties(cblas_bench v3blas_bench PROPERTIES
+  CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+set_target_properties(cblas_test cblas_example v3blas_test v3blas_example
+  PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+set_target_properties(v3blas_cpp_test v3blas_cpp_bench v3blas_cpp_example
+  PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON)

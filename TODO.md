@@ -208,23 +208,29 @@ they must trust.
       their Level-1 grammar (1xypa/3had/3dot family); fused ops as a
       separate API-extension request.
 
-## Benchmark/test suite restructure (user)
+## Benchmark/test suite restructure (user) — DONE
 
-- [ ] Separate correctness tests from benchmarks: benchmarks must not be
-      compiled with the debug/verify path (`#ifndef NDEBUG` equation printf
-      branch); tests must not time anything.
-- [ ] Complete matrix of programs, one per cell:
-      `{cblas, v3blas_cpp, v3blas_f90} × {test, bench, example}`
-      (current: v3blas C test + hpp test + f90 test, one combined bench,
-      two examples; missing: a cblas_* test/bench/example trio as such).
-- [ ] Only TESTS print the worked first-element equation, and in a form
-      pasteable into MATLAB/Octave, e.g. for the cross kernel:
-      `w = cross([0 1 0],[0 1 1])  % kernel gave [1 0 0]` — plain
-      Octave/MATLAB syntax (row vectors `[a b c]`, `.*` and `.'` where
-      needed), so a human can verify the arithmetic in another engine.
-      Benches print tables only.
-- [ ] EXAMPLES = pure tutorials: one `main`, textbook-shaped calls, no
-      checks, no timing, minimal output.
+- [x] Separate correctness tests from benchmarks: benches are timing-only
+      (no verify path, no reference code); tests time nothing. Shared
+      machinery: `benchmark/test_ops.h` (long-double reference engine) +
+      `benchmark/ops_octave.h` (Octave block printer), included by both
+      C tests only.
+- [x] Complete matrix, one program per cell: 4 interfaces
+      (cblas, v3blas C11, v3blas C++, v3blas F90) x {test, bench, example}
+      = 12 programs + `v3blas_example.c` (C11 example predates this).
+      Timing budgets are `-DK_MIN_TIME/-DK_MIN_ITERS/-DK_MAX_TIME`.
+- [x] Only TESTS print the worked first-element equations, as a
+      pasteable MATLAB/Octave block (`ops_octave.h`): named inputs,
+      bilinear `.*` formulas (correct for complex too — the ops are
+      bilinear, not sesquilinear), `% => value` so the block doubles as
+      a self-check; lap stencils print the padded `U` array with base-17
+      indexing. Benches keep an equation *token* column only, as the
+      FLOP-count legend. Blocks cross-validated against the in-test
+      long-double references (real + complex).
+- [x] EXAMPLES = pure tutorials: one `main`, textbook-shaped calls, no
+      checks, no timing, minimal output
+      (`cblas_example.c`, `v3blas_example.c`, `v3blas_cpp_example.cpp`,
+      `v3blas_f90_example.f90`).
 
 ## Benchmark data and linking
 
