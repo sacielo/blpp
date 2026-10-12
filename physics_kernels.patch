@@ -35952,10 +35952,10 @@ index 0000000..14cc955
 +end module v3blas
 diff --git a/v3blas.h b/v3blas.h
 new file mode 100644
-index 0000000..ba84cd4
+index 0000000..d2b1b5b
 --- /dev/null
 +++ b/v3blas.h
-@@ -0,0 +1,304 @@
+@@ -0,0 +1,294 @@
 +/***************************************************************************
 + * Copyright (c) 2026, The OpenBLAS Project
 + * All rights reserved.
@@ -36002,21 +36002,25 @@ index 0000000..ba84cd4
 + * c/z precision uses the interleaved (re, im) layout consumed by the
 + * cblas c/z extension routines; re and im are always explicit.
 + *
-+ * Every operation is a void function that writes into caller-provided,
-+ * unit-stride output arrays.  Outputs may alias the inputs.
++ * Every operation is a void function.  A 3-vector OUTPUT is a v3<P>
++ * view exactly like an input: same notation both ways, and the view's
++ * .incx/.incy/.incz are the write strides.  Scalar-field outputs (r,
++ * k, ...) are plain unit-stride arrays.  The length always comes from
++ * x.n; outputs may alias the inputs.
 + *
-+ * C11 users get precision-generic names: v3cross(x, y, w0, w1, w2)
-+ * picks s/d/c/z from the type of the output pointer via _Generic
-+ * (C++ gets the same through v3blas.hpp overloads).
++ * C11 users get precision-generic names: v3cross(x, y, w) picks
++ * s/d/c/z from the element type of x (via _Generic; C++ gets the same
++ * through v3blas.hpp overloads).
 + *
 + * Example (double precision):
 + *   double x0[n], x1[n], x2[n], y0[n], y1[n], y2[n];   // or malloc
 + *   v3d a = v3d_wrap(x0, x1, x2, n);
 + *   v3d b = v3d_wrap(y0, y1, y2, n);
 + *   double w0[n], w1[n], w2[n];
-+ *   v3cross_d(a, b, w0, w1, w2);             // w = a∧b   (or v3cross)
++ *   v3d w = v3d_wrap(w0, w1, w2, n);
++ *   v3cross_d(a, b, w);                // w = a∧b   (or v3cross)
 + *   double r[n];
-+ *   v3sqr_d(v3d_wrap(w0, w1, w2, n), r);     // r = w1^2+w2^2+w3^2
++ *   v3sqr_d(w, r);                     // r = w·w
 + *
 + * See V3BLAS_API.md (blpp repo) for the full operation table.
 + */
@@ -36080,39 +36084,36 @@ index 0000000..ba84cd4
 +    cblas_ ## P ## 3dot(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,            \
 +                        y.x, y.incx, y.y, y.incy, y.z, y.incz, r, 1);          \
 +}                                                                              \
-+/* w = x.*y, per component (writes wx, wy, wz) */                              \
-+static inline void v3had_ ## P(v3 ## P x, v3 ## P y,                           \
-+    T *wx, T *wy, T *wz)                                                       \
++/* w = x.*y, per component; output strides come from the view */               \
++static inline void v3had_ ## P(v3 ## P x, v3 ## P y, v3 ## P w)                \
 +{                                                                              \
 +    cblas_ ## P ## 3had(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,            \
 +                        y.x, y.incx, y.y, y.incy, y.z, y.incz,                 \
-+                        wx, 1, wy, 1, wz, 1);                                  \
++                        w.x, w.incx, w.y, w.incy, w.z, w.incz);                \
 +}                                                                              \
 +/* r = x1^2 + x2^2 + x3^2 */                                                   \
 +static inline void v3sqr_ ## P(v3 ## P x, T *r)                                \
 +{                                                                              \
 +    cblas_ ## P ## 3sqr(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz, r, 1);     \
 +}                                                                              \
-+/* r = sqrt(q·q) */                                                            \
++/* r = sqrt(q\u00b7q) */                                                       \
 +static inline void v1norm_ ## P(const T *q, T *r, blasint n)                   \
 +{                                                                              \
 +    cblas_ ## P ## 1norm(n, (T *)q, 1, r, 1);                                  \
 +}                                                                              \
-+/* w = x∧y (writes wx, wy, wz) */                                              \
-+static inline void v3cross_ ## P(v3 ## P x, v3 ## P y,                         \
-+    T *wx, T *wy, T *wz)                                                       \
++/* w = x∧y */                                                                  \
++static inline void v3cross_ ## P(v3 ## P x, v3 ## P y, v3 ## P w)              \
 +{                                                                              \
 +    cblas_ ## P ## 3cross(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,          \
 +                          y.x, y.incx, y.y, y.incy, y.z, y.incz,               \
-+                          wx, 1, wy, 1, wz, 1);                                \
++                          w.x, w.incx, w.y, w.incy, w.z, w.incz);              \
 +}                                                                              \
-+/* w = a·(x∧y) (writes wx, wy, wz) */                                          \
-+static inline void v3crossscal_ ## P(v3 ## P x, v3 ## P y, T a,                \
-+    T *wx, T *wy, T *wz)                                                       \
++/* w = a·(x∧y) */                                                              \
++static inline void v3crossscal_ ## P(v3 ## P x, v3 ## P y, T a, v3 ## P w)     \
 +{                                                                              \
 +    cblas_ ## P ## 3crossscal(x.n, SCAL, x.x, x.incx, x.y, x.incy,             \
 +        x.z, x.incz, y.x, y.incx, y.y, y.incy, y.z, y.incz,                    \
-+        wx, 1, wy, 1, wz, 1);                                                  \
++        w.x, w.incx, w.y, w.incy, w.z, w.incz);                                \
 +}                                                                              \
 +/* r = (x∧y)·w */                                                              \
 +static inline void v3crossdot_ ## P(v3 ## P x, v3 ## P y, v3 ## P w, T *r)     \
@@ -36129,23 +36130,24 @@ index 0000000..ba84cd4
 +}                                                                              \
 +/* u = x∧y, v = x∧w */                                                         \
 +static inline void v3crossxy_crossxz_ ## P(v3 ## P x, v3 ## P y,               \
-+    v3 ## P w, T *ux, T *uy, T *uz, T *vx, T *vy, T *vz)                       \
++    v3 ## P w, v3 ## P u, v3 ## P v)                                           \
 +{                                                                              \
 +    cblas_ ## P ## 3crossxy_crossxz(x.n,                                       \
 +        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
 +        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
 +        w.x, w.incx, w.y, w.incy, w.z, w.incz,                                 \
-+        ux, 1, uy, 1, uz, 1, vx, 1, vy, 1, vz, 1);                             \
++        u.x, u.incx, u.y, u.incy, u.z, u.incz,                                 \
++        v.x, v.incx, v.y, v.incy, v.z, v.incz);                                \
 +}                                                                              \
 +/* u = x∧y, r = x·w */                                                         \
 +static inline void v3crossxy_dotxz_ ## P(v3 ## P x, v3 ## P y,                 \
-+    v3 ## P w, T *ux, T *uy, T *uz, T *r)                                      \
++    v3 ## P w, v3 ## P u, T *r)                                                \
 +{                                                                              \
 +    cblas_ ## P ## 3crossxy_dotxz(x.n,                                         \
 +        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
 +        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
 +        w.x, w.incx, w.y, w.incy, w.z, w.incz,                                 \
-+        ux, 1, uy, 1, uz, 1, r, 1);                                            \
++        u.x, u.incx, u.y, u.incy, u.z, u.incz, r, 1);                          \
 +}                                                                              \
 +/* r = x·y, q = x·w */                                                         \
 +static inline void v3dotxy_dotxz_ ## P(v3 ## P x, v3 ## P y, v3 ## P w,        \
@@ -36158,55 +36160,51 @@ index 0000000..ba84cd4
 +}                                                                              \
 +/* r = (x∧y)∧z */                                                              \
 +static inline void v3crosscross_ ## P(v3 ## P x, v3 ## P y, v3 ## P z,         \
-+    T *rx, T *ry, T *rz)                                                       \
++    v3 ## P r)                                                                 \
 +{                                                                              \
 +    cblas_ ## P ## 3crosscross(x.n,                                            \
 +        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
 +        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
 +        z.x, z.incx, z.y, z.incy, z.z, z.incz,                                 \
-+        rx, 1, ry, 1, rz, 1);                                                  \
++        r.x, r.incx, r.y, r.incy, r.z, r.incz);                                \
 +}                                                                              \
 +/* r = sqrt(x·x + eps) (real), u = x/r */                                      \
-+static inline void v3norm_unit_ ## P(v3 ## P x, RT eps,                        \
-+    T *r, T *ux, T *uy, T *uz)                                                 \
++static inline void v3norm_unit_ ## P(v3 ## P x, RT eps, T *r, v3 ## P u)       \
 +{                                                                              \
 +    cblas_ ## P ## 3norm_unit(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,      \
-+        eps, r, 1, ux, 1, uy, 1, uz, 1);                                       \
++        eps, r, 1, u.x, u.incx, u.y, u.incy, u.z, u.incz);                     \
 +}                                                                              \
 +/* q = x - a(x·y)y/(y·y + eps) */                                              \
 +static inline void v3refl_ ## P(v3 ## P x, v3 ## P y, RT a, RT eps,            \
-+    T *qx, T *qy, T *qz)                                                       \
++    v3 ## P q)                                                                 \
 +{                                                                              \
 +    cblas_ ## P ## 3refl(x.n,                                                  \
 +        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
 +        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
-+        a, eps, qx, 1, qy, 1, qz, 1);                                          \
++        a, eps, q.x, q.incx, q.y, q.incy, q.z, q.incz);                        \
 +}                                                                              \
 +/* r = a(x∧y)/(y·y + eps) */                                                   \
 +static inline void v3exb_ ## P(v3 ## P x, v3 ## P y, RT a, RT eps,             \
-+    T *rx, T *ry, T *rz)                                                       \
++    v3 ## P r)                                                                 \
 +{                                                                              \
 +    cblas_ ## P ## 3exb(x.n,                                                   \
 +        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
 +        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
-+        a, eps, rx, 1, ry, 1, rz, 1);                                          \
++        a, eps, r.x, r.incx, r.y, r.incy, r.z, r.incz);                        \
 +}                                                                              \
 +/* r = a·x·sqrt(x·x + eps), per component */                                   \
-+static inline void v3drag_ ## P(v3 ## P x, RT a, RT eps,                       \
-+    T *rx, T *ry, T *rz)                                                       \
++static inline void v3drag_ ## P(v3 ## P x, RT a, RT eps, v3 ## P r)            \
 +{                                                                              \
 +    cblas_ ## P ## 3drag(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,           \
-+        a, eps, rx, 1, ry, 1, rz, 1);                                          \
++        a, eps, r.x, r.incx, r.y, r.incy, r.z, r.incz);                        \
 +}                                                                              \
 +/* m = s.*x (per component), k = 0.5·s·(x·x) */                                \
-+static inline void v3mom_ke_ ## P(const T *s, v3 ## P x,                       \
-+    T *mx, T *my, T *mz, T *k)                                                 \
++static inline void v3mom_ke_ ## P(const T *s, v3 ## P x, v3 ## P m, T *k)      \
 +{                                                                              \
 +    cblas_ ## P ## 3mom_ke(x.n, (T *)s, 1,                                     \
 +        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
-+        mx, 1, my, 1, mz, 1, k, 1);                                            \
++        m.x, m.incx, m.y, m.incy, m.z, m.incz, k, 1);                          \
 +}
-+
 +V3BLAS_DEFINE(s, float, alpha, a, float)
 +V3BLAS_DEFINE(d, double, alpha, a, double)
 +V3BLAS_DEFINE(c, v3blas_floatcomplex, &alpha, &a, float)
@@ -36221,9 +36219,9 @@ index 0000000..ba84cd4
 + */
 +#if !defined(__cplusplus) && defined(__STDC_VERSION__) &&                      \
 +    __STDC_VERSION__ >= 201112L
-+#define V3BLAS_GEN(op, sel, ...)                                              \
-+    _Generic((sel), float*: op ## _s, double*: op ## _d,                      \
-+             v3blas_floatcomplex*: op ## _c,                                  \
++#define V3BLAS_GEN(op, sel, ...)                                               \
++    _Generic((sel), float*: op ## _s, double*: op ## _d,                       \
++             v3blas_floatcomplex*: op ## _c,                                   \
 +             v3blas_doublecomplex*: op ## _z)(__VA_ARGS__)
 +
 +#define v1axpy(alpha, x, y, r, n)        V3BLAS_GEN(v1axpy, (r), alpha, x, y, r, n)
@@ -36231,28 +36229,20 @@ index 0000000..ba84cd4
 +#define v1norm(q, r, n)                  V3BLAS_GEN(v1norm, (r), q, r, n)
 +#define v3dot(x, y, r)                   V3BLAS_GEN(v3dot, (r), x, y, r)
 +#define v3sqr(x, r)                      V3BLAS_GEN(v3sqr, (r), x, r)
-+#define v3crossdot(x, y, w, r)           V3BLAS_GEN(v3crossdot, (r), x, y, w, r)
++#define v3cross(X, Y, W)                 V3BLAS_GEN(v3cross, ((X).x), X, Y, W)
 +#define v3crosssqr(x, y, r)              V3BLAS_GEN(v3crosssqr, (r), x, y, r)
 +#define v3dotxy_dotxz(x, y, w, r, q)     V3BLAS_GEN(v3dotxy_dotxz, (r), x, y, w, r, q)
-+#define v3had(x, y, wx, wy, wz)          V3BLAS_GEN(v3had, (wx), x, y, wx, wy, wz)
-+#define v3cross(x, y, wx, wy, wz)        V3BLAS_GEN(v3cross, (wx), x, y, wx, wy, wz)
-+#define v3crossscal(x, y, a, wx, wy, wz) V3BLAS_GEN(v3crossscal, (wx), x, y, a, wx, wy, wz)
-+#define v3crossxy_crossxz(x, y, w, ux, uy, uz, vx, vy, vz)                    \
-+    V3BLAS_GEN(v3crossxy_crossxz, (ux), x, y, w, ux, uy, uz, vx, vy, vz)
-+#define v3crossxy_dotxz(x, y, w, ux, uy, uz, r)                               \
-+    V3BLAS_GEN(v3crossxy_dotxz, (ux), x, y, w, ux, uy, uz, r)
-+#define v3crosscross(x, y, z, rx, ry, rz)                                     \
-+    V3BLAS_GEN(v3crosscross, (rx), x, y, z, rx, ry, rz)
-+#define v3norm_unit(x, eps, r, ux, uy, uz)                                    \
-+    V3BLAS_GEN(v3norm_unit, (r), x, eps, r, ux, uy, uz)
-+#define v3refl(x, y, a, eps, qx, qy, qz)                                      \
-+    V3BLAS_GEN(v3refl, (qx), x, y, a, eps, qx, qy, qz)
-+#define v3exb(x, y, a, eps, rx, ry, rz)                                       \
-+    V3BLAS_GEN(v3exb, (rx), x, y, a, eps, rx, ry, rz)
-+#define v3drag(x, a, eps, rx, ry, rz)                                         \
-+    V3BLAS_GEN(v3drag, (rx), x, a, eps, rx, ry, rz)
-+#define v3mom_ke(s, x, mx, my, mz, k)                                         \
-+    V3BLAS_GEN(v3mom_ke, (mx), s, x, mx, my, mz, k)
++#define v3had(X, Y, W)                   V3BLAS_GEN(v3had, ((X).x), X, Y, W)
++#define v3crossdot(x, y, w, r)           V3BLAS_GEN(v3crossdot, (r), x, y, w, r)
++#define v3crossscal(X, Y, A, W)          V3BLAS_GEN(v3crossscal, ((X).x), X, Y, A, W)
++#define v3crossxy_crossxz(X, Y, W, U, V) V3BLAS_GEN(v3crossxy_crossxz, ((X).x), X, Y, W, U, V)
++#define v3crossxy_dotxz(X, Y, W, U, R)   V3BLAS_GEN(v3crossxy_dotxz, ((X).x), X, Y, W, U, R)
++#define v3crosscross(X, Y, Z, R)         V3BLAS_GEN(v3crosscross, ((X).x), X, Y, Z, R)
++#define v3norm_unit(X, EPS, R, U)        V3BLAS_GEN(v3norm_unit, ((X).x), X, EPS, R, U)
++#define v3refl(X, Y, A, EPS, Q)          V3BLAS_GEN(v3refl, ((X).x), X, Y, A, EPS, Q)
++#define v3exb(X, Y, A, EPS, R)           V3BLAS_GEN(v3exb, ((X).x), X, Y, A, EPS, R)
++#define v3drag(X, A, EPS, R)             V3BLAS_GEN(v3drag, ((X).x), X, A, EPS, R)
++#define v3mom_ke(S, X, M, K)             V3BLAS_GEN(v3mom_ke, ((X).x), S, X, M, K)
 +#endif
 +
 +#ifdef __cplusplus
@@ -36262,10 +36252,10 @@ index 0000000..ba84cd4
 +#endif /* V3BLAS_H */
 diff --git a/v3blas.hpp b/v3blas.hpp
 new file mode 100644
-index 0000000..d0dba40
+index 0000000..8ce1993
 --- /dev/null
 +++ b/v3blas.hpp
-@@ -0,0 +1,97 @@
+@@ -0,0 +1,93 @@
 +/***************************************************************************
 + * Copyright (c) 2026, The OpenBLAS Project
 + * All rights reserved.
@@ -36297,8 +36287,7 @@ index 0000000..d0dba40
 +/*
 + * v3blas.hpp - C++ front-end for the v3blas extension operations.
 + *
-+ * Overloaded void operations (v3cross(x, y, w0, w1, w2), v3dot(x, y, r),
-+ * ...) that resolve the precision from the argument types - the C++
++ * Overloaded void operations (v3cross(x, y, w), v3dot(x, y, r), ...) that resolve the precision from the argument types - the C++
 + * answer to the C11 _Generic names in v3blas.h.  Thin as air: each
 + * overload is an inline call to the same static-inline wrapper C uses.
 + * The v3<P> view types, v3<P>_wrap, and the suffixed operations come
@@ -36327,33 +36316,30 @@ index 0000000..d0dba40
 +{ v3crosssqr_ ## P(x, y, r); }                                                \
 +inline void v3dotxy_dotxz(v3 ## P x, v3 ## P y, v3 ## P w, T *r, T *q)         \
 +{ v3dotxy_dotxz_ ## P(x, y, w, r, q); }                                       \
-+inline void v3had(v3 ## P x, v3 ## P y, T *wx, T *wy, T *wz)                   \
-+{ v3had_ ## P(x, y, wx, wy, wz); }                                            \
-+inline void v3cross(v3 ## P x, v3 ## P y, T *wx, T *wy, T *wz)                 \
-+{ v3cross_ ## P(x, y, wx, wy, wz); }                                          \
-+inline void v3crossscal(v3 ## P x, v3 ## P y, T a, T *wx, T *wy, T *wz)        \
-+{ v3crossscal_ ## P(x, y, a, wx, wy, wz); }                                   \
-+inline void v3crossxy_crossxz(v3 ## P x, v3 ## P y, v3 ## P w,                 \
-+    T *ux, T *uy, T *uz, T *vx, T *vy, T *vz)                                  \
-+{ v3crossxy_crossxz_ ## P(x, y, w, ux, uy, uz, vx, vy, vz); }                 \
-+inline void v3crossxy_dotxz(v3 ## P x, v3 ## P y, v3 ## P w,                   \
-+    T *ux, T *uy, T *uz, T *r)                                                 \
-+{ v3crossxy_dotxz_ ## P(x, y, w, ux, uy, uz, r); }                            \
-+inline void v3crosscross(v3 ## P x, v3 ## P y, v3 ## P z,                      \
-+    T *rx, T *ry, T *rz)                                                       \
-+{ v3crosscross_ ## P(x, y, z, rx, ry, rz); }                                  \
-+inline void v3norm_unit(v3 ## P x, RT eps, T *r, T *ux, T *uy, T *uz)          \
-+{ v3norm_unit_ ## P(x, eps, r, ux, uy, uz); }                                 \
-+inline void v3refl(v3 ## P x, v3 ## P y, RT a, RT eps,                         \
-+    T *qx, T *qy, T *qz)                                                       \
-+{ v3refl_ ## P(x, y, a, eps, qx, qy, qz); }                                   \
-+inline void v3exb(v3 ## P x, v3 ## P y, RT a, RT eps,                          \
-+    T *rx, T *ry, T *rz)                                                       \
-+{ v3exb_ ## P(x, y, a, eps, rx, ry, rz); }                                    \
-+inline void v3drag(v3 ## P x, RT a, RT eps, T *rx, T *ry, T *rz)               \
-+{ v3drag_ ## P(x, a, eps, rx, ry, rz); }                                      \
-+inline void v3mom_ke(const T *s, v3 ## P x, T *mx, T *my, T *mz, T *k)         \
-+{ v3mom_ke_ ## P(s, x, mx, my, mz, k); }
++inline void v3had(v3 ## P x, v3 ## P y, v3 ## P w)                           \
++{ v3had_ ## P(x, y, w); }                                                    \
++inline void v3cross(v3 ## P x, v3 ## P y, v3 ## P w)                         \
++{ v3cross_ ## P(x, y, w); }                                                  \
++inline void v3crossscal(v3 ## P x, v3 ## P y, T a, v3 ## P w)                \
++{ v3crossscal_ ## P(x, y, a, w); }                                           \
++inline void v3crossxy_crossxz(v3 ## P x, v3 ## P y, v3 ## P w,               \
++    v3 ## P u, v3 ## P v)                                                    \
++{ v3crossxy_crossxz_ ## P(x, y, w, u, v); }                                  \
++inline void v3crossxy_dotxz(v3 ## P x, v3 ## P y, v3 ## P w,                 \
++    v3 ## P u, T *r)                                                         \
++{ v3crossxy_dotxz_ ## P(x, y, w, u, r); }                                    \
++inline void v3crosscross(v3 ## P x, v3 ## P y, v3 ## P z, v3 ## P r)         \
++{ v3crosscross_ ## P(x, y, z, r); }                                          \
++inline void v3norm_unit(v3 ## P x, RT eps, T *r, v3 ## P u)                  \
++{ v3norm_unit_ ## P(x, eps, r, u); }                                         \
++inline void v3refl(v3 ## P x, v3 ## P y, RT a, RT eps, v3 ## P q)            \
++{ v3refl_ ## P(x, y, a, eps, q); }                                           \
++inline void v3exb(v3 ## P x, v3 ## P y, RT a, RT eps, v3 ## P r)             \
++{ v3exb_ ## P(x, y, a, eps, r); }                                            \
++inline void v3drag(v3 ## P x, RT a, RT eps, v3 ## P r)                       \
++{ v3drag_ ## P(x, a, eps, r); }                                              \
++inline void v3mom_ke(const T *s, v3 ## P x, v3 ## P m, T *k)                 \
++{ v3mom_ke_ ## P(s, x, m, k); }
 +
 +V3BLAS_CPP(s, float, float)
 +V3BLAS_CPP(d, double, double)

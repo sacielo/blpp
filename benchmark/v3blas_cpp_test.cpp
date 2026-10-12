@@ -111,58 +111,62 @@ static int chk(const char *name, const void *a, const void *b, size_t bytes){
     cblas_ ## P ## 3had(n, x.x, 1, x.y, 1, x.z, 1,                             \
                         y.x, 1, y.y, 1, y.z, 1,                                \
                         ro[0], 1, ro[1], 1, ro[2], 1);                         \
-    v3had(x, y, wo[0], wo[1], wo[2]);                                          \
+    v3had(x, y, v3 ## P ## _wrap(wo[0], wo[1], wo[2], n));                    \
     bad += chk("v3had_" #P, wo[0], ro[0], 3 * nb);                             \
     cblas_ ## P ## 3cross(n, x.x, 1, x.y, 1, x.z, 1,                           \
                           y.x, 1, y.y, 1, y.z, 1,                              \
                           ro[0], 1, ro[1], 1, ro[2], 1);                       \
-    v3cross(x, y, wo[0], wo[1], wo[2]);                                        \
+    v3cross(x, y, v3 ## P ## _wrap(wo[0], wo[1], wo[2], n));                  \
     bad += chk("v3cross_" #P, wo[0], ro[0], 3 * nb);                           \
     cblas_ ## P ## 3crossscal(n, CCS, x.x, 1, x.y, 1, x.z, 1,                  \
                               y.x, 1, y.y, 1, y.z, 1,                          \
                               ro[0], 1, ro[1], 1, ro[2], 1);                   \
-    v3crossscal(x, y, s_cs, wo[0], wo[1], wo[2]);                              \
+    v3crossscal(x, y, s_cs, v3 ## P ## _wrap(wo[0], wo[1], wo[2], n));        \
     bad += chk("v3crossscal_" #P, wo[0], ro[0], 3 * nb);                       \
     cblas_ ## P ## 3crossxy_crossxz(n, x.x, 1, x.y, 1, x.z, 1,                 \
                                     y.x, 1, y.y, 1, y.z, 1,                    \
                                     w.x, 1, w.y, 1, w.z, 1,                    \
                                     ro[0], 1, ro[1], 1, ro[2], 1,              \
                                     ro[3], 1, ro[4], 1, ro[5], 1);             \
-    v3crossxy_crossxz(x, y, w, wo[0], wo[1], wo[2], wo[3], wo[4], wo[5]);      \
+    v3crossxy_crossxz(x, y, w,                                                \
+                        v3 ## P ## _wrap(wo[0], wo[1], wo[2], n),             \
+                        v3 ## P ## _wrap(wo[3], wo[4], wo[5], n));            \
     bad += chk("v3crossxy_crossxz_" #P, wo[0], ro[0], 6 * nb);                 \
     cblas_ ## P ## 3crossxy_dotxz(n, x.x, 1, x.y, 1, x.z, 1,                   \
                                   y.x, 1, y.y, 1, y.z, 1,                      \
                                   w.x, 1, w.y, 1, w.z, 1,                      \
                                   ro[0], 1, ro[1], 1, ro[2], 1, ro[3], 1);     \
-    v3crossxy_dotxz(x, y, w, wo[0], wo[1], wo[2], wo[3]);                      \
+    v3crossxy_dotxz(x, y, w,                                                  \
+                    v3 ## P ## _wrap(wo[0], wo[1], wo[2], n),                 \
+                    wo[3]);                                                   \
     bad += chk("v3crossxy_dotxz_" #P, wo[0], ro[0], 4 * nb);                   \
     cblas_ ## P ## 3crosscross(n, x.x, 1, x.y, 1, x.z, 1,                      \
                                y.x, 1, y.y, 1, y.z, 1,                         \
                                w.x, 1, w.y, 1, w.z, 1,                         \
                                ro[0], 1, ro[1], 1, ro[2], 1);                  \
-    v3crosscross(x, y, w, wo[0], wo[1], wo[2]);                                \
+    v3crosscross(x, y, w, v3 ## P ## _wrap(wo[0], wo[1], wo[2], n));          \
     bad += chk("v3crosscross_" #P, wo[0], ro[0], 3 * nb);                      \
     cblas_ ## P ## 3norm_unit(n, x.x, 1, x.y, 1, x.z, 1, 0.25,                 \
                               ro[0], 1, ro[1], 1, ro[2], 1, ro[3], 1);         \
-    v3norm_unit(x, 0.25, wo[0], wo[1], wo[2], wo[3]);                          \
+    v3norm_unit(x, 0.25, wo[0], v3 ## P ## _wrap(wo[1], wo[2], wo[3], n));    \
     bad += chk("v3norm_unit_" #P, wo[0], ro[0], 4 * nb);                       \
     cblas_ ## P ## 3refl(n, x.x, 1, x.y, 1, x.z, 1,                            \
                          y.x, 1, y.y, 1, y.z, 1, 1.5, 0.25,                    \
                          ro[0], 1, ro[1], 1, ro[2], 1);                        \
-    v3refl(x, y, 1.5, 0.25, wo[0], wo[1], wo[2]);                              \
+    v3refl(x, y, 1.5, 0.25, v3 ## P ## _wrap(wo[0], wo[1], wo[2], n));        \
     bad += chk("v3refl_" #P, wo[0], ro[0], 3 * nb);                            \
     cblas_ ## P ## 3exb(n, x.x, 1, x.y, 1, x.z, 1,                             \
                         y.x, 1, y.y, 1, y.z, 1, 1.5, 0.25,                     \
                         ro[0], 1, ro[1], 1, ro[2], 1);                         \
-    v3exb(x, y, 1.5, 0.25, wo[0], wo[1], wo[2]);                               \
+    v3exb(x, y, 1.5, 0.25, v3 ## P ## _wrap(wo[0], wo[1], wo[2], n));         \
     bad += chk("v3exb_" #P, wo[0], ro[0], 3 * nb);                             \
     cblas_ ## P ## 3drag(n, x.x, 1, x.y, 1, x.z, 1, 1.5, 0.25,                 \
                          ro[0], 1, ro[1], 1, ro[2], 1);                        \
-    v3drag(x, 1.5, 0.25, wo[0], wo[1], wo[2]);                                 \
+    v3drag(x, 1.5, 0.25, v3 ## P ## _wrap(wo[0], wo[1], wo[2], n));           \
     bad += chk("v3drag_" #P, wo[0], ro[0], 3 * nb);                            \
     cblas_ ## P ## 3mom_ke(n, bq, 1, x.x, 1, x.y, 1, x.z, 1,                   \
                            ro[0], 1, ro[1], 1, ro[2], 1, ro[3], 1);            \
-    v3mom_ke(bq, x, wo[0], wo[1], wo[2], wo[3]);                               \
+    v3mom_ke(bq, x, v3 ## P ## _wrap(wo[0], wo[1], wo[2], n), wo[3]);         \
     bad += chk("v3mom_ke_" #P, wo[0], ro[0], 4 * nb);                          \
     if (bad) printf("%d failures in " #P "\n", bad);                           \
 } while (0)

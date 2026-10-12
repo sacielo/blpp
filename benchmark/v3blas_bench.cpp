@@ -174,6 +174,9 @@ static void bench_all_ ## P(int n)                                         \
         ro[k] = scratch + (size_t)k * n;                                   \
         wo[k] = scratch + (size_t)(6 + k) * n;                             \
     }                                                                      \
+    v3 ## P ow = v3 ## P ## _wrap(wo[0], wo[1], wo[2], n);                 \
+    v3 ## P ou = v3 ## P ## _wrap(wo[1], wo[2], wo[3], n);                 \
+    v3 ## P ov = v3 ## P ## _wrap(wo[3], wo[4], wo[5], n);                 \
                                                                            \
     { Timing tp = timed_run([&]{ v1axpy_ ## P(s_ax, bxv, byv, wo[0], n); }); \
       Timing tc = timed_run_restore([&]{ memcpy(ro[0], byv, (size_t)n * esz); }, \
@@ -192,8 +195,8 @@ static void bench_all_ ## P(int n)                                         \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1, ro[0], 1); });   \
       add_result("v3dot_" #P, tp, tc, (ICX ? 22.0 : 5.0), n, "r=x1y1+x2y2+x3y3"); } \
                                                                            \
-    { v3had_ ## P(x, y, wo[0], wo[1], wo[2]);                              \
-      Timing tp = timed_run([&]{ v3had_ ## P(x, y, wo[0], wo[1], wo[2]); }); \
+    { v3had_ ## P(x, y, ow);                              \
+      Timing tp = timed_run([&]{ v3had_ ## P(x, y, ow); }); \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3had(n,                    \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1,                  \
           ro[0], 1, ro[1], 1, ro[2], 1); });                               \
@@ -211,16 +214,15 @@ static void bench_all_ ## P(int n)                                         \
           ro[0], 1); });                                                   \
       add_result("v1norm_" #P, tp, tc, (ICX ? 16.0 : 2.0), n, "r=sqrt(q\xc2\xb7q)"); } \
                                                                            \
-    { v3cross_ ## P(x, y, wo[0], wo[1], wo[2]);                            \
-      Timing tp = timed_run([&]{ v3cross_ ## P(x, y, wo[0], wo[1], wo[2]); }); \
+    { v3cross_ ## P(x, y, ow);                            \
+      Timing tp = timed_run([&]{ v3cross_ ## P(x, y, ow); }); \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3cross(n,                  \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1,                  \
           ro[0], 1, ro[1], 1, ro[2], 1); });                               \
       add_result("v3cross_" #P, tp, tc, (ICX ? 42.0 : 9.0), n, "w=x\xe2\x88\xa7y"); } \
                                                                            \
-    { v3crossscal_ ## P(x, y, s_cs, wo[0], wo[1], wo[2]);                  \
-      Timing tp = timed_run([&]{ v3crossscal_ ## P(x, y, s_cs,             \
-          wo[0], wo[1], wo[2]); });                                        \
+    { v3crossscal_ ## P(x, y, s_cs, ow);                  \
+      Timing tp = timed_run([&]{ v3crossscal_ ## P(x, y, s_cs, ow); });                                        \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3crossscal(n, CCS,         \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1,                  \
           ro[0], 1, ro[1], 1, ro[2], 1); });                               \
@@ -242,10 +244,8 @@ static void bench_all_ ## P(int n)                                         \
       add_result("v3crosssqr_" #P, tp, tc, (ICX ? 64.0 : 14.0), n,         \
                  "r=(x\xe2\x88\xa7y)\xc2\xb7(x\xe2\x88\xa7y)"); }          \
                                                                            \
-    { v3crossxy_crossxz_ ## P(x, y, w,                                     \
-          wo[0], wo[1], wo[2], wo[3], wo[4], wo[5]);                       \
-      Timing tp = timed_run([&]{ v3crossxy_crossxz_ ## P(x, y, w,          \
-          wo[0], wo[1], wo[2], wo[3], wo[4], wo[5]); });                   \
+    { v3crossxy_crossxz_ ## P(x, y, w, ow, ov);                       \
+      Timing tp = timed_run([&]{ v3crossxy_crossxz_ ## P(x, y, w, ow, ov); });                   \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3crossxy_crossxz(n,        \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1,                  \
           w.x, 1, w.y, 1, w.z, 1, ro[0], 1, ro[1], 1, ro[2], 1,            \
@@ -253,9 +253,8 @@ static void bench_all_ ## P(int n)                                         \
       add_result("v3crossxy_crossxz_" #P, tp, tc, (ICX ? 108.0 : 18.0), n, \
                  "u=x\xe2\x88\xa7y,v=x\xe2\x88\xa7z"); }                   \
                                                                            \
-    { v3crossxy_dotxz_ ## P(x, y, w, wo[0], wo[1], wo[2], wo[3]);          \
-      Timing tp = timed_run([&]{ v3crossxy_dotxz_ ## P(x, y, w,            \
-          wo[0], wo[1], wo[2], wo[3]); });                                 \
+    { v3crossxy_dotxz_ ## P(x, y, w, ow, wo[3]);          \
+      Timing tp = timed_run([&]{ v3crossxy_dotxz_ ## P(x, y, w, ow, wo[3]); });                                 \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3crossxy_dotxz(n,          \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1,                  \
           w.x, 1, w.y, 1, w.z, 1, ro[0], 1, ro[1], 1, ro[2], 1,            \
@@ -272,54 +271,48 @@ static void bench_all_ ## P(int n)                                         \
       add_result("v3dotxy_dotxz_" #P, tp, tc, (ICX ? 64.0 : 14.0), n,      \
                  "r=x\xc2\xb7y,q=x\xc2\xb7z"); }                           \
                                                                            \
-    { v3crosscross_ ## P(x, y, w, wo[0], wo[1], wo[2]);                    \
-      Timing tp = timed_run([&]{ v3crosscross_ ## P(x, y, w,               \
-          wo[0], wo[1], wo[2]); });                                        \
+    { v3crosscross_ ## P(x, y, w, ow);                    \
+      Timing tp = timed_run([&]{ v3crosscross_ ## P(x, y, w, ow); });                                        \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3crosscross(n,             \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1,                  \
           w.x, 1, w.y, 1, w.z, 1, ro[0], 1, ro[1], 1, ro[2], 1); });       \
       add_result("v3crosscross_" #P, tp, tc, (ICX ? 84.0 : 18.0), n,       \
                  "r=(x\xe2\x88\xa7y)\xe2\x88\xa7w"); }                     \
                                                                            \
-    { v3norm_unit_ ## P(x, 0.25, wo[0], wo[1], wo[2], wo[3]);              \
-      Timing tp = timed_run([&]{ v3norm_unit_ ## P(x, 0.25,                \
-          wo[0], wo[1], wo[2], wo[3]); });                                 \
+    { v3norm_unit_ ## P(x, 0.25, wo[0], ou);              \
+      Timing tp = timed_run([&]{ v3norm_unit_ ## P(x, 0.25, wo[0], ou); });                                 \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3norm_unit(n,              \
           x.x, 1, x.y, 1, x.z, 1, 0.25, ro[0], 1,                          \
           ro[1], 1, ro[2], 1, ro[3], 1); });                               \
       add_result("v3norm_unit_" #P, tp, tc, (ICX ? 76.0 : 12.0), n,        \
                  "u=x/sqrt(x\xc2\xb7x+eps)"); }                            \
                                                                            \
-    { v3refl_ ## P(x, y, 1.5, 0.25, wo[0], wo[1], wo[2]);                  \
-      Timing tp = timed_run([&]{ v3refl_ ## P(x, y, 1.5, 0.25,             \
-          wo[0], wo[1], wo[2]); });                                        \
+    { v3refl_ ## P(x, y, 1.5, 0.25, ow);                  \
+      Timing tp = timed_run([&]{ v3refl_ ## P(x, y, 1.5, 0.25, ow); });                                        \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3refl(n,                   \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1, 1.5, 0.25,       \
           ro[0], 1, ro[1], 1, ro[2], 1); });                               \
       add_result("v3refl_" #P, tp, tc, (ICX ? 108.0 : 18.0), n,            \
                  "q=x-a(x\xc2\xb7y)/(y\xc2\xb7y+eps)y"); }                 \
                                                                            \
-    { v3exb_ ## P(x, y, 1.5, 0.25, wo[0], wo[1], wo[2]);                   \
-      Timing tp = timed_run([&]{ v3exb_ ## P(x, y, 1.5, 0.25,              \
-          wo[0], wo[1], wo[2]); });                                        \
+    { v3exb_ ## P(x, y, 1.5, 0.25, ow);                   \
+      Timing tp = timed_run([&]{ v3exb_ ## P(x, y, 1.5, 0.25, ow); });                                        \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3exb(n,                    \
           x.x, 1, x.y, 1, x.z, 1, y.x, 1, y.y, 1, y.z, 1, 1.5, 0.25,       \
           ro[0], 1, ro[1], 1, ro[2], 1); });                               \
       add_result("v3exb_" #P, tp, tc, (ICX ? 52.0 : 20.0), n,              \
                  "r=a(x\xe2\x88\xa7y)/(y\xc2\xb7y+eps)"); }                \
                                                                            \
-    { v3drag_ ## P(x, 1.5, 0.25, wo[0], wo[1], wo[2]);                     \
-      Timing tp = timed_run([&]{ v3drag_ ## P(x, 1.5, 0.25,                \
-          wo[0], wo[1], wo[2]); });                                        \
+    { v3drag_ ## P(x, 1.5, 0.25, ow);                     \
+      Timing tp = timed_run([&]{ v3drag_ ## P(x, 1.5, 0.25, ow); });                                        \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3drag(n,                   \
           x.x, 1, x.y, 1, x.z, 1, 1.5, 0.25,                               \
           ro[0], 1, ro[1], 1, ro[2], 1); });                               \
       add_result("v3drag_" #P, tp, tc, (ICX ? 48.0 : 27.0), n,             \
                  "r=a*x*sqrt(x\xc2\xb7x+eps)"); }                          \
                                                                            \
-    { v3mom_ke_ ## P(bq, x, wo[0], wo[1], wo[2], wo[3]);                   \
-      Timing tp = timed_run([&]{ v3mom_ke_ ## P(bq, x,                     \
-          wo[0], wo[1], wo[2], wo[3]); });                                 \
+    { v3mom_ke_ ## P(bq, x, ow, wo[3]);                   \
+      Timing tp = timed_run([&]{ v3mom_ke_ ## P(bq, x, ow, wo[3]); });                                 \
       Timing tc = timed_run([&]{ cblas_ ## P ## 3mom_ke(n, bq, 1,          \
           x.x, 1, x.y, 1, x.z, 1,                                          \
           ro[0], 1, ro[1], 1, ro[2], 1, ro[3], 1); });                     \

@@ -43,6 +43,8 @@ int main(void){
 
     /* output buffers, reused between demos */
     double o0[N], o1[N], o2[N], o3[N], o4[N], o5[N];
+    /* outputs are views too: their .incx/.incy/.incz are the write strides */
+    v3d ow = v3d_wrap(o0, o1, o2, N), ov = v3d_wrap(o3, o4, o5, N);
 
     printf("n = %d\n\n", N);
 
@@ -59,7 +61,7 @@ int main(void){
     printf("v3dot        r = x1y1+x2y2+x3y3 [0] = %.4f\n", o0[0]);
 
     /* w = x .* y  (Hadamard, component-wise) */
-    v3had(x, y, o0, o1, o2);
+    v3had(x, y, ow);
     printf("v3had        w = x.*y           [0] = (%.4f, %.4f, %.4f)\n",
            o0[0], o1[0], o2[0]);
 
@@ -72,12 +74,12 @@ int main(void){
     printf("v1norm       r = sqrt(q·q)      [0] = %.4f\n", o0[0]);
 
     /* w = x∧y  (cross product) */
-    v3cross(x, y, o0, o1, o2);
+    v3cross(x, y, ow);
     printf("v3cross      w = x∧y            [0] = (%.4f, %.4f, %.4f)\n",
            o0[0], o1[0], o2[0]);
 
     /* w = a·(x∧y) */
-    v3crossscal(x, y, b, o0, o1, o2);
+    v3crossscal(x, y, b, ow);
     printf("v3crossscal  w = %g·(x∧y)       [0] = (%.4f, %.4f, %.4f)\n",
            b, o0[0], o1[0], o2[0]);
 
@@ -90,12 +92,12 @@ int main(void){
     printf("v3crosssqr   r = (x∧y)·(x∧y)    [0] = %.4f\n", o0[0]);
 
     /* two outputs, one call: u = x∧y, v = x∧w */
-    v3crossxy_crossxz(x, y, w, o0, o1, o2, o3, o4, o5);
+    v3crossxy_crossxz(x, y, w, ow, ov);
     printf("v3crossxy_crossxz  u = x∧y, v = x∧w  [0] u = (%.4f, %.4f, %.4f)\n",
            o0[0], o1[0], o2[0]);
 
     /* u = x∧y, r = x·w */
-    v3crossxy_dotxz(x, y, w, o0, o1, o2, o3);
+    v3crossxy_dotxz(x, y, w, ow, o3);
     printf("v3crossxy_dotxz  u = x∧y, r = x·w  [0] r = %.4f\n", o3[0]);
 
     /* r = x·y, q = x·w */
@@ -116,7 +118,8 @@ int main(void){
         cy2[i] = v3blas_zc(8.0, 0.1 * i);
     }
     v3z cx = v3z_wrap(cx0, cx1, cx2, N), cy = v3z_wrap(cy0, cy1, cy2, N);
-    v3crossscal(cx, cy, v3blas_zc(1.5, 0.5), cz0, cz1, cz2);
+    v3z cz = v3z_wrap(cz0, cz1, cz2, N);
+    v3crossscal(cx, cy, v3blas_zc(1.5, 0.5), cz);
     printf("\nv3crossscal (z)  w = a·(x∧y)   [0] = (%.4f + %.4f i, "
            "%.4f + %.4f i, %.4f + %.4f i)\n",
            cz0[0].re, cz0[0].im, cz1[0].re, cz1[0].im,

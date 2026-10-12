@@ -43,26 +43,27 @@ static void test_s(void)
     v1axpy_s(1.5f, xv, yv, ax, N);
     v1xypa_s(q, t, 0.25f, xy, N);
     v3dot_s(x, y, dot);
-    v3had_s(x, y, had0, had1, had2);
+    v3had_s(x, y, v3s_wrap(had0, had1, had2, N));
     v3sqr_s(x, sqr);
     v1norm_s(q, norm, N);
-    v3cross_s(x, y, cr0, cr1, cr2);
-    v3crossscal_s(x, y, 1.5f, cs0, cs1, cs2);
+    v3cross_s(x, y, v3s_wrap(cr0, cr1, cr2, N));
+    v3crossscal_s(x, y, 1.5f, v3s_wrap(cs0, cs1, cs2, N));
     v3crossdot_s(x, y, w, crd);
     v3crosssqr_s(x, y, crsq);
-    v3crossxy_crossxz_s(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
-    v3crossxy_dotxz_s(x, y, w, pu0, pu1, pu2, pur);
+    v3crossxy_crossxz_s(x, y, w, v3s_wrap(uu0, uu1, uu2, N),
+                                 v3s_wrap(vv0, vv1, vv2, N));
+    v3crossxy_dotxz_s(x, y, w, v3s_wrap(pu0, pu1, pu2, N), pur);
     v3dotxy_dotxz_s(x, y, w, dxy_r, dxy_q);
 
     float cc0[N], cc1[N], cc2[N], nur[N], nn0[N], nn1[N], nn2[N];
     float rf0[N], rf1[N], rf2[N], ex0[N], ex1[N], ex2[N];
     float dr0[N], dr1[N], dr2[N], mm0[N], mm1[N], mm2[N], ke[N];
-    v3crosscross_s(x, y, w, cc0, cc1, cc2);
-    v3norm_unit_s(x, 0.25f, nur, nn0, nn1, nn2);
-    v3refl_s(x, y, 1.5f, 0.25f, rf0, rf1, rf2);
-    v3exb_s(x, y, 1.5f, 0.25f, ex0, ex1, ex2);
-    v3drag_s(x, 1.5f, 0.25f, dr0, dr1, dr2);
-    v3mom_ke_s(q, x, mm0, mm1, mm2, ke);
+    v3crosscross_s(x, y, w, v3s_wrap(cc0, cc1, cc2, N));
+    v3norm_unit_s(x, 0.25f, nur, v3s_wrap(nn0, nn1, nn2, N));
+    v3refl_s(x, y, 1.5f, 0.25f, v3s_wrap(rf0, rf1, rf2, N));
+    v3exb_s(x, y, 1.5f, 0.25f, v3s_wrap(ex0, ex1, ex2, N));
+    v3drag_s(x, 1.5f, 0.25f, v3s_wrap(dr0, dr1, dr2, N));
+    v3mom_ke_s(q, x, v3s_wrap(mm0, mm1, mm2, N), ke);
 
     const void *g[48] = {
         ax, xy, dot, had0, had1, had2, sqr, norm,
@@ -108,26 +109,27 @@ static void test_d(void)
     v1axpy_d(1.5, xv, yv, ax, N);
     v1xypa_d(q, t, 0.25, xy, N);
     v3dot_d(x, y, dot);
-    v3had_d(x, y, had0, had1, had2);
+    v3had_d(x, y, v3d_wrap(had0, had1, had2, N));
     v3sqr_d(x, sqr);
     v1norm_d(q, norm, N);
-    v3cross_d(x, y, cr0, cr1, cr2);
-    v3crossscal_d(x, y, 1.5, cs0, cs1, cs2);
+    v3cross_d(x, y, v3d_wrap(cr0, cr1, cr2, N));
+    v3crossscal_d(x, y, 1.5, v3d_wrap(cs0, cs1, cs2, N));
     v3crossdot_d(x, y, w, crd);
     v3crosssqr_d(x, y, crsq);
-    v3crossxy_crossxz_d(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
-    v3crossxy_dotxz_d(x, y, w, pu0, pu1, pu2, pur);
+    v3crossxy_crossxz_d(x, y, w, v3d_wrap(uu0, uu1, uu2, N),
+                                 v3d_wrap(vv0, vv1, vv2, N));
+    v3crossxy_dotxz_d(x, y, w, v3d_wrap(pu0, pu1, pu2, N), pur);
     v3dotxy_dotxz_d(x, y, w, dxy_r, dxy_q);
 
     double cc0[N], cc1[N], cc2[N], nur[N], nn0[N], nn1[N], nn2[N];
     double rf0[N], rf1[N], rf2[N], ex0[N], ex1[N], ex2[N];
     double dr0[N], dr1[N], dr2[N], mm0[N], mm1[N], mm2[N], ke[N];
-    v3crosscross_d(x, y, w, cc0, cc1, cc2);
-    v3norm_unit_d(x, 0.25, nur, nn0, nn1, nn2);
-    v3refl_d(x, y, 1.5, 0.25, rf0, rf1, rf2);
-    v3exb_d(x, y, 1.5, 0.25, ex0, ex1, ex2);
-    v3drag_d(x, 1.5, 0.25, dr0, dr1, dr2);
-    v3mom_ke_d(q, x, mm0, mm1, mm2, ke);
+    v3crosscross_d(x, y, w, v3d_wrap(cc0, cc1, cc2, N));
+    v3norm_unit_d(x, 0.25, nur, v3d_wrap(nn0, nn1, nn2, N));
+    v3refl_d(x, y, 1.5, 0.25, v3d_wrap(rf0, rf1, rf2, N));
+    v3exb_d(x, y, 1.5, 0.25, v3d_wrap(ex0, ex1, ex2, N));
+    v3drag_d(x, 1.5f, 0.25f, v3d_wrap(dr0, dr1, dr2, N));
+    v3mom_ke_d(q, x, v3d_wrap(mm0, mm1, mm2, N), ke);
 
     const void *g[48] = {
         ax, xy, dot, had0, had1, had2, sqr, norm,
@@ -149,7 +151,7 @@ static void test_d(void)
     {
         double bx[2 * N], by[2 * N], bz[2 * N];
         double byx[2 * N], byy[2 * N], byz[2 * N];
-        double sw0[N], sw1[N], sw2[N];
+        double sw0[2 * N], sw1[2 * N], sw2[2 * N];
         refset RS[N];
         for (int i = 0; i < N; i++) {
             bx[2 * i] = (double)VAL(21, i);
@@ -164,12 +166,14 @@ static void test_d(void)
         v3d sy = v3d_wrap(byx, byy, byz, N);
         sx.incx = 2; sx.incy = 2; sx.incz = 2;
         sy.incx = 2; sy.incy = 2; sy.incz = 2;
-        v3cross(sx, sy, sw0, sw1, sw2);  /* C11 _Generic name */
+        v3d so = v3d_wrap(sw0, sw1, sw2, N);   /* strided OUTPUTS now too */
+        so.incx = 2; so.incy = 2; so.incz = 2;
+        v3cross(sx, sy, so);  /* C11 _Generic name */
         for (int c = 0; c < 3; c++) {
             ld e = 0;
             const double *a = (const double *[]){ sw0, sw1, sw2 }[c];
             for (int i = 0; i < N; i++) {
-                cr gv = { a[i], 0 }, rv = RS[i].crw[c];
+                cr gv = { a[2 * i], 0 }, rv = RS[i].crw[c];
                 if (relerr(gv, rv) > e) e = relerr(gv, rv);
             }
             chk("strided v3cross_d", e, 1e-12L);
@@ -205,26 +209,27 @@ static void test_c(void)
     v1axpy_c(v3blas_cc(1.5f, 0.5f), xv, yv, ax, N);
     v1xypa_c(q, t, v3blas_cc(0.25f, 0.1f), xy, N);
     v3dot_c(x, y, dot);
-    v3had_c(x, y, had0, had1, had2);
+    v3had_c(x, y, v3c_wrap(had0, had1, had2, N));
     v3sqr_c(x, sqr);
     v1norm_c(q, norm, N);
-    v3cross_c(x, y, cr0, cr1, cr2);
-    v3crossscal_c(x, y, v3blas_cc(1.5f, 0.5f), cs0, cs1, cs2);
+    v3cross_c(x, y, v3c_wrap(cr0, cr1, cr2, N));
+    v3crossscal_c(x, y, v3blas_cc(1.5f, 0.5f), v3c_wrap(cs0, cs1, cs2, N));
     v3crossdot_c(x, y, w, crd);
     v3crosssqr_c(x, y, crsq);
-    v3crossxy_crossxz_c(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
-    v3crossxy_dotxz_c(x, y, w, pu0, pu1, pu2, pur);
+    v3crossxy_crossxz_c(x, y, w, v3c_wrap(uu0, uu1, uu2, N),
+                                 v3c_wrap(vv0, vv1, vv2, N));
+    v3crossxy_dotxz_c(x, y, w, v3c_wrap(pu0, pu1, pu2, N), pur);
     v3dotxy_dotxz_c(x, y, w, dxy_r, dxy_q);
 
     Z cc0[N], cc1[N], cc2[N], nur[N], nn0[N], nn1[N], nn2[N];
     Z rf0[N], rf1[N], rf2[N], ex0[N], ex1[N], ex2[N];
     Z dr0[N], dr1[N], dr2[N], mm0[N], mm1[N], mm2[N], ke[N];
-    v3crosscross_c(x, y, w, cc0, cc1, cc2);
-    v3norm_unit_c(x, 0.25f, nur, nn0, nn1, nn2);
-    v3refl_c(x, y, 1.5f, 0.25f, rf0, rf1, rf2);
-    v3exb_c(x, y, 1.5f, 0.25f, ex0, ex1, ex2);
-    v3drag_c(x, 1.5f, 0.25f, dr0, dr1, dr2);
-    v3mom_ke_c(q, x, mm0, mm1, mm2, ke);
+    v3crosscross_c(x, y, w, v3c_wrap(cc0, cc1, cc2, N));
+    v3norm_unit_c(x, 0.25f, nur, v3c_wrap(nn0, nn1, nn2, N));
+    v3refl_c(x, y, 1.5f, 0.25f, v3c_wrap(rf0, rf1, rf2, N));
+    v3exb_c(x, y, 1.5f, 0.25f, v3c_wrap(ex0, ex1, ex2, N));
+    v3drag_c(x, 1.5f, 0.25f, v3c_wrap(dr0, dr1, dr2, N));
+    v3mom_ke_c(q, x, v3c_wrap(mm0, mm1, mm2, N), ke);
 
     const void *g[48] = {
         ax, xy, dot, had0, had1, had2, sqr, norm,
@@ -271,26 +276,27 @@ static void test_z(void)
     v1axpy_z(v3blas_zc(1.5, 0.5), xv, yv, ax, N);
     v1xypa_z(q, t, v3blas_zc(0.25, 0.1), xy, N);
     v3dot_z(x, y, dot);
-    v3had_z(x, y, had0, had1, had2);
+    v3had_z(x, y, v3z_wrap(had0, had1, had2, N));
     v3sqr_z(x, sqr);
     v1norm_z(q, norm, N);
-    v3cross_z(x, y, cr0, cr1, cr2);
-    v3crossscal_z(x, y, v3blas_zc(1.5, 0.5), cs0, cs1, cs2);
+    v3cross_z(x, y, v3z_wrap(cr0, cr1, cr2, N));
+    v3crossscal_z(x, y, v3blas_zc(1.5, 0.5), v3z_wrap(cs0, cs1, cs2, N));
     v3crossdot_z(x, y, w, crd);
     v3crosssqr_z(x, y, crsq);
-    v3crossxy_crossxz_z(x, y, w, uu0, uu1, uu2, vv0, vv1, vv2);
-    v3crossxy_dotxz_z(x, y, w, pu0, pu1, pu2, pur);
+    v3crossxy_crossxz_z(x, y, w, v3z_wrap(uu0, uu1, uu2, N),
+                                 v3z_wrap(vv0, vv1, vv2, N));
+    v3crossxy_dotxz_z(x, y, w, v3z_wrap(pu0, pu1, pu2, N), pur);
     v3dotxy_dotxz_z(x, y, w, dxy_r, dxy_q);
 
     Z cc0[N], cc1[N], cc2[N], nur[N], nn0[N], nn1[N], nn2[N];
     Z rf0[N], rf1[N], rf2[N], ex0[N], ex1[N], ex2[N];
     Z dr0[N], dr1[N], dr2[N], mm0[N], mm1[N], mm2[N], ke[N];
-    v3crosscross_z(x, y, w, cc0, cc1, cc2);
-    v3norm_unit_z(x, 0.25, nur, nn0, nn1, nn2);
-    v3refl_z(x, y, 1.5, 0.25, rf0, rf1, rf2);
-    v3exb_z(x, y, 1.5, 0.25, ex0, ex1, ex2);
-    v3drag_z(x, 1.5, 0.25, dr0, dr1, dr2);
-    v3mom_ke_z(q, x, mm0, mm1, mm2, ke);
+    v3crosscross_z(x, y, w, v3z_wrap(cc0, cc1, cc2, N));
+    v3norm_unit_z(x, 0.25, nur, v3z_wrap(nn0, nn1, nn2, N));
+    v3refl_z(x, y, 1.5, 0.25, v3z_wrap(rf0, rf1, rf2, N));
+    v3exb_z(x, y, 1.5, 0.25, v3z_wrap(ex0, ex1, ex2, N));
+    v3drag_z(x, 1.5f, 0.25f, v3z_wrap(dr0, dr1, dr2, N));
+    v3mom_ke_z(q, x, v3z_wrap(mm0, mm1, mm2, N), ke);
 
     const void *g[48] = {
         ax, xy, dot, had0, had1, had2, sqr, norm,

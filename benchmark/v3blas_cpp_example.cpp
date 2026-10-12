@@ -22,9 +22,10 @@ int main()
     double a1[n], a2[n], a3[n], ke[n];
 
     v3d v = v3d_wrap(v1, v2, v3, n);     /* view: 3 pointers + n, by value */
+    v3d aw = v3d_wrap(a1, a2, a3, n);    /* outputs are views too          */
 
-    v3drag(v, 0.5, 1e-12, a1, a2, a3);   /* a = 0.5*v*sqrt(v.v+eps)      */
-    v3mom_ke(rho, v, a1, a2, a3, ke);    /* reuse a[] as m, k = .5*rho*v2*/
+    v3drag(v, 0.5, 1e-12, aw);          /* a = 0.5*v*sqrt(v.v+eps)      */
+    v3mom_ke(rho, v, aw, ke);           /* reuse a[] as m, k = .5*rho*v2*/
 
     printf("kinetic:");
     for (int i = 0; i < n; i++) printf(" %.1f", ke[i]);

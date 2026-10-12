@@ -48,42 +48,52 @@ typedef struct { v3blas_doublecomplex *x, *y, *z; blasint incx, incy, incz, n; }
 
 ## Outputs are arguments (the only rule to remember)
 
-Every operation is a `void` procedure: outputs are **trailing pointer
-arguments you provide**, exactly like the `y` of `cblas_daxpy`. Nothing
-is allocated, nothing is freed, nothing is returned. Outputs may alias
-the inputs. Vector outputs are written unit stride (that is what the
-kernels write).
+Every operation is a `void` procedure: outputs are **trailing arguments
+you provide** — exactly like the `y` of `cblas_daxpy`. Nothing is
+allocated, nothing is freed, nothing is returned. Outputs may alias the
+inputs.
+
+- A **scalar output** (`r`, `k`) is a plain `T *` array.
+- A **3-vector output** is a `v3<P>` view you built with `v3<P>_wrap`.
+  Its `.incx/.incy/.incz` are the *write* strides for the three
+  components (a view with `incx=2` scatters the x-component). The length
+  `n` always comes from the input view `x.n` — the output's own `.n` is
+  unused.
+
+So one view type serves inputs and outputs; there is no second
+"result" shape to learn.
 
 ## The 19 operations (C / C++)
 
 Equation → call (shown for `d`; the generic name selects the precision
-from an output pointer type under C11 `_Generic`, or just suffix the
-name). Scalars: real by value; complex by value of `v3blas_*complex`
-(construct with `v3blas_cc(re, im)` / `v3blas_zc(re, im)`).
+from the first `v3<P>` input — or from an output pointer for pure-1-vector
+ops — under C11 `_Generic`, or just suffix the name). Scalars: real by
+value; complex by value of `v3blas_*complex` (construct with
+`v3blas_cc(re, im)` / `v3blas_zc(re, im)`).
 `n` is explicit for pure-1-vector ops and comes from `x.n` when any
 input is a `v3<P>`.
 
-| equation                          | v3blas call                                   |
-|-----------------------------------|-----------------------------------------------|
-| `y = alpha*x + y`                 | `v1axpy(alpha, x, y, r, n);`                  |
-| `r = q.*t + a`                    | `v1xypa(q, t, a, r, n);`                      |
-| `r = x1*y1+x2*y2+x3*y3`           | `v3dot(x, y, r);`                             |
-| `w = x.*y`  (per component)       | `v3had(x, y, wx, wy, wz);`                    |
-| `r = x1²+x2²+x3²`                 | `v3sqr(x, r);`                                |
-| `r = sqrt(q·q)`                   | `v1norm(q, r, n);`                            |
-| `w = x∧y`                         | `v3cross(x, y, wx, wy, wz);`                  |
-| `w = a·(x∧y)`                     | `v3crossscal(x, y, a, wx, wy, wz);`           |
-| `r = (x∧y)·w`                     | `v3crossdot(x, y, w, r);`                     |
-| `r = (x∧y)·(x∧y)`                 | `v3crosssqr(x, y, r);`                        |
-| `u = x∧y,  v = x∧w`               | `v3crossxy_crossxz(x, y, w, ux,uy,uz, vx,vy,vz);` |
-| `u = x∧y,  r = x·w`               | `v3crossxy_dotxz(x, y, w, ux,uy,uz, r);`      |
-| `r = x·y,  q = x·w`               | `v3dotxy_dotxz(x, y, w, r, q);`               |
-| `r = (x∧y)∧z`                     | `v3crosscross(x, y, z, rx,ry,rz);`            |
-| `r = sqrt(x·x+eps), u = x/r`      | `v3norm_unit(x, eps, r, ux,uy,uz);`           |
-| `q = x − a(x·y)y/(y·y+eps)`       | `v3refl(x, y, a, eps, qx,qy,qz);`             |
-| `r = a(x∧y)/(y·y+eps)`            | `v3exb(x, y, a, eps, rx,ry,rz);`              |
-| `r = a*x*sqrt(x·x+eps)`           | `v3drag(x, a, eps, rx,ry,rz);`                |
-| `m = s*x,  k = 0.5*s*(x·x)`       | `v3mom_ke(s, x, mx,my,mz, k);`                |
+| equation                          | v3blas call                             |
+|-----------------------------------|-----------------------------------------|
+| `y = alpha*x + y`                 | `v1axpy(alpha, x, y, r, n);`            |
+| `r = q.*t + a`                    | `v1xypa(q, t, a, r, n);`                |
+| `r = x1*y1+x2*y2+x3*y3`           | `v3dot(x, y, r);`                       |
+| `w = x.*y`  (per component)       | `v3had(x, y, w);`                       |
+| `r = x1²+x2²+x3²`                 | `v3sqr(x, r);`                          |
+| `r = sqrt(q·q)`                   | `v1norm(q, r, n);`                      |
+| `w = x∧y`                         | `v3cross(x, y, w);`                     |
+| `w = a·(x∧y)`                     | `v3crossscal(x, y, a, w);`              |
+| `r = (x∧y)·w`                     | `v3crossdot(x, y, w, r);`               |
+| `r = (x∧y)·(x∧y)`                 | `v3crosssqr(x, y, r);`                  |
+| `u = x∧y,  v = x∧w`               | `v3crossxy_crossxz(x, y, w, u, v);`     |
+| `u = x∧y,  r = x·w`               | `v3crossxy_dotxz(x, y, w, u, r);`       |
+| `r = x·y,  q = x·w`               | `v3dotxy_dotxz(x, y, w, r, q);`         |
+| `r = (x∧y)∧z`                     | `v3crosscross(x, y, z, r);`             |
+| `r = sqrt(x·x+eps), u = x/r`      | `v3norm_unit(x, eps, r, u);`            |
+| `q = x − a(x·y)y/(y·y+eps)`       | `v3refl(x, y, a, eps, q);`              |
+| `r = a(x∧y)/(y·y+eps)`            | `v3exb(x, y, a, eps, r);`               |
+| `r = a*x*sqrt(x·x+eps)`           | `v3drag(x, a, eps, r);`                 |
+| `m = s*x,  k = 0.5*s*(x·x)`       | `v3mom_ke(s, x, m, k);`                 |
 
 The six CFD-menu ops take their guard `eps` and coefficient `a` as
 **real** scalars by value in every precision (`float` for `s`/`c`,
@@ -99,7 +109,9 @@ Both headers are C- and C++-clean; include exactly one.
 Compile the module, then your program; same names via F2003 generic
 interfaces, precision picked from the argument types. BLAS-style
 argument order: `n` first, then inputs, then outputs; explicit-shape or
-assumed-shape arrays, unit stride only.
+assumed-shape arrays, unit stride only. Fortran has no view struct: a
+3-vector stays three plain arrays, in and out — the one deliberate
+asymmetry with the C front-ends.
 
 ```fortran
 use v3blas
@@ -130,12 +142,13 @@ complex data is the principal complex `sqrt(q·q)`, on real data `|q|`.
 
 `benchmark/v3blas_test.c` (plain C): all 19 operations at all 4
 precisions against a long-double reference, generic and suffixed names,
-plus a strided (inc = 2) `v3cross_d` smoke case.
+plus a strided smoke case (inc = 2 on the *output* view of `v3cross`).
 
 `benchmark/v3blas_example.c` tours the API; `v3blas_bench.cpp` times all
-19 × 4 precisions against the raw `cblas_*` calls (err must be 0).
+19 × 4 precisions against the raw `cblas_*` calls (timing only —
+correctness is the tests' job).
 
-`benchmark/v3blas_hpp_test.cpp`: C++ overloads, bitwise (`memcmp`)
+`benchmark/v3blas_cpp_test.cpp`: C++ overloads, bitwise (`memcmp`)
 against `cblas_*` for every op × precision.
 
 `benchmark/v3blas_f90_test.f90`: all 19 generics × 4 precisions through
@@ -145,8 +158,8 @@ expressions.
 ```
 gcc  -O2 -std=c11 -I pkgs/openblas/include/openblas benchmark/v3blas_test.c \
      -L pkgs/openblas/lib -lopenblas -lm -o /tmp/v3blas_test && /tmp/v3blas_test
-g++  -O2 -std=c++11 -I pkgs/openblas/include/openblas benchmark/v3blas_hpp_test.cpp \
-     -L pkgs/openblas/lib -lopenblas -lm -o /tmp/v3blas_hpp_test && /tmp/v3blas_hpp_test
+g++  -O2 -std=c++11 -I pkgs/openblas/include/openblas benchmark/v3blas_cpp_test.cpp \
+     -L pkgs/openblas/lib -lopenblas -lm -o /tmp/v3blas_cpp_test && /tmp/v3blas_cpp_test
 gfortran -Wall pkgs/openblas/include/openblas/v3blas.f90 benchmark/v3blas_f90_test.f90 \
      -L pkgs/openblas/lib -lopenblas -lm -o /tmp/v3blas_f90_test && /tmp/v3blas_f90_test
 ```

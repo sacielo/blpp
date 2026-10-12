@@ -86,15 +86,16 @@ static void bench_ ## P(int n)                                               \
     fill(y1, n, 4); fill(y2, n, 5); fill(y3, n, 6);                          \
     v3 ## P x = v3 ## P ## _wrap(x1, x2, x3, n);                             \
     v3 ## P y = v3 ## P ## _wrap(y1, y2, y3, n);                             \
+    v3 ## P ow = v3 ## P ## _wrap(o1, o2, o3, n);   /* output view */         \
     double ms;                                                               \
     ms = timed_ms([&]{ v3dot(x, y, o1); });                                  \
     rows.push_back({"v3dot_" #P, ms, 5.0 * n / ms / 1.0e6, "r=x1y1+x2y2+x3y3"}); \
-    ms = timed_ms([&]{ v3cross(x, y, o1, o2, o3); });                        \
+    ms = timed_ms([&]{ v3cross(x, y, ow); });                                \
     rows.push_back({"v3cross_" #P, ms, 9.0 * n / ms / 1.0e6, "w=x^y"});      \
-    ms = timed_ms([&]{ v3drag(x, 1.5, 0.25, o1, o2, o3); });                 \
+    ms = timed_ms([&]{ v3drag(x, 1.5, 0.25, ow); });                         \
     rows.push_back({"v3drag_" #P, ms, 27.0 * n / ms / 1.0e6,                 \
                     "r=a*x*sqrt(x.x+eps)"});                                 \
-    ms = timed_ms([&]{ v3mom_ke(y1, x, o1, o2, o3, o4); });                  \
+    ms = timed_ms([&]{ v3mom_ke(y1, x, ow, o4); });                          \
     rows.push_back({"v3mom_ke_" #P, ms, 10.0 * n / ms / 1.0e6,               \
                     "m=s*x, k=0.5*s*(x.x)"});                                \
     free(x1);                                                                \
