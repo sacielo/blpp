@@ -33472,10 +33472,10 @@ index 0000000..cdfacb1
 +#endif
 diff --git a/v3blas.f90 b/v3blas.f90
 new file mode 100644
-index 0000000..14cc955
+index 0000000..e51542c
 --- /dev/null
 +++ b/v3blas.f90
-@@ -0,0 +1,2474 @@
+@@ -0,0 +1,2424 @@
 +! ****************************************************************************
 +! Copyright (c) 2026, The OpenBLAS Project
 +! All rights reserved.
@@ -33506,14 +33506,21 @@ index 0000000..14cc955
 +
 +! v3blas.f90 - Fortran front-end for the v3blas extension operations.
 +! Type-generic, void, allocation-free Fortran 2003 (ISO_C_BINDING).
-+! A 3-vector is its three component arrays; n comes first (BLAS style);
-+! unit stride only - for strides call the cblas_* entry points.
-+! Same equation names as v3blas.h; outputs are trailing arguments:
-+!   call v3cross(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)  ! w = x AND y
-+!   call v3dot(n, x1, x2, x3, y1, y2, y3, r)             ! r = x . y
-+! The compiler picks s/d/c/z from the argument types.  Compile this
-+! file first, then the user program; link -lopenblas -lgfortran.
-+
++! A 3-vector is one FIELD array u(n, 3): one row per point; in
++! column-major storage each COLUMN u(:, c) is one contiguous
++! component array - exactly what the kernels want.  n is implicit
++! (size(u, 1)); the argument order matches v3blas.h; outputs trail:
++!   call v3cross(x, y, w)     ! w = x AND y     (x, y, w : T(3, n))
++!   call v3dot(x, y, r)       ! r = x . y       (r : T(n))
++!   call v3drag(x, a, eps, r) ! r = a*x*sqrt(x . x + eps)
++! Pure 1-vector ops keep the BLAS form with explicit n:
++!   call v1axpy(n, alpha, x, y)
++! The compiler picks s/d/c/z from the argument types.  The actual
++! arrays must be contiguous and (3, n)-shaped; compile with
++! -fcheck=bounds while debugging.  For strided or interleaved storage
++! call the cblas_* entry points directly, or the exported F77 names:
++!   call d3cross(n, x1, 1, x2, 1, x3, 1, y1, 1, y2, 1, y3, 1, w1, 1, w2, 1, w3, 1)
++! Compile this file first, then the user program; link -lopenblas.
 +module v3blas
 +  use, intrinsic :: iso_c_binding, only: c_int, c_float, c_double, &
 +      c_float_complex, c_double_complex
@@ -34916,7 +34923,6 @@ index 0000000..14cc955
 +  end interface
 +
 +contains
-+
 +  subroutine v1axpy_s(n, alpha, x, y)
 +    integer(c_int), value :: n
 +    real(c_float), value :: alpha
@@ -34977,141 +34983,141 @@ index 0000000..14cc955
 +    complex(c_double_complex) :: r(*)
 +    call cblas_1xypa_z(n, a, q, 1_c_int, t, 1_c_int, r, 1_c_int)
 +  end subroutine v1xypa_z
-+  subroutine v3dot_s(n, x1, x2, x3, y1, y2, y3, r)
-+    integer(c_int), value :: n
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: y1(*)
-+    real(c_float) :: y2(*)
-+    real(c_float) :: y3(*)
-+    real(c_float) :: r(*)
-+    call cblas_3dot_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
-+      1_c_int, y3, 1_c_int, r, 1_c_int)
++  subroutine v3dot_s(x, y, r)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
++    real(c_float) :: y(:, :)
++    real(c_float) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3dot: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3dot: field y must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3dot_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, r,  &
++      & 1_c_int)
 +  end subroutine v3dot_s
-+  subroutine v3dot_d(n, x1, x2, x3, y1, y2, y3, r)
-+    integer(c_int), value :: n
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: y1(*)
-+    real(c_double) :: y2(*)
-+    real(c_double) :: y3(*)
-+    real(c_double) :: r(*)
-+    call cblas_3dot_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
-+      1_c_int, y3, 1_c_int, r, 1_c_int)
++  subroutine v3dot_d(x, y, r)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
++    real(c_double) :: y(:, :)
++    real(c_double) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3dot: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3dot: field y must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3dot_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, r,  &
++      & 1_c_int)
 +  end subroutine v3dot_d
-+  subroutine v3dot_c(n, x1, x2, x3, y1, y2, y3, r)
-+    integer(c_int), value :: n
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: y1(*)
-+    complex(c_float_complex) :: y2(*)
-+    complex(c_float_complex) :: y3(*)
-+    complex(c_float_complex) :: r(*)
-+    call cblas_3dot_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
-+      1_c_int, y3, 1_c_int, r, 1_c_int)
++  subroutine v3dot_c(x, y, r)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: y(:, :)
++    complex(c_float_complex) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3dot: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3dot: field y must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3dot_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, r,  &
++      & 1_c_int)
 +  end subroutine v3dot_c
-+  subroutine v3dot_z(n, x1, x2, x3, y1, y2, y3, r)
-+    integer(c_int), value :: n
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: y1(*)
-+    complex(c_double_complex) :: y2(*)
-+    complex(c_double_complex) :: y3(*)
-+    complex(c_double_complex) :: r(*)
-+    call cblas_3dot_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
-+      1_c_int, y3, 1_c_int, r, 1_c_int)
++  subroutine v3dot_z(x, y, r)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: y(:, :)
++    complex(c_double_complex) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3dot: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3dot: field y must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3dot_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, r,  &
++      & 1_c_int)
 +  end subroutine v3dot_z
-+  subroutine v3had_s(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
-+    integer(c_int), value :: n
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: y1(*)
-+    real(c_float) :: y2(*)
-+    real(c_float) :: y3(*)
-+    real(c_float) :: w1(*)
-+    real(c_float) :: w2(*)
-+    real(c_float) :: w3(*)
-+    call cblas_3had_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
-+      1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  subroutine v3had_s(x, y, w)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
++    real(c_float) :: y(:, :)
++    real(c_float) :: w(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3had: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3had: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3had: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3had_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int)
 +  end subroutine v3had_s
-+  subroutine v3had_d(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
-+    integer(c_int), value :: n
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: y1(*)
-+    real(c_double) :: y2(*)
-+    real(c_double) :: y3(*)
-+    real(c_double) :: w1(*)
-+    real(c_double) :: w2(*)
-+    real(c_double) :: w3(*)
-+    call cblas_3had_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
-+      1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  subroutine v3had_d(x, y, w)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
++    real(c_double) :: y(:, :)
++    real(c_double) :: w(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3had: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3had: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3had: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3had_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int)
 +  end subroutine v3had_d
-+  subroutine v3had_c(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
-+    integer(c_int), value :: n
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: y1(*)
-+    complex(c_float_complex) :: y2(*)
-+    complex(c_float_complex) :: y3(*)
-+    complex(c_float_complex) :: w1(*)
-+    complex(c_float_complex) :: w2(*)
-+    complex(c_float_complex) :: w3(*)
-+    call cblas_3had_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
-+      1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  subroutine v3had_c(x, y, w)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: y(:, :)
++    complex(c_float_complex) :: w(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3had: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3had: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3had: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3had_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int)
 +  end subroutine v3had_c
-+  subroutine v3had_z(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
-+    integer(c_int), value :: n
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: y1(*)
-+    complex(c_double_complex) :: y2(*)
-+    complex(c_double_complex) :: y3(*)
-+    complex(c_double_complex) :: w1(*)
-+    complex(c_double_complex) :: w2(*)
-+    complex(c_double_complex) :: w3(*)
-+    call cblas_3had_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, &
-+      1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  subroutine v3had_z(x, y, w)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: y(:, :)
++    complex(c_double_complex) :: w(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3had: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3had: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3had: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3had_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int)
 +  end subroutine v3had_z
-+  subroutine v3sqr_s(n, x1, x2, x3, r)
-+    integer(c_int), value :: n
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: r(*)
-+    call cblas_3sqr_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, r, 1_c_int)
++  subroutine v3sqr_s(x, r)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
++    real(c_float) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3sqr: field x must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3sqr_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, r, 1_c_int)
 +  end subroutine v3sqr_s
-+  subroutine v3sqr_d(n, x1, x2, x3, r)
-+    integer(c_int), value :: n
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: r(*)
-+    call cblas_3sqr_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, r, 1_c_int)
++  subroutine v3sqr_d(x, r)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
++    real(c_double) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3sqr: field x must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3sqr_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, r, 1_c_int)
 +  end subroutine v3sqr_d
-+  subroutine v3sqr_c(n, x1, x2, x3, r)
-+    integer(c_int), value :: n
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: r(*)
-+    call cblas_3sqr_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, r, 1_c_int)
++  subroutine v3sqr_c(x, r)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3sqr: field x must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3sqr_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, r, 1_c_int)
 +  end subroutine v3sqr_c
-+  subroutine v3sqr_z(n, x1, x2, x3, r)
-+    integer(c_int), value :: n
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: r(*)
-+    call cblas_3sqr_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, r, 1_c_int)
++  subroutine v3sqr_z(x, r)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3sqr: field x must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3sqr_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, r, 1_c_int)
 +  end subroutine v3sqr_z
 +  subroutine v1norm_s(n, q, r)
 +    integer(c_int), value :: n
@@ -35137,817 +35143,761 @@ index 0000000..14cc955
 +    complex(c_double_complex) :: r(*)
 +    call cblas_1norm_z(n, q, 1_c_int, r, 1_c_int)
 +  end subroutine v1norm_z
-+  subroutine v3cross_s(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
-+    integer(c_int), value :: n
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: y1(*)
-+    real(c_float) :: y2(*)
-+    real(c_float) :: y3(*)
-+    real(c_float) :: w1(*)
-+    real(c_float) :: w2(*)
-+    real(c_float) :: w3(*)
-+    call cblas_3cross_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, &
-+      y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  subroutine v3cross_s(x, y, w)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
++    real(c_float) :: y(:, :)
++    real(c_float) :: w(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3cross: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3cross: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3cross: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3cross_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int)
 +  end subroutine v3cross_s
-+  subroutine v3cross_d(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
-+    integer(c_int), value :: n
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: y1(*)
-+    real(c_double) :: y2(*)
-+    real(c_double) :: y3(*)
-+    real(c_double) :: w1(*)
-+    real(c_double) :: w2(*)
-+    real(c_double) :: w3(*)
-+    call cblas_3cross_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, &
-+      y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  subroutine v3cross_d(x, y, w)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
++    real(c_double) :: y(:, :)
++    real(c_double) :: w(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3cross: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3cross: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3cross: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3cross_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int)
 +  end subroutine v3cross_d
-+  subroutine v3cross_c(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
-+    integer(c_int), value :: n
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: y1(*)
-+    complex(c_float_complex) :: y2(*)
-+    complex(c_float_complex) :: y3(*)
-+    complex(c_float_complex) :: w1(*)
-+    complex(c_float_complex) :: w2(*)
-+    complex(c_float_complex) :: w3(*)
-+    call cblas_3cross_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, &
-+      y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  subroutine v3cross_c(x, y, w)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: y(:, :)
++    complex(c_float_complex) :: w(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3cross: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3cross: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3cross: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3cross_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int)
 +  end subroutine v3cross_c
-+  subroutine v3cross_z(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)
-+    integer(c_int), value :: n
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: y1(*)
-+    complex(c_double_complex) :: y2(*)
-+    complex(c_double_complex) :: y3(*)
-+    complex(c_double_complex) :: w1(*)
-+    complex(c_double_complex) :: w2(*)
-+    complex(c_double_complex) :: w3(*)
-+    call cblas_3cross_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, &
-+      y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++  subroutine v3cross_z(x, y, w)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: y(:, :)
++    complex(c_double_complex) :: w(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3cross: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3cross: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3cross: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3cross_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int)
 +  end subroutine v3cross_z
-+  subroutine v3crossscal_s(n, a, x1, x2, x3, y1, y2, y3, w1, w2, w3)
-+    integer(c_int), value :: n
++  subroutine v3crossscal_s(x, y, a, w)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
++    real(c_float) :: y(:, :)
 +    real(c_float), value :: a
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: y1(*)
-+    real(c_float) :: y2(*)
-+    real(c_float) :: y3(*)
-+    real(c_float) :: w1(*)
-+    real(c_float) :: w2(*)
-+    real(c_float) :: w3(*)
-+    call cblas_3crossscal_s(n, a, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++    real(c_float) :: w(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossscal: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossscal: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossscal: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossscal_s(n, a, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3),  &
++      & 1_c_int, w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int)
 +  end subroutine v3crossscal_s
-+  subroutine v3crossscal_d(n, a, x1, x2, x3, y1, y2, y3, w1, w2, w3)
-+    integer(c_int), value :: n
++  subroutine v3crossscal_d(x, y, a, w)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
++    real(c_double) :: y(:, :)
 +    real(c_double), value :: a
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: y1(*)
-+    real(c_double) :: y2(*)
-+    real(c_double) :: y3(*)
-+    real(c_double) :: w1(*)
-+    real(c_double) :: w2(*)
-+    real(c_double) :: w3(*)
-+    call cblas_3crossscal_d(n, a, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++    real(c_double) :: w(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossscal: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossscal: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossscal: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossscal_d(n, a, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3),  &
++      & 1_c_int, w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int)
 +  end subroutine v3crossscal_d
-+  subroutine v3crossscal_c(n, a, x1, x2, x3, y1, y2, y3, w1, w2, w3)
-+    integer(c_int), value :: n
++  subroutine v3crossscal_c(x, y, a, w)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: y(:, :)
 +    complex(c_float_complex) :: a
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: y1(*)
-+    complex(c_float_complex) :: y2(*)
-+    complex(c_float_complex) :: y3(*)
-+    complex(c_float_complex) :: w1(*)
-+    complex(c_float_complex) :: w2(*)
-+    complex(c_float_complex) :: w3(*)
-+    call cblas_3crossscal_c(n, a, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++    complex(c_float_complex) :: w(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossscal: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossscal: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossscal: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossscal_c(n, a, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3),  &
++      & 1_c_int, w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int)
 +  end subroutine v3crossscal_c
-+  subroutine v3crossscal_z(n, a, x1, x2, x3, y1, y2, y3, w1, w2, w3)
-+    integer(c_int), value :: n
++  subroutine v3crossscal_z(x, y, a, w)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: y(:, :)
 +    complex(c_double_complex) :: a
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: y1(*)
-+    complex(c_double_complex) :: y2(*)
-+    complex(c_double_complex) :: y3(*)
-+    complex(c_double_complex) :: w1(*)
-+    complex(c_double_complex) :: w2(*)
-+    complex(c_double_complex) :: w3(*)
-+    call cblas_3crossscal_z(n, a, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int)
++    complex(c_double_complex) :: w(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossscal: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossscal: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossscal: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossscal_z(n, a, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3),  &
++      & 1_c_int, w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int)
 +  end subroutine v3crossscal_z
-+  subroutine v3crossdot_s(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r)
-+    integer(c_int), value :: n
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: y1(*)
-+    real(c_float) :: y2(*)
-+    real(c_float) :: y3(*)
-+    real(c_float) :: w1(*)
-+    real(c_float) :: w2(*)
-+    real(c_float) :: w3(*)
-+    real(c_float) :: r(*)
-+    call cblas_3crossdot_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      r, 1_c_int)
++  subroutine v3crossdot_s(x, y, w, r)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
++    real(c_float) :: y(:, :)
++    real(c_float) :: w(:, :)
++    real(c_float) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossdot: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossdot: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossdot: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossdot_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int, r, 1_c_int)
 +  end subroutine v3crossdot_s
-+  subroutine v3crossdot_d(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r)
-+    integer(c_int), value :: n
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: y1(*)
-+    real(c_double) :: y2(*)
-+    real(c_double) :: y3(*)
-+    real(c_double) :: w1(*)
-+    real(c_double) :: w2(*)
-+    real(c_double) :: w3(*)
-+    real(c_double) :: r(*)
-+    call cblas_3crossdot_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      r, 1_c_int)
++  subroutine v3crossdot_d(x, y, w, r)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
++    real(c_double) :: y(:, :)
++    real(c_double) :: w(:, :)
++    real(c_double) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossdot: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossdot: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossdot: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossdot_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int, r, 1_c_int)
 +  end subroutine v3crossdot_d
-+  subroutine v3crossdot_c(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r)
-+    integer(c_int), value :: n
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: y1(*)
-+    complex(c_float_complex) :: y2(*)
-+    complex(c_float_complex) :: y3(*)
-+    complex(c_float_complex) :: w1(*)
-+    complex(c_float_complex) :: w2(*)
-+    complex(c_float_complex) :: w3(*)
-+    complex(c_float_complex) :: r(*)
-+    call cblas_3crossdot_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      r, 1_c_int)
++  subroutine v3crossdot_c(x, y, w, r)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: y(:, :)
++    complex(c_float_complex) :: w(:, :)
++    complex(c_float_complex) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossdot: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossdot: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossdot: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossdot_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int, r, 1_c_int)
 +  end subroutine v3crossdot_c
-+  subroutine v3crossdot_z(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r)
-+    integer(c_int), value :: n
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: y1(*)
-+    complex(c_double_complex) :: y2(*)
-+    complex(c_double_complex) :: y3(*)
-+    complex(c_double_complex) :: w1(*)
-+    complex(c_double_complex) :: w2(*)
-+    complex(c_double_complex) :: w3(*)
-+    complex(c_double_complex) :: r(*)
-+    call cblas_3crossdot_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      r, 1_c_int)
++  subroutine v3crossdot_z(x, y, w, r)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: y(:, :)
++    complex(c_double_complex) :: w(:, :)
++    complex(c_double_complex) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossdot: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossdot: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossdot: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossdot_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int, r, 1_c_int)
 +  end subroutine v3crossdot_z
-+  subroutine v3crosssqr_s(n, x1, x2, x3, y1, y2, y3, r)
-+    integer(c_int), value :: n
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: y1(*)
-+    real(c_float) :: y2(*)
-+    real(c_float) :: y3(*)
-+    real(c_float) :: r(*)
-+    call cblas_3crosssqr_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, r, 1_c_int)
++  subroutine v3crosssqr_s(x, y, r)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
++    real(c_float) :: y(:, :)
++    real(c_float) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crosssqr: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crosssqr: field y must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crosssqr_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, r,  &
++      & 1_c_int)
 +  end subroutine v3crosssqr_s
-+  subroutine v3crosssqr_d(n, x1, x2, x3, y1, y2, y3, r)
-+    integer(c_int), value :: n
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: y1(*)
-+    real(c_double) :: y2(*)
-+    real(c_double) :: y3(*)
-+    real(c_double) :: r(*)
-+    call cblas_3crosssqr_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, r, 1_c_int)
++  subroutine v3crosssqr_d(x, y, r)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
++    real(c_double) :: y(:, :)
++    real(c_double) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crosssqr: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crosssqr: field y must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crosssqr_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, r,  &
++      & 1_c_int)
 +  end subroutine v3crosssqr_d
-+  subroutine v3crosssqr_c(n, x1, x2, x3, y1, y2, y3, r)
-+    integer(c_int), value :: n
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: y1(*)
-+    complex(c_float_complex) :: y2(*)
-+    complex(c_float_complex) :: y3(*)
-+    complex(c_float_complex) :: r(*)
-+    call cblas_3crosssqr_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, r, 1_c_int)
++  subroutine v3crosssqr_c(x, y, r)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: y(:, :)
++    complex(c_float_complex) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crosssqr: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crosssqr: field y must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crosssqr_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, r,  &
++      & 1_c_int)
 +  end subroutine v3crosssqr_c
-+  subroutine v3crosssqr_z(n, x1, x2, x3, y1, y2, y3, r)
-+    integer(c_int), value :: n
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: y1(*)
-+    complex(c_double_complex) :: y2(*)
-+    complex(c_double_complex) :: y3(*)
-+    complex(c_double_complex) :: r(*)
-+    call cblas_3crosssqr_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, r, 1_c_int)
++  subroutine v3crosssqr_z(x, y, r)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: y(:, :)
++    complex(c_double_complex) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crosssqr: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crosssqr: field y must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crosssqr_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, r,  &
++      & 1_c_int)
 +  end subroutine v3crosssqr_z
-+  subroutine v3crossxy_crossxz_s(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, v1, v2, v3)
-+    integer(c_int), value :: n
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: y1(*)
-+    real(c_float) :: y2(*)
-+    real(c_float) :: y3(*)
-+    real(c_float) :: w1(*)
-+    real(c_float) :: w2(*)
-+    real(c_float) :: w3(*)
-+    real(c_float) :: u1(*)
-+    real(c_float) :: u2(*)
-+    real(c_float) :: u3(*)
-+    real(c_float) :: v1(*)
-+    real(c_float) :: v2(*)
-+    real(c_float) :: v3(*)
-+    call cblas_3crossxy_crossxz_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, v1, 1_c_int, v2, 1_c_int, v3, &
-+      1_c_int)
++  subroutine v3crossxy_crossxz_s(x, y, w, u, v)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
++    real(c_float) :: y(:, :)
++    real(c_float) :: w(:, :)
++    real(c_float) :: u(:, :)
++    real(c_float) :: v(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field w must be (n, 3)'
++    if (size(u, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field u must be (n, 3)'
++    if (size(v, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field v must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossxy_crossxz_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3),  &
++      & 1_c_int, w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int,  &
++      & u(:, 1), 1_c_int, u(:, 2), 1_c_int, u(:, 3), 1_c_int, v(:, 1),  &
++      & 1_c_int, v(:, 2), 1_c_int, v(:, 3), 1_c_int)
 +  end subroutine v3crossxy_crossxz_s
-+  subroutine v3crossxy_crossxz_d(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, v1, v2, v3)
-+    integer(c_int), value :: n
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: y1(*)
-+    real(c_double) :: y2(*)
-+    real(c_double) :: y3(*)
-+    real(c_double) :: w1(*)
-+    real(c_double) :: w2(*)
-+    real(c_double) :: w3(*)
-+    real(c_double) :: u1(*)
-+    real(c_double) :: u2(*)
-+    real(c_double) :: u3(*)
-+    real(c_double) :: v1(*)
-+    real(c_double) :: v2(*)
-+    real(c_double) :: v3(*)
-+    call cblas_3crossxy_crossxz_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, v1, 1_c_int, v2, 1_c_int, v3, &
-+      1_c_int)
++  subroutine v3crossxy_crossxz_d(x, y, w, u, v)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
++    real(c_double) :: y(:, :)
++    real(c_double) :: w(:, :)
++    real(c_double) :: u(:, :)
++    real(c_double) :: v(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field w must be (n, 3)'
++    if (size(u, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field u must be (n, 3)'
++    if (size(v, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field v must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossxy_crossxz_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3),  &
++      & 1_c_int, w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int,  &
++      & u(:, 1), 1_c_int, u(:, 2), 1_c_int, u(:, 3), 1_c_int, v(:, 1),  &
++      & 1_c_int, v(:, 2), 1_c_int, v(:, 3), 1_c_int)
 +  end subroutine v3crossxy_crossxz_d
-+  subroutine v3crossxy_crossxz_c(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, v1, v2, v3)
-+    integer(c_int), value :: n
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: y1(*)
-+    complex(c_float_complex) :: y2(*)
-+    complex(c_float_complex) :: y3(*)
-+    complex(c_float_complex) :: w1(*)
-+    complex(c_float_complex) :: w2(*)
-+    complex(c_float_complex) :: w3(*)
-+    complex(c_float_complex) :: u1(*)
-+    complex(c_float_complex) :: u2(*)
-+    complex(c_float_complex) :: u3(*)
-+    complex(c_float_complex) :: v1(*)
-+    complex(c_float_complex) :: v2(*)
-+    complex(c_float_complex) :: v3(*)
-+    call cblas_3crossxy_crossxz_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, v1, 1_c_int, v2, 1_c_int, v3, &
-+      1_c_int)
++  subroutine v3crossxy_crossxz_c(x, y, w, u, v)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: y(:, :)
++    complex(c_float_complex) :: w(:, :)
++    complex(c_float_complex) :: u(:, :)
++    complex(c_float_complex) :: v(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field w must be (n, 3)'
++    if (size(u, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field u must be (n, 3)'
++    if (size(v, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field v must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossxy_crossxz_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3),  &
++      & 1_c_int, w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int,  &
++      & u(:, 1), 1_c_int, u(:, 2), 1_c_int, u(:, 3), 1_c_int, v(:, 1),  &
++      & 1_c_int, v(:, 2), 1_c_int, v(:, 3), 1_c_int)
 +  end subroutine v3crossxy_crossxz_c
-+  subroutine v3crossxy_crossxz_z(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, v1, v2, v3)
-+    integer(c_int), value :: n
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: y1(*)
-+    complex(c_double_complex) :: y2(*)
-+    complex(c_double_complex) :: y3(*)
-+    complex(c_double_complex) :: w1(*)
-+    complex(c_double_complex) :: w2(*)
-+    complex(c_double_complex) :: w3(*)
-+    complex(c_double_complex) :: u1(*)
-+    complex(c_double_complex) :: u2(*)
-+    complex(c_double_complex) :: u3(*)
-+    complex(c_double_complex) :: v1(*)
-+    complex(c_double_complex) :: v2(*)
-+    complex(c_double_complex) :: v3(*)
-+    call cblas_3crossxy_crossxz_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, v1, 1_c_int, v2, 1_c_int, v3, &
-+      1_c_int)
++  subroutine v3crossxy_crossxz_z(x, y, w, u, v)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: y(:, :)
++    complex(c_double_complex) :: w(:, :)
++    complex(c_double_complex) :: u(:, :)
++    complex(c_double_complex) :: v(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field w must be (n, 3)'
++    if (size(u, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field u must be (n, 3)'
++    if (size(v, 2) /= 3) error stop 'v3blas: v3crossxy_crossxz: field v must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossxy_crossxz_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3),  &
++      & 1_c_int, w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int,  &
++      & u(:, 1), 1_c_int, u(:, 2), 1_c_int, u(:, 3), 1_c_int, v(:, 1),  &
++      & 1_c_int, v(:, 2), 1_c_int, v(:, 3), 1_c_int)
 +  end subroutine v3crossxy_crossxz_z
-+  subroutine v3crossxy_dotxz_s(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, r)
-+    integer(c_int), value :: n
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: y1(*)
-+    real(c_float) :: y2(*)
-+    real(c_float) :: y3(*)
-+    real(c_float) :: w1(*)
-+    real(c_float) :: w2(*)
-+    real(c_float) :: w3(*)
-+    real(c_float) :: u1(*)
-+    real(c_float) :: u2(*)
-+    real(c_float) :: u3(*)
-+    real(c_float) :: r(*)
-+    call cblas_3crossxy_dotxz_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, r, 1_c_int)
++  subroutine v3crossxy_dotxz_s(x, y, w, u, r)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
++    real(c_float) :: y(:, :)
++    real(c_float) :: w(:, :)
++    real(c_float) :: u(:, :)
++    real(c_float) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field w must be (n, 3)'
++    if (size(u, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field u must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossxy_dotxz_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3),  &
++      & 1_c_int, w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int,  &
++      & u(:, 1), 1_c_int, u(:, 2), 1_c_int, u(:, 3), 1_c_int, r, 1_c_int)
 +  end subroutine v3crossxy_dotxz_s
-+  subroutine v3crossxy_dotxz_d(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, r)
-+    integer(c_int), value :: n
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: y1(*)
-+    real(c_double) :: y2(*)
-+    real(c_double) :: y3(*)
-+    real(c_double) :: w1(*)
-+    real(c_double) :: w2(*)
-+    real(c_double) :: w3(*)
-+    real(c_double) :: u1(*)
-+    real(c_double) :: u2(*)
-+    real(c_double) :: u3(*)
-+    real(c_double) :: r(*)
-+    call cblas_3crossxy_dotxz_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, r, 1_c_int)
++  subroutine v3crossxy_dotxz_d(x, y, w, u, r)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
++    real(c_double) :: y(:, :)
++    real(c_double) :: w(:, :)
++    real(c_double) :: u(:, :)
++    real(c_double) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field w must be (n, 3)'
++    if (size(u, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field u must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossxy_dotxz_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3),  &
++      & 1_c_int, w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int,  &
++      & u(:, 1), 1_c_int, u(:, 2), 1_c_int, u(:, 3), 1_c_int, r, 1_c_int)
 +  end subroutine v3crossxy_dotxz_d
-+  subroutine v3crossxy_dotxz_c(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, r)
-+    integer(c_int), value :: n
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: y1(*)
-+    complex(c_float_complex) :: y2(*)
-+    complex(c_float_complex) :: y3(*)
-+    complex(c_float_complex) :: w1(*)
-+    complex(c_float_complex) :: w2(*)
-+    complex(c_float_complex) :: w3(*)
-+    complex(c_float_complex) :: u1(*)
-+    complex(c_float_complex) :: u2(*)
-+    complex(c_float_complex) :: u3(*)
-+    complex(c_float_complex) :: r(*)
-+    call cblas_3crossxy_dotxz_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, r, 1_c_int)
++  subroutine v3crossxy_dotxz_c(x, y, w, u, r)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: y(:, :)
++    complex(c_float_complex) :: w(:, :)
++    complex(c_float_complex) :: u(:, :)
++    complex(c_float_complex) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field w must be (n, 3)'
++    if (size(u, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field u must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossxy_dotxz_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3),  &
++      & 1_c_int, w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int,  &
++      & u(:, 1), 1_c_int, u(:, 2), 1_c_int, u(:, 3), 1_c_int, r, 1_c_int)
 +  end subroutine v3crossxy_dotxz_c
-+  subroutine v3crossxy_dotxz_z(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, u1, u2, u3, r)
-+    integer(c_int), value :: n
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: y1(*)
-+    complex(c_double_complex) :: y2(*)
-+    complex(c_double_complex) :: y3(*)
-+    complex(c_double_complex) :: w1(*)
-+    complex(c_double_complex) :: w2(*)
-+    complex(c_double_complex) :: w3(*)
-+    complex(c_double_complex) :: u1(*)
-+    complex(c_double_complex) :: u2(*)
-+    complex(c_double_complex) :: u3(*)
-+    complex(c_double_complex) :: r(*)
-+    call cblas_3crossxy_dotxz_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      u1, 1_c_int, u2, 1_c_int, u3, 1_c_int, r, 1_c_int)
++  subroutine v3crossxy_dotxz_z(x, y, w, u, r)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: y(:, :)
++    complex(c_double_complex) :: w(:, :)
++    complex(c_double_complex) :: u(:, :)
++    complex(c_double_complex) :: r(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field w must be (n, 3)'
++    if (size(u, 2) /= 3) error stop 'v3blas: v3crossxy_dotxz: field u must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crossxy_dotxz_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3),  &
++      & 1_c_int, w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int,  &
++      & u(:, 1), 1_c_int, u(:, 2), 1_c_int, u(:, 3), 1_c_int, r, 1_c_int)
 +  end subroutine v3crossxy_dotxz_z
-+  subroutine v3dotxy_dotxz_s(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r, q)
-+    integer(c_int), value :: n
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: y1(*)
-+    real(c_float) :: y2(*)
-+    real(c_float) :: y3(*)
-+    real(c_float) :: w1(*)
-+    real(c_float) :: w2(*)
-+    real(c_float) :: w3(*)
-+    real(c_float) :: r(*)
-+    real(c_float) :: q(*)
-+    call cblas_3dotxy_dotxz_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      r, 1_c_int, q, 1_c_int)
++  subroutine v3dotxy_dotxz_s(x, y, w, r, q)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
++    real(c_float) :: y(:, :)
++    real(c_float) :: w(:, :)
++    real(c_float) :: r(:)
++    real(c_float) :: q(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3dotxy_dotxz: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3dotxy_dotxz: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3dotxy_dotxz: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3dotxy_dotxz_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int, r, 1_c_int, q,  &
++      & 1_c_int)
 +  end subroutine v3dotxy_dotxz_s
-+  subroutine v3dotxy_dotxz_d(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r, q)
-+    integer(c_int), value :: n
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: y1(*)
-+    real(c_double) :: y2(*)
-+    real(c_double) :: y3(*)
-+    real(c_double) :: w1(*)
-+    real(c_double) :: w2(*)
-+    real(c_double) :: w3(*)
-+    real(c_double) :: r(*)
-+    real(c_double) :: q(*)
-+    call cblas_3dotxy_dotxz_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      r, 1_c_int, q, 1_c_int)
++  subroutine v3dotxy_dotxz_d(x, y, w, r, q)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
++    real(c_double) :: y(:, :)
++    real(c_double) :: w(:, :)
++    real(c_double) :: r(:)
++    real(c_double) :: q(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3dotxy_dotxz: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3dotxy_dotxz: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3dotxy_dotxz: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3dotxy_dotxz_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int, r, 1_c_int, q,  &
++      & 1_c_int)
 +  end subroutine v3dotxy_dotxz_d
-+  subroutine v3dotxy_dotxz_c(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r, q)
-+    integer(c_int), value :: n
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: y1(*)
-+    complex(c_float_complex) :: y2(*)
-+    complex(c_float_complex) :: y3(*)
-+    complex(c_float_complex) :: w1(*)
-+    complex(c_float_complex) :: w2(*)
-+    complex(c_float_complex) :: w3(*)
-+    complex(c_float_complex) :: r(*)
-+    complex(c_float_complex) :: q(*)
-+    call cblas_3dotxy_dotxz_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      r, 1_c_int, q, 1_c_int)
++  subroutine v3dotxy_dotxz_c(x, y, w, r, q)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: y(:, :)
++    complex(c_float_complex) :: w(:, :)
++    complex(c_float_complex) :: r(:)
++    complex(c_float_complex) :: q(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3dotxy_dotxz: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3dotxy_dotxz: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3dotxy_dotxz: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3dotxy_dotxz_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int, r, 1_c_int, q,  &
++      & 1_c_int)
 +  end subroutine v3dotxy_dotxz_c
-+  subroutine v3dotxy_dotxz_z(n, x1, x2, x3, y1, y2, y3, w1, w2, w3, r, q)
-+    integer(c_int), value :: n
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: y1(*)
-+    complex(c_double_complex) :: y2(*)
-+    complex(c_double_complex) :: y3(*)
-+    complex(c_double_complex) :: w1(*)
-+    complex(c_double_complex) :: w2(*)
-+    complex(c_double_complex) :: w3(*)
-+    complex(c_double_complex) :: r(*)
-+    complex(c_double_complex) :: q(*)
-+    call cblas_3dotxy_dotxz_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, &
-+      1_c_int, y2, 1_c_int, y3, 1_c_int, w1, 1_c_int, w2, 1_c_int, w3, 1_c_int, &
-+      r, 1_c_int, q, 1_c_int)
++  subroutine v3dotxy_dotxz_z(x, y, w, r, q)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: y(:, :)
++    complex(c_double_complex) :: w(:, :)
++    complex(c_double_complex) :: r(:)
++    complex(c_double_complex) :: q(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3dotxy_dotxz: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3dotxy_dotxz: field y must be (n, 3)'
++    if (size(w, 2) /= 3) error stop 'v3blas: v3dotxy_dotxz: field w must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3dotxy_dotxz_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & w(:, 1), 1_c_int, w(:, 2), 1_c_int, w(:, 3), 1_c_int, r, 1_c_int, q,  &
++      & 1_c_int)
 +  end subroutine v3dotxy_dotxz_z
-+  subroutine v3crosscross_s(n, x1, x2, x3, y1, y2, y3, z1, z2, z3, r1, r2, r3)
-+    integer(c_int), value :: n
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: y1(*)
-+    real(c_float) :: y2(*)
-+    real(c_float) :: y3(*)
-+    real(c_float) :: z1(*)
-+    real(c_float) :: z2(*)
-+    real(c_float) :: z3(*)
-+    real(c_float) :: r1(*)
-+    real(c_float) :: r2(*)
-+    real(c_float) :: r3(*)
-+    call cblas_3crosscross_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, 1_c_int, &
-+      y3, 1_c_int, z1, 1_c_int, z2, 1_c_int, z3, 1_c_int, r1, 1_c_int, r2, 1_c_int, r3, 1_c_int)
++  subroutine v3crosscross_s(x, y, z, r)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
++    real(c_float) :: y(:, :)
++    real(c_float) :: z(:, :)
++    real(c_float) :: r(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crosscross: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crosscross: field y must be (n, 3)'
++    if (size(z, 2) /= 3) error stop 'v3blas: v3crosscross: field z must be (n, 3)'
++    if (size(r, 2) /= 3) error stop 'v3blas: v3crosscross: field r must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crosscross_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & z(:, 1), 1_c_int, z(:, 2), 1_c_int, z(:, 3), 1_c_int, r(:, 1),  &
++      & 1_c_int, r(:, 2), 1_c_int, r(:, 3), 1_c_int)
 +  end subroutine v3crosscross_s
-+  subroutine v3crosscross_d(n, x1, x2, x3, y1, y2, y3, z1, z2, z3, r1, r2, r3)
-+    integer(c_int), value :: n
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: y1(*)
-+    real(c_double) :: y2(*)
-+    real(c_double) :: y3(*)
-+    real(c_double) :: z1(*)
-+    real(c_double) :: z2(*)
-+    real(c_double) :: z3(*)
-+    real(c_double) :: r1(*)
-+    real(c_double) :: r2(*)
-+    real(c_double) :: r3(*)
-+    call cblas_3crosscross_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, 1_c_int, &
-+      y3, 1_c_int, z1, 1_c_int, z2, 1_c_int, z3, 1_c_int, r1, 1_c_int, r2, 1_c_int, r3, 1_c_int)
++  subroutine v3crosscross_d(x, y, z, r)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
++    real(c_double) :: y(:, :)
++    real(c_double) :: z(:, :)
++    real(c_double) :: r(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crosscross: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crosscross: field y must be (n, 3)'
++    if (size(z, 2) /= 3) error stop 'v3blas: v3crosscross: field z must be (n, 3)'
++    if (size(r, 2) /= 3) error stop 'v3blas: v3crosscross: field r must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crosscross_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & z(:, 1), 1_c_int, z(:, 2), 1_c_int, z(:, 3), 1_c_int, r(:, 1),  &
++      & 1_c_int, r(:, 2), 1_c_int, r(:, 3), 1_c_int)
 +  end subroutine v3crosscross_d
-+  subroutine v3crosscross_c(n, x1, x2, x3, y1, y2, y3, z1, z2, z3, r1, r2, r3)
-+    integer(c_int), value :: n
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: y1(*)
-+    complex(c_float_complex) :: y2(*)
-+    complex(c_float_complex) :: y3(*)
-+    complex(c_float_complex) :: z1(*)
-+    complex(c_float_complex) :: z2(*)
-+    complex(c_float_complex) :: z3(*)
-+    complex(c_float_complex) :: r1(*)
-+    complex(c_float_complex) :: r2(*)
-+    complex(c_float_complex) :: r3(*)
-+    call cblas_3crosscross_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, 1_c_int, &
-+      y3, 1_c_int, z1, 1_c_int, z2, 1_c_int, z3, 1_c_int, r1, 1_c_int, r2, 1_c_int, r3, 1_c_int)
++  subroutine v3crosscross_c(x, y, z, r)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: y(:, :)
++    complex(c_float_complex) :: z(:, :)
++    complex(c_float_complex) :: r(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crosscross: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crosscross: field y must be (n, 3)'
++    if (size(z, 2) /= 3) error stop 'v3blas: v3crosscross: field z must be (n, 3)'
++    if (size(r, 2) /= 3) error stop 'v3blas: v3crosscross: field r must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crosscross_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & z(:, 1), 1_c_int, z(:, 2), 1_c_int, z(:, 3), 1_c_int, r(:, 1),  &
++      & 1_c_int, r(:, 2), 1_c_int, r(:, 3), 1_c_int)
 +  end subroutine v3crosscross_c
-+  subroutine v3crosscross_z(n, x1, x2, x3, y1, y2, y3, z1, z2, z3, r1, r2, r3)
-+    integer(c_int), value :: n
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: y1(*)
-+    complex(c_double_complex) :: y2(*)
-+    complex(c_double_complex) :: y3(*)
-+    complex(c_double_complex) :: z1(*)
-+    complex(c_double_complex) :: z2(*)
-+    complex(c_double_complex) :: z3(*)
-+    complex(c_double_complex) :: r1(*)
-+    complex(c_double_complex) :: r2(*)
-+    complex(c_double_complex) :: r3(*)
-+    call cblas_3crosscross_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, 1_c_int, &
-+      y3, 1_c_int, z1, 1_c_int, z2, 1_c_int, z3, 1_c_int, r1, 1_c_int, r2, 1_c_int, r3, 1_c_int)
++  subroutine v3crosscross_z(x, y, z, r)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: y(:, :)
++    complex(c_double_complex) :: z(:, :)
++    complex(c_double_complex) :: r(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3crosscross: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3crosscross: field y must be (n, 3)'
++    if (size(z, 2) /= 3) error stop 'v3blas: v3crosscross: field z must be (n, 3)'
++    if (size(r, 2) /= 3) error stop 'v3blas: v3crosscross: field r must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3crosscross_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int,  &
++      & z(:, 1), 1_c_int, z(:, 2), 1_c_int, z(:, 3), 1_c_int, r(:, 1),  &
++      & 1_c_int, r(:, 2), 1_c_int, r(:, 3), 1_c_int)
 +  end subroutine v3crosscross_z
-+  subroutine v3norm_unit_s(n, x1, x2, x3, eps, r, u1, u2, u3)
-+    integer(c_int), value :: n
++  subroutine v3norm_unit_s(x, eps, r, u)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
 +    real(c_float), value :: eps
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: r(*)
-+    real(c_float) :: u1(*)
-+    real(c_float) :: u2(*)
-+    real(c_float) :: u3(*)
-+    call cblas_3norm_unit_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, eps, r, 1_c_int, u1, 1_c_int, &
-+      u2, 1_c_int, u3, 1_c_int)
++    real(c_float) :: r(:)
++    real(c_float) :: u(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3norm_unit: field x must be (n, 3)'
++    if (size(u, 2) /= 3) error stop 'v3blas: v3norm_unit: field u must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3norm_unit_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, eps, r, 1_c_int, u(:, 1), 1_c_int, u(:, 2), 1_c_int,  &
++      & u(:, 3), 1_c_int)
 +  end subroutine v3norm_unit_s
-+  subroutine v3norm_unit_d(n, x1, x2, x3, eps, r, u1, u2, u3)
-+    integer(c_int), value :: n
++  subroutine v3norm_unit_d(x, eps, r, u)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
 +    real(c_double), value :: eps
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: r(*)
-+    real(c_double) :: u1(*)
-+    real(c_double) :: u2(*)
-+    real(c_double) :: u3(*)
-+    call cblas_3norm_unit_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, eps, r, 1_c_int, u1, 1_c_int, &
-+      u2, 1_c_int, u3, 1_c_int)
++    real(c_double) :: r(:)
++    real(c_double) :: u(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3norm_unit: field x must be (n, 3)'
++    if (size(u, 2) /= 3) error stop 'v3blas: v3norm_unit: field u must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3norm_unit_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, eps, r, 1_c_int, u(:, 1), 1_c_int, u(:, 2), 1_c_int,  &
++      & u(:, 3), 1_c_int)
 +  end subroutine v3norm_unit_d
-+  subroutine v3norm_unit_c(n, x1, x2, x3, eps, r, u1, u2, u3)
-+    integer(c_int), value :: n
++  subroutine v3norm_unit_c(x, eps, r, u)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
 +    real(c_float), value :: eps
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: r(*)
-+    complex(c_float_complex) :: u1(*)
-+    complex(c_float_complex) :: u2(*)
-+    complex(c_float_complex) :: u3(*)
-+    call cblas_3norm_unit_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, eps, r, 1_c_int, u1, 1_c_int, &
-+      u2, 1_c_int, u3, 1_c_int)
++    complex(c_float_complex) :: r(:)
++    complex(c_float_complex) :: u(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3norm_unit: field x must be (n, 3)'
++    if (size(u, 2) /= 3) error stop 'v3blas: v3norm_unit: field u must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3norm_unit_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, eps, r, 1_c_int, u(:, 1), 1_c_int, u(:, 2), 1_c_int,  &
++      & u(:, 3), 1_c_int)
 +  end subroutine v3norm_unit_c
-+  subroutine v3norm_unit_z(n, x1, x2, x3, eps, r, u1, u2, u3)
-+    integer(c_int), value :: n
++  subroutine v3norm_unit_z(x, eps, r, u)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
 +    real(c_double), value :: eps
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: r(*)
-+    complex(c_double_complex) :: u1(*)
-+    complex(c_double_complex) :: u2(*)
-+    complex(c_double_complex) :: u3(*)
-+    call cblas_3norm_unit_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, eps, r, 1_c_int, u1, 1_c_int, &
-+      u2, 1_c_int, u3, 1_c_int)
++    complex(c_double_complex) :: r(:)
++    complex(c_double_complex) :: u(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3norm_unit: field x must be (n, 3)'
++    if (size(u, 2) /= 3) error stop 'v3blas: v3norm_unit: field u must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3norm_unit_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, eps, r, 1_c_int, u(:, 1), 1_c_int, u(:, 2), 1_c_int,  &
++      & u(:, 3), 1_c_int)
 +  end subroutine v3norm_unit_z
-+  subroutine v3refl_s(n, x1, x2, x3, y1, y2, y3, a, eps, q1, q2, q3)
-+    integer(c_int), value :: n
++  subroutine v3refl_s(x, y, a, eps, q)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
++    real(c_float) :: y(:, :)
 +    real(c_float), value :: a
 +    real(c_float), value :: eps
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: y1(*)
-+    real(c_float) :: y2(*)
-+    real(c_float) :: y3(*)
-+    real(c_float) :: q1(*)
-+    real(c_float) :: q2(*)
-+    real(c_float) :: q3(*)
-+    call cblas_3refl_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, 1_c_int, y3, &
-+      1_c_int, a, eps, q1, 1_c_int, q2, 1_c_int, q3, 1_c_int)
++    real(c_float) :: q(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3refl: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3refl: field y must be (n, 3)'
++    if (size(q, 2) /= 3) error stop 'v3blas: v3refl: field q must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3refl_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, a,  &
++      & eps, q(:, 1), 1_c_int, q(:, 2), 1_c_int, q(:, 3), 1_c_int)
 +  end subroutine v3refl_s
-+  subroutine v3refl_d(n, x1, x2, x3, y1, y2, y3, a, eps, q1, q2, q3)
-+    integer(c_int), value :: n
++  subroutine v3refl_d(x, y, a, eps, q)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
++    real(c_double) :: y(:, :)
 +    real(c_double), value :: a
 +    real(c_double), value :: eps
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: y1(*)
-+    real(c_double) :: y2(*)
-+    real(c_double) :: y3(*)
-+    real(c_double) :: q1(*)
-+    real(c_double) :: q2(*)
-+    real(c_double) :: q3(*)
-+    call cblas_3refl_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, 1_c_int, y3, &
-+      1_c_int, a, eps, q1, 1_c_int, q2, 1_c_int, q3, 1_c_int)
++    real(c_double) :: q(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3refl: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3refl: field y must be (n, 3)'
++    if (size(q, 2) /= 3) error stop 'v3blas: v3refl: field q must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3refl_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, a,  &
++      & eps, q(:, 1), 1_c_int, q(:, 2), 1_c_int, q(:, 3), 1_c_int)
 +  end subroutine v3refl_d
-+  subroutine v3refl_c(n, x1, x2, x3, y1, y2, y3, a, eps, q1, q2, q3)
-+    integer(c_int), value :: n
++  subroutine v3refl_c(x, y, a, eps, q)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: y(:, :)
 +    real(c_float), value :: a
 +    real(c_float), value :: eps
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: y1(*)
-+    complex(c_float_complex) :: y2(*)
-+    complex(c_float_complex) :: y3(*)
-+    complex(c_float_complex) :: q1(*)
-+    complex(c_float_complex) :: q2(*)
-+    complex(c_float_complex) :: q3(*)
-+    call cblas_3refl_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, 1_c_int, y3, &
-+      1_c_int, a, eps, q1, 1_c_int, q2, 1_c_int, q3, 1_c_int)
++    complex(c_float_complex) :: q(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3refl: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3refl: field y must be (n, 3)'
++    if (size(q, 2) /= 3) error stop 'v3blas: v3refl: field q must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3refl_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, a,  &
++      & eps, q(:, 1), 1_c_int, q(:, 2), 1_c_int, q(:, 3), 1_c_int)
 +  end subroutine v3refl_c
-+  subroutine v3refl_z(n, x1, x2, x3, y1, y2, y3, a, eps, q1, q2, q3)
-+    integer(c_int), value :: n
++  subroutine v3refl_z(x, y, a, eps, q)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: y(:, :)
 +    real(c_double), value :: a
 +    real(c_double), value :: eps
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: y1(*)
-+    complex(c_double_complex) :: y2(*)
-+    complex(c_double_complex) :: y3(*)
-+    complex(c_double_complex) :: q1(*)
-+    complex(c_double_complex) :: q2(*)
-+    complex(c_double_complex) :: q3(*)
-+    call cblas_3refl_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, 1_c_int, y3, &
-+      1_c_int, a, eps, q1, 1_c_int, q2, 1_c_int, q3, 1_c_int)
++    complex(c_double_complex) :: q(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3refl: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3refl: field y must be (n, 3)'
++    if (size(q, 2) /= 3) error stop 'v3blas: v3refl: field q must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3refl_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, a,  &
++      & eps, q(:, 1), 1_c_int, q(:, 2), 1_c_int, q(:, 3), 1_c_int)
 +  end subroutine v3refl_z
-+  subroutine v3exb_s(n, x1, x2, x3, y1, y2, y3, a, eps, r1, r2, r3)
-+    integer(c_int), value :: n
++  subroutine v3exb_s(x, y, a, eps, r)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
++    real(c_float) :: y(:, :)
 +    real(c_float), value :: a
 +    real(c_float), value :: eps
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: y1(*)
-+    real(c_float) :: y2(*)
-+    real(c_float) :: y3(*)
-+    real(c_float) :: r1(*)
-+    real(c_float) :: r2(*)
-+    real(c_float) :: r3(*)
-+    call cblas_3exb_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, 1_c_int, y3, &
-+      1_c_int, a, eps, r1, 1_c_int, r2, 1_c_int, r3, 1_c_int)
++    real(c_float) :: r(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3exb: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3exb: field y must be (n, 3)'
++    if (size(r, 2) /= 3) error stop 'v3blas: v3exb: field r must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3exb_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, a,  &
++      & eps, r(:, 1), 1_c_int, r(:, 2), 1_c_int, r(:, 3), 1_c_int)
 +  end subroutine v3exb_s
-+  subroutine v3exb_d(n, x1, x2, x3, y1, y2, y3, a, eps, r1, r2, r3)
-+    integer(c_int), value :: n
++  subroutine v3exb_d(x, y, a, eps, r)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
++    real(c_double) :: y(:, :)
 +    real(c_double), value :: a
 +    real(c_double), value :: eps
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: y1(*)
-+    real(c_double) :: y2(*)
-+    real(c_double) :: y3(*)
-+    real(c_double) :: r1(*)
-+    real(c_double) :: r2(*)
-+    real(c_double) :: r3(*)
-+    call cblas_3exb_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, 1_c_int, y3, &
-+      1_c_int, a, eps, r1, 1_c_int, r2, 1_c_int, r3, 1_c_int)
++    real(c_double) :: r(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3exb: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3exb: field y must be (n, 3)'
++    if (size(r, 2) /= 3) error stop 'v3blas: v3exb: field r must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3exb_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, a,  &
++      & eps, r(:, 1), 1_c_int, r(:, 2), 1_c_int, r(:, 3), 1_c_int)
 +  end subroutine v3exb_d
-+  subroutine v3exb_c(n, x1, x2, x3, y1, y2, y3, a, eps, r1, r2, r3)
-+    integer(c_int), value :: n
++  subroutine v3exb_c(x, y, a, eps, r)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: y(:, :)
 +    real(c_float), value :: a
 +    real(c_float), value :: eps
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: y1(*)
-+    complex(c_float_complex) :: y2(*)
-+    complex(c_float_complex) :: y3(*)
-+    complex(c_float_complex) :: r1(*)
-+    complex(c_float_complex) :: r2(*)
-+    complex(c_float_complex) :: r3(*)
-+    call cblas_3exb_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, 1_c_int, y3, &
-+      1_c_int, a, eps, r1, 1_c_int, r2, 1_c_int, r3, 1_c_int)
++    complex(c_float_complex) :: r(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3exb: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3exb: field y must be (n, 3)'
++    if (size(r, 2) /= 3) error stop 'v3blas: v3exb: field r must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3exb_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, a,  &
++      & eps, r(:, 1), 1_c_int, r(:, 2), 1_c_int, r(:, 3), 1_c_int)
 +  end subroutine v3exb_c
-+  subroutine v3exb_z(n, x1, x2, x3, y1, y2, y3, a, eps, r1, r2, r3)
-+    integer(c_int), value :: n
++  subroutine v3exb_z(x, y, a, eps, r)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: y(:, :)
 +    real(c_double), value :: a
 +    real(c_double), value :: eps
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: y1(*)
-+    complex(c_double_complex) :: y2(*)
-+    complex(c_double_complex) :: y3(*)
-+    complex(c_double_complex) :: r1(*)
-+    complex(c_double_complex) :: r2(*)
-+    complex(c_double_complex) :: r3(*)
-+    call cblas_3exb_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, y1, 1_c_int, y2, 1_c_int, y3, &
-+      1_c_int, a, eps, r1, 1_c_int, r2, 1_c_int, r3, 1_c_int)
++    complex(c_double_complex) :: r(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3exb: field x must be (n, 3)'
++    if (size(y, 2) /= 3) error stop 'v3blas: v3exb: field y must be (n, 3)'
++    if (size(r, 2) /= 3) error stop 'v3blas: v3exb: field r must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3exb_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, y(:, 1), 1_c_int, y(:, 2), 1_c_int, y(:, 3), 1_c_int, a,  &
++      & eps, r(:, 1), 1_c_int, r(:, 2), 1_c_int, r(:, 3), 1_c_int)
 +  end subroutine v3exb_z
-+  subroutine v3drag_s(n, x1, x2, x3, a, eps, r1, r2, r3)
-+    integer(c_int), value :: n
++  subroutine v3drag_s(x, a, eps, r)
++    integer(c_int) :: n
++    real(c_float) :: x(:, :)
 +    real(c_float), value :: a
 +    real(c_float), value :: eps
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: r1(*)
-+    real(c_float) :: r2(*)
-+    real(c_float) :: r3(*)
-+    call cblas_3drag_s(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, a, eps, r1, 1_c_int, r2, 1_c_int, &
-+      r3, 1_c_int)
++    real(c_float) :: r(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3drag: field x must be (n, 3)'
++    if (size(r, 2) /= 3) error stop 'v3blas: v3drag: field r must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3drag_s(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, a, eps, r(:, 1), 1_c_int, r(:, 2), 1_c_int, r(:, 3), 1_c_int)
 +  end subroutine v3drag_s
-+  subroutine v3drag_d(n, x1, x2, x3, a, eps, r1, r2, r3)
-+    integer(c_int), value :: n
++  subroutine v3drag_d(x, a, eps, r)
++    integer(c_int) :: n
++    real(c_double) :: x(:, :)
 +    real(c_double), value :: a
 +    real(c_double), value :: eps
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: r1(*)
-+    real(c_double) :: r2(*)
-+    real(c_double) :: r3(*)
-+    call cblas_3drag_d(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, a, eps, r1, 1_c_int, r2, 1_c_int, &
-+      r3, 1_c_int)
++    real(c_double) :: r(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3drag: field x must be (n, 3)'
++    if (size(r, 2) /= 3) error stop 'v3blas: v3drag: field r must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3drag_d(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, a, eps, r(:, 1), 1_c_int, r(:, 2), 1_c_int, r(:, 3), 1_c_int)
 +  end subroutine v3drag_d
-+  subroutine v3drag_c(n, x1, x2, x3, a, eps, r1, r2, r3)
-+    integer(c_int), value :: n
++  subroutine v3drag_c(x, a, eps, r)
++    integer(c_int) :: n
++    complex(c_float_complex) :: x(:, :)
 +    real(c_float), value :: a
 +    real(c_float), value :: eps
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: r1(*)
-+    complex(c_float_complex) :: r2(*)
-+    complex(c_float_complex) :: r3(*)
-+    call cblas_3drag_c(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, a, eps, r1, 1_c_int, r2, 1_c_int, &
-+      r3, 1_c_int)
++    complex(c_float_complex) :: r(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3drag: field x must be (n, 3)'
++    if (size(r, 2) /= 3) error stop 'v3blas: v3drag: field r must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3drag_c(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, a, eps, r(:, 1), 1_c_int, r(:, 2), 1_c_int, r(:, 3), 1_c_int)
 +  end subroutine v3drag_c
-+  subroutine v3drag_z(n, x1, x2, x3, a, eps, r1, r2, r3)
-+    integer(c_int), value :: n
++  subroutine v3drag_z(x, a, eps, r)
++    integer(c_int) :: n
++    complex(c_double_complex) :: x(:, :)
 +    real(c_double), value :: a
 +    real(c_double), value :: eps
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: r1(*)
-+    complex(c_double_complex) :: r2(*)
-+    complex(c_double_complex) :: r3(*)
-+    call cblas_3drag_z(n, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, a, eps, r1, 1_c_int, r2, 1_c_int, &
-+      r3, 1_c_int)
++    complex(c_double_complex) :: r(:, :)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3drag: field x must be (n, 3)'
++    if (size(r, 2) /= 3) error stop 'v3blas: v3drag: field r must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3drag_z(n, x(:, 1), 1_c_int, x(:, 2), 1_c_int, x(:, 3),  &
++      & 1_c_int, a, eps, r(:, 1), 1_c_int, r(:, 2), 1_c_int, r(:, 3), 1_c_int)
 +  end subroutine v3drag_z
-+  subroutine v3mom_ke_s(n, s, x1, x2, x3, m1, m2, m3, k)
-+    integer(c_int), value :: n
-+    real(c_float) :: s(*)
-+    real(c_float) :: x1(*)
-+    real(c_float) :: x2(*)
-+    real(c_float) :: x3(*)
-+    real(c_float) :: m1(*)
-+    real(c_float) :: m2(*)
-+    real(c_float) :: m3(*)
-+    real(c_float) :: k(*)
-+    call cblas_3mom_ke_s(n, s, 1_c_int, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, m1, 1_c_int, m2, &
-+      1_c_int, m3, 1_c_int, k, 1_c_int)
++  subroutine v3mom_ke_s(s, x, m, k)
++    integer(c_int) :: n
++    real(c_float) :: s(:)
++    real(c_float) :: x(:, :)
++    real(c_float) :: m(:, :)
++    real(c_float) :: k(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3mom_ke: field x must be (n, 3)'
++    if (size(m, 2) /= 3) error stop 'v3blas: v3mom_ke: field m must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3mom_ke_s(n, s, 1_c_int, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, m(:, 1), 1_c_int, m(:, 2), 1_c_int, m(:, 3),  &
++      & 1_c_int, k, 1_c_int)
 +  end subroutine v3mom_ke_s
-+  subroutine v3mom_ke_d(n, s, x1, x2, x3, m1, m2, m3, k)
-+    integer(c_int), value :: n
-+    real(c_double) :: s(*)
-+    real(c_double) :: x1(*)
-+    real(c_double) :: x2(*)
-+    real(c_double) :: x3(*)
-+    real(c_double) :: m1(*)
-+    real(c_double) :: m2(*)
-+    real(c_double) :: m3(*)
-+    real(c_double) :: k(*)
-+    call cblas_3mom_ke_d(n, s, 1_c_int, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, m1, 1_c_int, m2, &
-+      1_c_int, m3, 1_c_int, k, 1_c_int)
++  subroutine v3mom_ke_d(s, x, m, k)
++    integer(c_int) :: n
++    real(c_double) :: s(:)
++    real(c_double) :: x(:, :)
++    real(c_double) :: m(:, :)
++    real(c_double) :: k(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3mom_ke: field x must be (n, 3)'
++    if (size(m, 2) /= 3) error stop 'v3blas: v3mom_ke: field m must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3mom_ke_d(n, s, 1_c_int, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, m(:, 1), 1_c_int, m(:, 2), 1_c_int, m(:, 3),  &
++      & 1_c_int, k, 1_c_int)
 +  end subroutine v3mom_ke_d
-+  subroutine v3mom_ke_c(n, s, x1, x2, x3, m1, m2, m3, k)
-+    integer(c_int), value :: n
-+    complex(c_float_complex) :: s(*)
-+    complex(c_float_complex) :: x1(*)
-+    complex(c_float_complex) :: x2(*)
-+    complex(c_float_complex) :: x3(*)
-+    complex(c_float_complex) :: m1(*)
-+    complex(c_float_complex) :: m2(*)
-+    complex(c_float_complex) :: m3(*)
-+    complex(c_float_complex) :: k(*)
-+    call cblas_3mom_ke_c(n, s, 1_c_int, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, m1, 1_c_int, m2, &
-+      1_c_int, m3, 1_c_int, k, 1_c_int)
++  subroutine v3mom_ke_c(s, x, m, k)
++    integer(c_int) :: n
++    complex(c_float_complex) :: s(:)
++    complex(c_float_complex) :: x(:, :)
++    complex(c_float_complex) :: m(:, :)
++    complex(c_float_complex) :: k(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3mom_ke: field x must be (n, 3)'
++    if (size(m, 2) /= 3) error stop 'v3blas: v3mom_ke: field m must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3mom_ke_c(n, s, 1_c_int, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, m(:, 1), 1_c_int, m(:, 2), 1_c_int, m(:, 3),  &
++      & 1_c_int, k, 1_c_int)
 +  end subroutine v3mom_ke_c
-+  subroutine v3mom_ke_z(n, s, x1, x2, x3, m1, m2, m3, k)
-+    integer(c_int), value :: n
-+    complex(c_double_complex) :: s(*)
-+    complex(c_double_complex) :: x1(*)
-+    complex(c_double_complex) :: x2(*)
-+    complex(c_double_complex) :: x3(*)
-+    complex(c_double_complex) :: m1(*)
-+    complex(c_double_complex) :: m2(*)
-+    complex(c_double_complex) :: m3(*)
-+    complex(c_double_complex) :: k(*)
-+    call cblas_3mom_ke_z(n, s, 1_c_int, x1, 1_c_int, x2, 1_c_int, x3, 1_c_int, m1, 1_c_int, m2, &
-+      1_c_int, m3, 1_c_int, k, 1_c_int)
++  subroutine v3mom_ke_z(s, x, m, k)
++    integer(c_int) :: n
++    complex(c_double_complex) :: s(:)
++    complex(c_double_complex) :: x(:, :)
++    complex(c_double_complex) :: m(:, :)
++    complex(c_double_complex) :: k(:)
++    if (size(x, 2) /= 3) error stop 'v3blas: v3mom_ke: field x must be (n, 3)'
++    if (size(m, 2) /= 3) error stop 'v3blas: v3mom_ke: field m must be (n, 3)'
++    n = int(size(x, 1), c_int)
++    call cblas_3mom_ke_z(n, s, 1_c_int, x(:, 1), 1_c_int, x(:, 2), 1_c_int,  &
++      & x(:, 3), 1_c_int, m(:, 1), 1_c_int, m(:, 2), 1_c_int, m(:, 3),  &
++      & 1_c_int, k, 1_c_int)
 +  end subroutine v3mom_ke_z
 +end module v3blas
 diff --git a/v3blas.h b/v3blas.h

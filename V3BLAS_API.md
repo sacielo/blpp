@@ -107,19 +107,34 @@ Both headers are C- and C++-clean; include exactly one.
 ## The Fortran front-end (`v3blas.f90`)
 
 Compile the module, then your program; same names via F2003 generic
-interfaces, precision picked from the argument types. BLAS-style
-argument order: `n` first, then inputs, then outputs; explicit-shape or
-assumed-shape arrays, unit stride only. Fortran has no view struct: a
-3-vector stays three plain arrays, in and out — the one deliberate
-asymmetry with the C front-ends.
+interfaces, precision picked from the argument types. A 3-vector is one
+**field array `u(n, 3)`**: a row per point, and in column-major storage
+each column `u(:, c)` is one contiguous component array — exactly the
+SoA blocks the kernels read. There is no view struct in Fortran; the
+field *is* the data, and the call takes it whole: no `n`, no strides
+(`n = size(u, 1)` inside). Argument order matches `v3blas.h`, outputs
+trail. The one-vector ops are plain arrays and keep the BLAS-style
+explicit `n`.
 
 ```fortran
 use v3blas
-call v3cross(n, x1, x2, x3, y1, y2, y3, w1, w2, w3)  ! w = x∧y
-call v3dot(n, x1, x2, x3, y1, y2, y3, r)             ! r = x·y
-call v1axpy(n, alpha, x, y)                          ! y = alpha*x + y
-call v3norm_unit(n, x1, x2, x3, eps, r, u1, u2, u3)  ! r = sqrt(x·x+eps), u = x/r
+real(8) :: x(n,3), y(n,3), w(n,3), r(n)
+call v3cross(x, y, w)             ! w = x∧y
+call v3dot(x, y, r)               ! r = x·y
+call v3drag(x, a, eps, w)         ! w = a*x*sqrt(x·x + eps)
+call v3norm_unit(x, eps, r, w)    ! r = sqrt(x·x+eps), w = x/r
+call v1axpy(n, alpha, x1, y1)     ! y = alpha*x + y (one-vector: explicit n)
 ```
+
+Each field is guarded at runtime for `size(u, 2) == 3` (passing a
+transposed `u(3, n)` would otherwise be silently misread); agreement of
+`n` between fields is caller trust, BLAS-style. Output fields may alias
+inputs. Passing a non-contiguous actual (a slice, a transpose) makes
+gfortran route the call through a copy — correct, but it defeats the
+point; pass whole `(n, 3)` arrays. Component-by-component arguments and
+non-unit strides remain available one layer down: either the
+`cblas_*3cross` entry points or the raw F77 symbols (`call d3cross(n, x1,
+1, x2, 1, x3, 1, ...)`) — the module is convenience, not a gate.
 
 `v1axpy` is the in-place BLAS one here (y is updated); the C front-end
 additionally keeps `y` untouched by writing into `r` first. `v1norm` on
@@ -135,8 +150,11 @@ complex data is the principal complex `sqrt(q·q)`, on real data `|q|`.
 - The C header is one macro (`V3BLAS_DEFINE`) instantiated four times —
   real scalars by value, complex scalars as pointers to the two-
   component struct, exactly matching the cblas prototypes.
-- The Fortran module is generated (76 bind(C) wrappers) but is ordinary
-  F2003 source; `gfortran -std=f2008 -Wall` clean.
+- The Fortran module is generated (76 wrappers over 76 bind(C)
+  interfaces: 16 field-form ops + 3 one-vector ops, 4 precisions) but is
+  ordinary F2003 source; `gfortran -std=f2008 -Wall` clean. Dummy fields
+  are all-assumed-shape `(:,:)` with a runtime shape guard, which is the
+  form gfortran accepts and associates without copies.
 
 ## Verification
 
@@ -152,8 +170,9 @@ correctness is the tests' job).
 against `cblas_*` for every op × precision.
 
 `benchmark/v3blas_f90_test.f90`: all 19 generics × 4 precisions through
-the module, checked against the equations recomputed with Fortran array
-expressions.
+the module in field form, checked against the equations recomputed with
+Fortran array expressions over the same fields. Accepts `s|d|c|z` as an
+argument to run one precision.
 
 ```
 gcc  -O2 -std=c11 -I pkgs/openblas/include/openblas benchmark/v3blas_test.c \

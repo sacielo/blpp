@@ -171,11 +171,21 @@ static int chk(const char *name, const void *a, const void *b, size_t bytes){
     if (bad) printf("%d failures in " #P "\n", bad);                           \
 } while (0)
 
-int main(){
-    RUN_ALL(s, float, s_ax, s_xa, s_cs);
-    RUN_ALL(d, double, s_ax, s_xa, s_cs);
-    RUN_ALL(c, v3blas_floatcomplex, &s_ax, &s_xa, &s_cs);
-    RUN_ALL(z, v3blas_doublecomplex, &s_ax, &s_xa, &s_cs);
+static int want(const char *sel, const char *tag)
+{
+    return !*sel || !strcmp(sel, tag);
+}
+
+int main(int argc, char **argv){
+    const char *sel = argc > 1 ? argv[1] : "";
+    if (*sel && !strchr("sdcz", sel[0])) {
+        fprintf(stderr, "usage: %s [s|d|c|z]   (default: all four)\n", argv[0]);
+        return 2;
+    }
+    if (want(sel, "s")) RUN_ALL(s, float, s_ax, s_xa, s_cs);
+    if (want(sel, "d")) RUN_ALL(d, double, s_ax, s_xa, s_cs);
+    if (want(sel, "c")) RUN_ALL(c, v3blas_floatcomplex, &s_ax, &s_xa, &s_cs);
+    if (want(sel, "z")) RUN_ALL(z, v3blas_doublecomplex, &s_ax, &s_xa, &s_cs);
     printf("v3blas_cpp_test: %s (%d failures)\n",
            failures ? "FAILED" : "OK", failures);
     return failures != 0;

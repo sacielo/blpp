@@ -50,13 +50,15 @@ to a different, later ABI.)
 
 On top of the raw `cblas_<p><kernel>` entry points sits **`v3blas`**, a
 thin front-end with MATLAB-flavoured names ([`V3BLAS_API.md`](V3BLAS_API.md)):
-3-vectors are three component arrays with independent strides, every
-operation is `void` with outputs as trailing caller-owned arrays — the
-library never allocates — and the precision is either a suffix
+every operation is `void` with outputs as trailing caller-owned arrays —
+the library never allocates — and the precision is either a suffix
 (`v3cross_d`) or picked from the argument types (`_Generic` in C11,
-overloads in C++, generic module procedures in Fortran). The front-ends
-are headers/a source file only: `v3blas.h`, `v3blas.hpp`, `v3blas.f90`,
-installed next to `cblas.h`.
+overloads in C++). In C, a 3-vector is three component arrays with
+independent strides; Fortran hands the same kernels whole fields: a
+3-vector is one `u(n, 3)` array whose columns *are* the component
+arrays, `n` implicit (raw F77 triplets remain one `call d3cross_` away).
+The front-ends are headers/a source file only: `v3blas.h`, `v3blas.hpp`,
+`v3blas.f90`, installed next to `cblas.h`.
 
 ## Roadmap — the actual goal: every BLAS, not this BLAS
 

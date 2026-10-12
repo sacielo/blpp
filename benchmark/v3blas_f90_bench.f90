@@ -2,8 +2,8 @@
 ! Four representative ops per real kind (the full generic matrix is
 ! v3blas_f90_test's job; timing only, nothing is verified here).  The
 ! budget loop mirrors the C++ benches: run until 0.5 s or 2000 calls.
-! One flat array per vector component: a strided slice such as x(1,:)
-! would be a hidden temporary copy and would time the compiler, not us.
+! Fields are u(n, 3): the columns are the contiguous component arrays,
+! so each call maps straight onto the SoA layout the kernels read.
 !
 ! Build (see CMakeLists.txt; v3blas.f90 comes from the install):
 !   gfortran -O2 ../pkgs/openblas/include/openblas/v3blas.f90 \
@@ -14,23 +14,23 @@ program v3blas_f90_bench
   use, intrinsic :: iso_c_binding, only: c_int
   implicit none
   integer, parameter :: n = 4096, nmax = 2000
-  integer(c_int) :: nn = n
   real(kind=4), parameter :: a4 = 1.5, e4 = 0.25
   real(kind=8), parameter :: a8 = 1.5d0, e8 = 0.25d0
-  real(kind=4) :: x1(n), x2(n), x3(n), y1(n), y2(n), y3(n)
-  real(kind=4) :: r1(n), r2(n), r3(n), r4(n)
-  real(kind=8) :: dx1(n), dx2(n), dx3(n), dy1(n), dy2(n), dy3(n)
-  real(kind=8) :: dr1(n), dr2(n), dr3(n), dr4(n)
+  real(kind=4) :: xf(n, 3), yf(n, 3), rf(n, 3), s4(n), k4(n)
+  real(kind=8) :: dxf(n, 3), dyf(n, 3), drf(n, 3), s8(n), k8(n)
   integer :: i, sel
 
   do i = 1, n
-     x1(i) = sin(real(i));        x2(i) = sin(real(i) + 1.0)
-     x3(i) = sin(real(i) + 2.0);  y1(i) = cos(real(i))
-     y2(i) = cos(real(i) + 1.0);  y3(i) = cos(real(i) + 2.0)
-     dx1(i) = dsin(dble(i));       dx2(i) = dsin(dble(i) + 1.d0)
-     dx3(i) = dsin(dble(i) + 2.d0); dy1(i) = dcos(dble(i))
-     dy2(i) = dcos(dble(i) + 1.d0); dy3(i) = dcos(dble(i) + 2.d0)
+     xf(i, 1) = sin(real(i));       xf(i, 2) = sin(real(i) + 1.0)
+     xf(i, 3) = sin(real(i) + 2.0)
+     yf(i, 1) = cos(real(i));       yf(i, 2) = cos(real(i) + 1.0)
+     yf(i, 3) = cos(real(i) + 2.0)
+     dxf(i, 1) = dsin(dble(i));     dxf(i, 2) = dsin(dble(i) + 1.d0)
+     dxf(i, 3) = dsin(dble(i) + 2.d0)
+     dyf(i, 1) = dcos(dble(i));     dyf(i, 2) = dcos(dble(i) + 1.d0)
+     dyf(i, 3) = dcos(dble(i) + 2.d0)
   end do
+  s4 = 0.5; s8 = 0.5d0
 
   write(*, '(a)') 'v3blas_f90_bench: timing only (correctness: v3blas_f90_test)'
   write(*, '(a,i0,a)') 'n = ', n, '   budget: 0.5 s or 2000 calls per kernel'
@@ -57,13 +57,13 @@ contains
     do
        select case (sel)
        case (1)
-          call v3dot(nn, x1, x2, x3, y1, y2, y3, r1)
+          call v3dot(xf, yf, s4)
        case (2)
-          call v3cross(nn, x1, x2, x3, y1, y2, y3, r1, r2, r3)
+          call v3cross(xf, yf, rf)
        case (3)
-          call v3drag(nn, x1, x2, x3, a4, e4, r1, r2, r3)
+          call v3drag(xf, a4, e4, rf)
        case (4)
-          call v3mom_ke(nn, y1, x1, x2, x3, r1, r2, r3, r4)
+          call v3mom_ke(s4, xf, rf, k4)
        end select
        k = k + 1
        call system_clock(c1)
@@ -87,13 +87,13 @@ contains
     do
        select case (sel)
        case (1)
-          call v3dot(nn, dx1, dx2, dx3, dy1, dy2, dy3, dr1)
+          call v3dot(dxf, dyf, s8)
        case (2)
-          call v3cross(nn, dx1, dx2, dx3, dy1, dy2, dy3, dr1, dr2, dr3)
+          call v3cross(dxf, dyf, drf)
        case (3)
-          call v3drag(nn, dx1, dx2, dx3, a8, e8, dr1, dr2, dr3)
+          call v3drag(dxf, a8, e8, drf)
        case (4)
-          call v3mom_ke(nn, dy1, dx1, dx2, dx3, dr1, dr2, dr3, dr4)
+          call v3mom_ke(s8, dxf, drf, k8)
        end select
        k = k + 1
        call system_clock(c1)

@@ -166,12 +166,22 @@ RUNTEST(z, 'z', v3blas_doublecomplex, 1, 16, 1e-12L,
 #undef YT
 #undef WT
 
-int main(void)
+static int want(const char *sel, const char *tag)
 {
-    test_s();
-    test_d();
-    test_c();
-    test_z();
+    return !*sel || !strcmp(sel, tag);
+}
+
+int main(int argc, char **argv)
+{
+    const char *sel = argc > 1 ? argv[1] : "";
+    if (*sel && !strchr("sdcz", sel[0])) {
+        fprintf(stderr, "usage: %s [s|d|c|z]   (default: all four)\n", argv[0]);
+        return 2;
+    }
+    if (want(sel, "s")) test_s();
+    if (want(sel, "d")) test_d();
+    if (want(sel, "c")) test_c();
+    if (want(sel, "z")) test_z();
     printf("cblas_test: %s (%d failures)\n", fails ? "FAIL" : "OK", fails);
     return fails ? 1 : 0;
 }
