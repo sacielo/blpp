@@ -80,7 +80,7 @@ static int chk(const char *name, const void *a, const void *b, size_t bytes){
     memcpy(ro[0], byv, nb); cblas_ ## P ## axpy(n, CAX, bxv, 1, ro[0], 1);     \
     v1axpy(s_ax, bxv, byv, wo[0], n);                                          \
     bad += chk("v1axpy_" #P, wo[0], ro[0], nb);                                \
-    cblas_ ## P ## 1xypa(n, CXA, bq, 1, bt, 1, ro[0], 1);                      \
+    cblas_ ## P ## 1xypa(n, bq, 1, bt, 1, CXA, ro[0], 1);                      \
     v1xypa(bq, bt, s_xa, wo[0], n);                                            \
     bad += chk("v1xypa_" #P, wo[0], ro[0], nb);                                \
     cblas_ ## P ## 1norm(n, bq, 1, ro[0], 1);                                  \

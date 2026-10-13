@@ -1,8 +1,8 @@
 diff --git a/.gitignore b/.gitignore
-index 53d4941..cb165b8 100644
+index 53d4941..3bb5bef 100644
 --- a/.gitignore
 +++ b/.gitignore
-@@ -114,6 +114,7 @@ build.*
+@@ -114,8 +114,10 @@ build.*
  *.swp
  benchmark/*.goto
  benchmark/smallscaling
@@ -10,6 +10,9 @@ index 53d4941..cb165b8 100644
  .vscode
  CMakeCache.txt
  CMakeFiles/*
+ .vscode
+ **/__pycache__
++/v3blas.mod
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 360bc44..e5b87f5 100644
 --- a/CMakeLists.txt
@@ -701,20 +704,20 @@ index 0000000..e685a43
 +
 +"$PY" "$HERE/sizemap25.py" "$OUT"
 diff --git a/cblas.h b/cblas.h
-index 9eb7028..783987a 100644
+index 9eb7028..7e45096 100644
 --- a/cblas.h
 +++ b/cblas.h
 @@ -431,6 +431,94 @@ void cblas_caxpby(OPENBLAS_CONST blasint n, OPENBLAS_CONST void *alpha, OPENBLAS
  
  void cblas_zaxpby(OPENBLAS_CONST blasint n, OPENBLAS_CONST void *alpha, OPENBLAS_CONST void *x, OPENBLAS_CONST blasint incx,OPENBLAS_CONST void *beta, void *y, OPENBLAS_CONST blasint incy);
  
-+void cblas_s1xypa(OPENBLAS_CONST blasint n, OPENBLAS_CONST float a, OPENBLAS_CONST float *q, OPENBLAS_CONST blasint incq, OPENBLAS_CONST float *t, OPENBLAS_CONST blasint inct, float *r, OPENBLAS_CONST blasint incr);
++void cblas_s1xypa(OPENBLAS_CONST blasint n, OPENBLAS_CONST float *q, OPENBLAS_CONST blasint incq, OPENBLAS_CONST float *t, OPENBLAS_CONST blasint inct, OPENBLAS_CONST float a, float *r, OPENBLAS_CONST blasint incr);
 +
-+void cblas_d1xypa(OPENBLAS_CONST blasint n, OPENBLAS_CONST double a, OPENBLAS_CONST double *q, OPENBLAS_CONST blasint incq, OPENBLAS_CONST double *t, OPENBLAS_CONST blasint inct, double *r, OPENBLAS_CONST blasint incr);
++void cblas_d1xypa(OPENBLAS_CONST blasint n, OPENBLAS_CONST double *q, OPENBLAS_CONST blasint incq, OPENBLAS_CONST double *t, OPENBLAS_CONST blasint inct, OPENBLAS_CONST double a, double *r, OPENBLAS_CONST blasint incr);
 +
-+void cblas_c1xypa(OPENBLAS_CONST blasint n, OPENBLAS_CONST void *a, OPENBLAS_CONST void *q, OPENBLAS_CONST blasint incq, OPENBLAS_CONST void *t, OPENBLAS_CONST blasint inct, void *r, OPENBLAS_CONST blasint incr);
++void cblas_c1xypa(OPENBLAS_CONST blasint n, OPENBLAS_CONST void *q, OPENBLAS_CONST blasint incq, OPENBLAS_CONST void *t, OPENBLAS_CONST blasint inct, OPENBLAS_CONST void *a, void *r, OPENBLAS_CONST blasint incr);
 +
-+void cblas_z1xypa(OPENBLAS_CONST blasint n, OPENBLAS_CONST void *a, OPENBLAS_CONST void *q, OPENBLAS_CONST blasint incq, OPENBLAS_CONST void *t, OPENBLAS_CONST blasint inct, void *r, OPENBLAS_CONST blasint incr);
++void cblas_z1xypa(OPENBLAS_CONST blasint n, OPENBLAS_CONST void *q, OPENBLAS_CONST blasint incq, OPENBLAS_CONST void *t, OPENBLAS_CONST blasint inct, OPENBLAS_CONST void *a, void *r, OPENBLAS_CONST blasint incr);
 +
 +void cblas_s3dot(OPENBLAS_CONST blasint n, OPENBLAS_CONST float *x1, OPENBLAS_CONST blasint incx1, OPENBLAS_CONST float *x2, OPENBLAS_CONST blasint incx2, OPENBLAS_CONST float *x3, OPENBLAS_CONST blasint incx3, OPENBLAS_CONST float *y1, OPENBLAS_CONST blasint incy1, OPENBLAS_CONST float *y2, OPENBLAS_CONST blasint incy2, OPENBLAS_CONST float *y3, OPENBLAS_CONST blasint incy3, float *r, OPENBLAS_CONST blasint incr);
 +
@@ -1007,17 +1010,17 @@ index 1e8c33d..cc6fac3 100644
  #define DGEMM_SMALL_MATRIX_PERMIT	gotoblas -> dgemm_small_matrix_permit
  
 diff --git a/common_interface.h b/common_interface.h
-index 2610763..3b0d5ca 100644
+index 2610763..603a981 100644
 --- a/common_interface.h
 +++ b/common_interface.h
 @@ -112,6 +112,86 @@ void    BLASFUNC(xaxpy) (blasint *, xdouble *, xdouble *, blasint *, xdouble *,
  void    BLASFUNC(caxpyc)(blasint *, float  *, float  *, blasint *, float  *, blasint *);
  void    BLASFUNC(zaxpyc)(blasint *, double *, double *, blasint *, double *, blasint *);
  void    BLASFUNC(xaxpyc)(blasint *, xdouble *, xdouble *, blasint *, xdouble *, blasint *);
-+void    BLASFUNC(s1xypa)(blasint *, float  *, float  *, blasint *, float  *, blasint *, float  *, blasint *);
-+void    BLASFUNC(d1xypa)(blasint *, double *, double *, blasint *, double *, blasint *, double *, blasint *);
-+void    BLASFUNC(c1xypa)(blasint *, float  *, float  *, blasint *, float  *, blasint *, float  *, blasint *);
-+void    BLASFUNC(z1xypa)(blasint *, double *, double *, blasint *, double *, blasint *, double *, blasint *);
++void    BLASFUNC(s1xypa)(blasint *, float  *, blasint *, float  *, blasint *, float  *, float  *, blasint *);
++void    BLASFUNC(d1xypa)(blasint *, double *, blasint *, double *, blasint *, double *, double *, blasint *);
++void    BLASFUNC(c1xypa)(blasint *, float  *, blasint *, float  *, blasint *, float  *, float  *, blasint *);
++void    BLASFUNC(z1xypa)(blasint *, double *, blasint *, double *, blasint *, double *, double *, blasint *);
 +void    BLASFUNC(s3dot)(blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *);
 +void    BLASFUNC(d3dot)(blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *, double *, blasint *);
 +void    BLASFUNC(c3dot)(blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *, float  *, blasint *);
@@ -2147,7 +2150,7 @@ index 0000000..812ede6
 +}
 diff --git a/interface/1xypa.c b/interface/1xypa.c
 new file mode 100644
-index 0000000..bfe78c5
+index 0000000..d1da8c4
 --- /dev/null
 +++ b/interface/1xypa.c
 @@ -0,0 +1,80 @@
@@ -2186,7 +2189,7 @@ index 0000000..bfe78c5
 +
 +#ifndef CBLAS
 +
-+void NAME(blasint *N, FLOAT *A, FLOAT *q, blasint *INCQ, FLOAT *t, blasint *INCT, FLOAT *r, blasint *INCR){
++void NAME(blasint *N, FLOAT *q, blasint *INCQ, FLOAT *t, blasint *INCT, FLOAT *A, FLOAT *r, blasint *INCR){
 +
 +  BLASLONG n    = *N;
 +  FLOAT a       = *A;
@@ -2196,7 +2199,7 @@ index 0000000..bfe78c5
 +
 +#else
 +
-+void CNAME(blasint n, FLOAT a, FLOAT *q, blasint incq, FLOAT *t, blasint inct, FLOAT *r, blasint incr){
++void CNAME(blasint n, FLOAT *q, blasint incq, FLOAT *t, blasint inct, FLOAT a, FLOAT *r, blasint incr){
 +
 +#endif
 +
@@ -4921,7 +4924,7 @@ index 0000000..71c63f5
 +}
 diff --git a/interface/z1xypa.c b/interface/z1xypa.c
 new file mode 100644
-index 0000000..a60793b
+index 0000000..3f8c7c7
 --- /dev/null
 +++ b/interface/z1xypa.c
 @@ -0,0 +1,83 @@
@@ -4960,7 +4963,7 @@ index 0000000..a60793b
 +
 +#ifndef CBLAS
 +
-+void NAME(blasint *N, FLOAT *A, FLOAT *Q, blasint *INCQ, FLOAT *T, blasint *INCT, FLOAT *R, blasint *INCR){
++void NAME(blasint *N, FLOAT *Q, blasint *INCQ, FLOAT *T, blasint *INCT, FLOAT *A, FLOAT *R, blasint *INCR){
 +
 +  BLASLONG n    = *N;
 +  BLASLONG incq = *INCQ;
@@ -4969,7 +4972,7 @@ index 0000000..a60793b
 +
 +#else
 +
-+void CNAME(blasint n, void *VA, void *VQ, blasint incq, void *VT, blasint inct, void *VR, blasint incr){
++void CNAME(blasint n, void *VQ, blasint incq, void *VT, blasint inct, void *VA, void *VR, blasint incr){
 +FLOAT *A = (FLOAT*) VA;
 +FLOAT *Q = (FLOAT*) VQ;
 +FLOAT *T = (FLOAT*) VT;
@@ -13641,7 +13644,7 @@ index 0000000..f46fc16
 +#endif
 diff --git a/utest/test_1xypa.c b/utest/test_1xypa.c
 new file mode 100644
-index 0000000..88f9537
+index 0000000..b690be7
 --- /dev/null
 +++ b/utest/test_1xypa.c
 @@ -0,0 +1,204 @@
@@ -13692,7 +13695,7 @@ index 0000000..88f9537
 +	float r2[]={8.25f,14.25f,18.25f,20.25f,20.25f,18.25f,14.25f,8.25f};
 +
 +	//OpenBLAS
-+	BLASFUNC(s1xypa)(&N,&a,q1,&incQ,t1,&incT,r1,&incR);
++	BLASFUNC(s1xypa)(&N,q1,&incQ,t1,&incT,&a,r1,&incR);
 +
 +	for(i=0; i<N; i++){
 +		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], SINGLE_EPS);
@@ -13710,7 +13713,7 @@ index 0000000..88f9537
 +	float r2[]={3.0f,9.0f,19.0f,33.0f,9.0f,9.0f,0.0f};
 +
 +	//OpenBLAS
-+	BLASFUNC(s1xypa)(&N,&a,q1,&incQ,t1,&incT,r1,&incR);
++	BLASFUNC(s1xypa)(&N,q1,&incQ,t1,&incT,&a,r1,&incR);
 +
 +	for(i=0; i<N; i++){
 +		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], SINGLE_EPS);
@@ -13728,7 +13731,7 @@ index 0000000..88f9537
 +	float r2[]={8.5f,1.0f,2.0f,3.0f,4.0f,5.0f,6.0f,7.0f};
 +
 +	//OpenBLAS
-+	BLASFUNC(s1xypa)(&N,&a,q1,&incQ,t1,&incT,r1,&incR);
++	BLASFUNC(s1xypa)(&N,q1,&incQ,t1,&incT,&a,r1,&incR);
 +
 +	for(i=0; i<N; i++){
 +		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], SINGLE_EPS);
@@ -13746,7 +13749,7 @@ index 0000000..88f9537
 +	float r2[]={6.0f,12.0f,18.0f,24.0f};
 +
 +	//OpenBLAS
-+	BLASFUNC(s1xypa)(&N,&a,q1,&incQ,t1,&incT,r1,&incR);
++	BLASFUNC(s1xypa)(&N,q1,&incQ,t1,&incT,&a,r1,&incR);
 +
 +	for(i=0; i<N; i++){
 +		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], SINGLE_EPS);
@@ -13766,7 +13769,7 @@ index 0000000..88f9537
 +	double r2[]={8.25,14.25,18.25,20.25,20.25,18.25,14.25,8.25};
 +
 +	//OpenBLAS
-+	BLASFUNC(d1xypa)(&N,&a,q1,&incQ,t1,&incT,r1,&incR);
++	BLASFUNC(d1xypa)(&N,q1,&incQ,t1,&incT,&a,r1,&incR);
 +
 +	for(i=0; i<N; i++){
 +		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], DOUBLE_EPS);
@@ -13784,7 +13787,7 @@ index 0000000..88f9537
 +	double r2[]={3.0,9.0,19.0,33.0,9.0,9.0,0.0};
 +
 +	//OpenBLAS
-+	BLASFUNC(d1xypa)(&N,&a,q1,&incQ,t1,&incT,r1,&incR);
++	BLASFUNC(d1xypa)(&N,q1,&incQ,t1,&incT,&a,r1,&incR);
 +
 +	for(i=0; i<N; i++){
 +		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], DOUBLE_EPS);
@@ -13804,7 +13807,7 @@ index 0000000..88f9537
 +	float r2[]={-5.5f,23.25f,-1.5f,39.25f,2.5f,39.25f,6.5f,23.25f};
 +
 +	//OpenBLAS
-+	BLASFUNC(c1xypa)(&N,a,q1,&incQ,t1,&incT,r1,&incR);
++	BLASFUNC(c1xypa)(&N,q1,&incQ,t1,&incT,a,r1,&incR);
 +
 +	for(i=0; i<2*N; i++){
 +		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], SINGLE_EPS);
@@ -13824,7 +13827,7 @@ index 0000000..88f9537
 +	double r2[]={-5.5,23.25,-1.5,39.25,2.5,39.25,6.5,23.25};
 +
 +	//OpenBLAS
-+	BLASFUNC(z1xypa)(&N,a,q1,&incQ,t1,&incT,r1,&incR);
++	BLASFUNC(z1xypa)(&N,q1,&incQ,t1,&incT,a,r1,&incR);
 +
 +	for(i=0; i<2*N; i++){
 +		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], DOUBLE_EPS);
@@ -13842,7 +13845,7 @@ index 0000000..88f9537
 +	double r2[]={-5.5,23.25,1.0,1.0,2.0,2.0,3.0,3.0};
 +
 +	//OpenBLAS
-+	BLASFUNC(z1xypa)(&N,a,q1,&incQ,t1,&incT,r1,&incR);
++	BLASFUNC(z1xypa)(&N,q1,&incQ,t1,&incT,a,r1,&incR);
 +
 +	for(i=0; i<2*N; i++){
 +		ASSERT_DBL_NEAR_TOL(r2[i], r1[i], DOUBLE_EPS);
@@ -16437,7 +16440,7 @@ index 0000000..d1e4c1c
 +#endif
 diff --git a/utest/test_extensions/test_c1xypa.c b/utest/test_extensions/test_c1xypa.c
 new file mode 100644
-index 0000000..65b7176
+index 0000000..7508758
 --- /dev/null
 +++ b/utest/test_extensions/test_c1xypa.c
 @@ -0,0 +1,164 @@
@@ -16511,7 +16514,7 @@ index 0000000..65b7176
 +        r_ref[2 * orr + 1] = qr * ti + qi * tr + a[1];
 +    }
 +
-+    BLASFUNC(c1xypa)(&n, a, q_buf, &incq, t_buf, &inct, r_buf, &incr);
++    BLASFUNC(c1xypa)(&n, q_buf, &incq, t_buf, &inct, a, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incr) * 2; i++) {
 +        float d = fabsf(r_buf[i] - r_ref[i]);
@@ -16529,7 +16532,7 @@ index 0000000..65b7176
 +    for (i = 0; i < n * labs(incr) * 2; i++)
 +        r_buf[i] = 0.0f;
 +
-+    cblas_c1xypa(n, a, q_buf, incq, t_buf, inct, r_buf, incr);
++    cblas_c1xypa(n, q_buf, incq, t_buf, inct, a, r_buf, incr);
 +
 +    for (i = 0; i < n * labs(incr) * 2; i++) {
 +        float d = fabsf(r_buf[i] - r_ref[i]);
@@ -20794,7 +20797,7 @@ index 0000000..94b6d84
 +#endif
 diff --git a/utest/test_extensions/test_d1xypa.c b/utest/test_extensions/test_d1xypa.c
 new file mode 100644
-index 0000000..27471c4
+index 0000000..2db5897
 --- /dev/null
 +++ b/utest/test_extensions/test_d1xypa.c
 @@ -0,0 +1,181 @@
@@ -20863,7 +20866,7 @@ index 0000000..27471c4
 +        r_ref[orr] = q_buf[oq] * t_buf[ot] + a;
 +    }
 +
-+    BLASFUNC(d1xypa)(&n, &a, q_buf, &incq, t_buf, &inct, r_buf, &incr);
++    BLASFUNC(d1xypa)(&n, q_buf, &incq, t_buf, &inct, &a, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incr); i++) {
 +        double d = fabs(r_buf[i] - r_ref[i]);
@@ -20881,7 +20884,7 @@ index 0000000..27471c4
 +    for (i = 0; i < n * labs(incr); i++)
 +        r_buf[i] = 0.0;
 +
-+    cblas_d1xypa(n, a, q_buf, incq, t_buf, inct, r_buf, incr);
++    cblas_d1xypa(n, q_buf, incq, t_buf, inct, a, r_buf, incr);
 +
 +    for (i = 0; i < n * labs(incr); i++) {
 +        double d = fabs(r_buf[i] - r_ref[i]);
@@ -24970,7 +24973,7 @@ index 0000000..84e2afe
 +#endif
 diff --git a/utest/test_extensions/test_s1xypa.c b/utest/test_extensions/test_s1xypa.c
 new file mode 100644
-index 0000000..4e978a1
+index 0000000..16c8ee8
 --- /dev/null
 +++ b/utest/test_extensions/test_s1xypa.c
 @@ -0,0 +1,181 @@
@@ -25039,7 +25042,7 @@ index 0000000..4e978a1
 +        r_ref[orr] = q_buf[oq] * t_buf[ot] + a;
 +    }
 +
-+    BLASFUNC(s1xypa)(&n, &a, q_buf, &incq, t_buf, &inct, r_buf, &incr);
++    BLASFUNC(s1xypa)(&n, q_buf, &incq, t_buf, &inct, &a, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incr); i++) {
 +        float d = fabsf(r_buf[i] - r_ref[i]);
@@ -25057,7 +25060,7 @@ index 0000000..4e978a1
 +    for (i = 0; i < n * labs(incr); i++)
 +        r_buf[i] = 0.0f;
 +
-+    cblas_s1xypa(n, a, q_buf, incq, t_buf, inct, r_buf, incr);
++    cblas_s1xypa(n, q_buf, incq, t_buf, inct, a, r_buf, incr);
 +
 +    for (i = 0; i < n * labs(incr); i++) {
 +        float d = fabsf(r_buf[i] - r_ref[i]);
@@ -29167,7 +29170,7 @@ index 0000000..e57168e
 +#endif
 diff --git a/utest/test_extensions/test_z1xypa.c b/utest/test_extensions/test_z1xypa.c
 new file mode 100644
-index 0000000..095b38e
+index 0000000..3f20a44
 --- /dev/null
 +++ b/utest/test_extensions/test_z1xypa.c
 @@ -0,0 +1,164 @@
@@ -29241,7 +29244,7 @@ index 0000000..095b38e
 +        r_ref[2 * orr + 1] = qr * ti + qi * tr + a[1];
 +    }
 +
-+    BLASFUNC(z1xypa)(&n, a, q_buf, &incq, t_buf, &inct, r_buf, &incr);
++    BLASFUNC(z1xypa)(&n, q_buf, &incq, t_buf, &inct, a, r_buf, &incr);
 +
 +    for (i = 0; i < n * labs(incr) * 2; i++) {
 +        double d = fabs(r_buf[i] - r_ref[i]);
@@ -29259,7 +29262,7 @@ index 0000000..095b38e
 +    for (i = 0; i < n * labs(incr) * 2; i++)
 +        r_buf[i] = 0.0;
 +
-+    cblas_z1xypa(n, a, q_buf, incq, t_buf, inct, r_buf, incr);
++    cblas_z1xypa(n, q_buf, incq, t_buf, inct, a, r_buf, incr);
 +
 +    for (i = 0; i < n * labs(incr) * 2; i++) {
 +        double d = fabs(r_buf[i] - r_ref[i]);
@@ -33472,10 +33475,10 @@ index 0000000..cdfacb1
 +#endif
 diff --git a/v3blas.f90 b/v3blas.f90
 new file mode 100644
-index 0000000..e51542c
+index 0000000..0893c08
 --- /dev/null
 +++ b/v3blas.f90
-@@ -0,0 +1,2424 @@
+@@ -0,0 +1,2426 @@
 +! ****************************************************************************
 +! Copyright (c) 2026, The OpenBLAS Project
 +! All rights reserved.
@@ -33510,14 +33513,16 @@ index 0000000..e51542c
 +! column-major storage each COLUMN u(:, c) is one contiguous
 +! component array - exactly what the kernels want.  n is implicit
 +! (size(u, 1)); the argument order matches v3blas.h; outputs trail:
-+!   call v3cross(x, y, w)     ! w = x AND y     (x, y, w : T(3, n))
++!   call v3cross(x, y, w)     ! w = x AND y     (x, y, w : T(n, 3))
 +!   call v3dot(x, y, r)       ! r = x . y       (r : T(n))
 +!   call v3drag(x, a, eps, r) ! r = a*x*sqrt(x . x + eps)
 +! Pure 1-vector ops keep the BLAS form with explicit n:
 +!   call v1axpy(n, alpha, x, y)
-+! The compiler picks s/d/c/z from the argument types.  The actual
-+! arrays must be contiguous and (3, n)-shaped; compile with
-+! -fcheck=bounds while debugging.  For strided or interleaved storage
++!   call v1xypa(n, q, t, a, r)   ! r = q*t + a  (scalar follows the
++!                                !  vectors, as in every name here)
++! The compiler picks s/d/c/z from the argument types.  Fields are
++! T(n, 3) and must be contiguous; compile with -fcheck=bounds while
++! debugging.  For strided or interleaved storage
 +! call the cblas_* entry points directly, or the exported F77 names:
 +!   call d3cross(n, x1, 1, x2, 1, x3, 1, y1, 1, y2, 1, y3, 1, w1, 1, w2, 1, w3, 1)
 +! Compile this file first, then the user program; link -lopenblas.
@@ -33640,40 +33645,40 @@ index 0000000..e51542c
 +      complex(c_double_complex) :: x(*)
 +      complex(c_double_complex) :: y(*)
 +    end subroutine cblas_axpy_z
-+    subroutine cblas_1xypa_s(n, a, q, incq, t, inct, r, incr) &
++    subroutine cblas_1xypa_s(n, q, incq, t, inct, a, r, incr) &
 +        bind(C, name="cblas_s1xypa")
 +      import :: c_int, c_float
 +      integer(c_int), value :: n, incq, inct, incr
-+      real(c_float), value :: a
 +      real(c_float) :: q(*)
 +      real(c_float) :: t(*)
++      real(c_float), value :: a
 +      real(c_float) :: r(*)
 +    end subroutine cblas_1xypa_s
-+    subroutine cblas_1xypa_d(n, a, q, incq, t, inct, r, incr) &
++    subroutine cblas_1xypa_d(n, q, incq, t, inct, a, r, incr) &
 +        bind(C, name="cblas_d1xypa")
 +      import :: c_int, c_double
 +      integer(c_int), value :: n, incq, inct, incr
-+      real(c_double), value :: a
 +      real(c_double) :: q(*)
 +      real(c_double) :: t(*)
++      real(c_double), value :: a
 +      real(c_double) :: r(*)
 +    end subroutine cblas_1xypa_d
-+    subroutine cblas_1xypa_c(n, a, q, incq, t, inct, r, incr) &
++    subroutine cblas_1xypa_c(n, q, incq, t, inct, a, r, incr) &
 +        bind(C, name="cblas_c1xypa")
 +      import :: c_int, c_float_complex
 +      integer(c_int), value :: n, incq, inct, incr
-+      complex(c_float_complex) :: a
 +      complex(c_float_complex) :: q(*)
 +      complex(c_float_complex) :: t(*)
++      complex(c_float_complex) :: a
 +      complex(c_float_complex) :: r(*)
 +    end subroutine cblas_1xypa_c
-+    subroutine cblas_1xypa_z(n, a, q, incq, t, inct, r, incr) &
++    subroutine cblas_1xypa_z(n, q, incq, t, inct, a, r, incr) &
 +        bind(C, name="cblas_z1xypa")
 +      import :: c_int, c_double_complex
 +      integer(c_int), value :: n, incq, inct, incr
-+      complex(c_double_complex) :: a
 +      complex(c_double_complex) :: q(*)
 +      complex(c_double_complex) :: t(*)
++      complex(c_double_complex) :: a
 +      complex(c_double_complex) :: r(*)
 +    end subroutine cblas_1xypa_z
 +    subroutine cblas_3dot_s(n, x1, incx1, x2, incx2, x3, incx3, y1, incy1, y2, &
@@ -34951,37 +34956,37 @@ index 0000000..e51542c
 +    complex(c_double_complex) :: y(*)
 +    call cblas_axpy_z(n, alpha, x, 1_c_int, y, 1_c_int)
 +  end subroutine v1axpy_z
-+  subroutine v1xypa_s(n, a, q, t, r)
++  subroutine v1xypa_s(n, q, t, a, r)
 +    integer(c_int), value :: n
-+    real(c_float), value :: a
 +    real(c_float) :: q(*)
 +    real(c_float) :: t(*)
++    real(c_float), value :: a
 +    real(c_float) :: r(*)
-+    call cblas_1xypa_s(n, a, q, 1_c_int, t, 1_c_int, r, 1_c_int)
++    call cblas_1xypa_s(n, q, 1_c_int, t, 1_c_int, a, r, 1_c_int)
 +  end subroutine v1xypa_s
-+  subroutine v1xypa_d(n, a, q, t, r)
++  subroutine v1xypa_d(n, q, t, a, r)
 +    integer(c_int), value :: n
-+    real(c_double), value :: a
 +    real(c_double) :: q(*)
 +    real(c_double) :: t(*)
++    real(c_double), value :: a
 +    real(c_double) :: r(*)
-+    call cblas_1xypa_d(n, a, q, 1_c_int, t, 1_c_int, r, 1_c_int)
++    call cblas_1xypa_d(n, q, 1_c_int, t, 1_c_int, a, r, 1_c_int)
 +  end subroutine v1xypa_d
-+  subroutine v1xypa_c(n, a, q, t, r)
++  subroutine v1xypa_c(n, q, t, a, r)
 +    integer(c_int), value :: n
-+    complex(c_float_complex) :: a
 +    complex(c_float_complex) :: q(*)
 +    complex(c_float_complex) :: t(*)
++    complex(c_float_complex) :: a
 +    complex(c_float_complex) :: r(*)
-+    call cblas_1xypa_c(n, a, q, 1_c_int, t, 1_c_int, r, 1_c_int)
++    call cblas_1xypa_c(n, q, 1_c_int, t, 1_c_int, a, r, 1_c_int)
 +  end subroutine v1xypa_c
-+  subroutine v1xypa_z(n, a, q, t, r)
++  subroutine v1xypa_z(n, q, t, a, r)
 +    integer(c_int), value :: n
-+    complex(c_double_complex) :: a
 +    complex(c_double_complex) :: q(*)
 +    complex(c_double_complex) :: t(*)
++    complex(c_double_complex) :: a
 +    complex(c_double_complex) :: r(*)
-+    call cblas_1xypa_z(n, a, q, 1_c_int, t, 1_c_int, r, 1_c_int)
++    call cblas_1xypa_z(n, q, 1_c_int, t, 1_c_int, a, r, 1_c_int)
 +  end subroutine v1xypa_z
 +  subroutine v3dot_s(x, y, r)
 +    integer(c_int) :: n
@@ -35902,7 +35907,7 @@ index 0000000..e51542c
 +end module v3blas
 diff --git a/v3blas.h b/v3blas.h
 new file mode 100644
-index 0000000..d2b1b5b
+index 0000000..8c9b836
 --- /dev/null
 +++ b/v3blas.h
 @@ -0,0 +1,294 @@
@@ -36026,7 +36031,7 @@ index 0000000..d2b1b5b
 +/* r = q.*t + a */                                                             \
 +static inline void v1xypa_ ## P(const T *q, const T *t, T a, T *r, blasint n)  \
 +{                                                                              \
-+    cblas_ ## P ## 1xypa(n, SCAL, (T *)q, 1, (T *)t, 1, r, 1);                 \
++    cblas_ ## P ## 1xypa(n, (T *)q, 1, (T *)t, 1, SCAL, r, 1);                 \
 +}                                                                              \
 +/* r = x1y1 + x2y2 + x3y3 */                                                   \
 +static inline void v3dot_ ## P(v3 ## P x, v3 ## P y, T *r)                     \

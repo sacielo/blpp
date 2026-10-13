@@ -198,7 +198,7 @@ contains
              real(maxval(abs(y1 - (al*x1 + t)))), 1.0E-5)
 
     call rfill_s(0.1, q); call rfill_s(-0.7, t)
-    call v1xypa(n, a2, q, t, r)
+    call v1xypa(n, q, t, a2, r)
     call chk('v1xypa  r=q*t+a ('//"s"//')', &
              real(maxval(abs(r - (q*t + a2)))), 1.0E-5)
 
@@ -301,7 +301,7 @@ contains
              real(maxval(abs(y1 - (al*x1 + t)))), 1.0E-12)
 
     call rfill_d(0.1d0, q); call rfill_d(-0.7d0, t)
-    call v1xypa(n, a2, q, t, r)
+    call v1xypa(n, q, t, a2, r)
     call chk('v1xypa  r=q*t+a ('//"d"//')', &
              real(maxval(abs(r - (q*t + a2)))), 1.0E-12)
 
@@ -406,7 +406,7 @@ contains
              real(maxval(abs(y1 - (al*x1 + t)))), 1.0E-5)
 
     call cfill_c(0.1, 0.05, q); call cfill_c(-0.7, 0.3, t)
-    call v1xypa(n, a2, q, t, r)
+    call v1xypa(n, q, t, a2, r)
     call chk('v1xypa  r=q*t+a ('//"c"//')', &
              real(maxval(abs(r - (q*t + a2)))), 1.0E-5)
 
@@ -511,7 +511,7 @@ contains
              real(maxval(abs(y1 - (al*x1 + t)))), 1.0E-12)
 
     call cfill_z(0.1d0, 0.05d0, q); call cfill_z(-0.7d0, 0.3d0, t)
-    call v1xypa(n, a2, q, t, r)
+    call v1xypa(n, q, t, a2, r)
     call chk('v1xypa  r=q*t+a ('//"z"//')', &
              real(maxval(abs(r - (q*t + a2)))), 1.0E-12)
 

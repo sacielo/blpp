@@ -185,8 +185,8 @@ static void bench_all_ ## P(int n)                                         \
                                                                            \
     { v1xypa_ ## P(bq, bt, s_xa, wo[0], n);                                \
       Timing tp = timed_run([&]{ v1xypa_ ## P(bq, bt, s_xa, wo[0], n); }); \
-      Timing tc = timed_run([&]{ cblas_ ## P ## 1xypa(n, CXA, bq, 1,       \
-          bt, 1, ro[0], 1); });                                            \
+      Timing tc = timed_run([&]{ cblas_ ## P ## 1xypa(n, bq, 1,           \
+          bt, 1, CXA, ro[0], 1); });                                     \
       add_result("v1xypa_" #P, tp, tc, (ICX ? 8.0 : 2.0), n, "r=q.*t+a"); } \
                                                                            \
     { v3dot_ ## P(x, y, wo[0]);                                            \

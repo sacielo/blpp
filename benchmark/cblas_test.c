@@ -87,7 +87,7 @@ static void test_ ## P(void)                                                 \
                                                                              \
     memcpy(ax, yv, sizeof ax);                                               \
     cblas_ ## P ## axpy(N, CAX, xv, 1, ax, 1);                               \
-    cblas_ ## P ## 1xypa(N, CXA, q, 1, t, 1, xy, 1);                         \
+    cblas_ ## P ## 1xypa(N, q, 1, t, 1, CXA, xy, 1);                         \
     cblas_ ## P ## 3dot(N, XT, YT, dot, 1);                                  \
     cblas_ ## P ## 3had(N, XT, YT, had0, 1, had1, 1, had2, 1);               \
     cblas_ ## P ## 3sqr(N, XT, sqr, 1);                                      \
@@ -166,6 +166,44 @@ RUNTEST(z, 'z', v3blas_doublecomplex, 1, 16, 1e-12L,
 #undef YT
 #undef WT
 
+/* Raw-layer contract (interface behavior, precision-independent; probed
+   and confirmed 2026-10-13): n<=0 is a no-op; inc<0 reverses the span
+   base..base+(n-1)|inc| (interface shifts the base pointer); inc=0 is a
+   read-only broadcast; output component w_c may alias x_c/y_c in place
+   (components run sequentially, so NEVER alias across components); a
+   negative sqrt argument (eps<0) propagates IEEE NaN without trapping. */
+static void ct(int cond, const char *what)
+{
+    printf("d contract %-22s %s\n", what, cond ? "ok" : "FAIL");
+    if (!cond) fails++;
+}
+
+static void test_contract(void)
+{
+    double a[5] = {10, 20, 30, 40, 50}, one = 1.0;
+    double b[3] = {2, 3, 4}, sm[3] = {1e-20, 0, 0};
+    double u1[3] = {5, 6, 7}, u2[3] = {2, 2, 2}, u3[3] = {3, 3, 3};
+    double v1[3] = {2, 3, 4}, v2[3] = {1, 1, 1}, v3[3] = {1, 1, 1};
+    double w[9] = {0}, o[3] = {0}, rr[1], uu[3], z[3] = {-9, -9, -9};
+
+    cblas_d3had(0, a, 1, a, 1, a, 1, a, 1, a, 1, a, 1, z, 1, z, 1, z, 1);
+    ct(z[0] == -9 && z[1] == -9 && z[2] == -9, "n=0 untouched");
+
+    cblas_d3had(3, a, -2, a, -2, a, -2, &one, 0, &one, 0, &one, 0,
+                w, 1, w + 3, 1, w + 6, 1);
+    ct(w[0] == 50 && w[1] == 30 && w[2] == 10 && w[8] == 10, "inc<0 reversed span");
+
+    cblas_d3had(3, b, 1, b, 1, b, 1, &one, 0, &one, 0, &one, 0,
+                o, -1, o, -1, o, -1);
+    ct(o[0] == 4 && o[1] == 3 && o[2] == 2, "out inc<0 reversed store");
+
+    cblas_d3had(3, v1, 1, v2, 1, v3, 1, u1, 1, u2, 1, u3, 1, v1, 1, v2, 1, v3, 1);
+    ct(v1[0] == 10 && v1[2] == 28 && v2[0] == 2 && v3[2] == 3, "alias w_c==x_c inplace");
+
+    cblas_d3norm_unit(1, sm, 1, sm, 1, sm, 1, -1.0, rr, 1, uu, 1, uu, 1, uu, 1);
+    ct(isnan(rr[0]) && isnan(uu[0]), "eps<0 -> NaN, no trap");
+}
+
 static int want(const char *sel, const char *tag)
 {
     return !*sel || !strcmp(sel, tag);
@@ -182,6 +220,7 @@ int main(int argc, char **argv)
     if (want(sel, "d")) test_d();
     if (want(sel, "c")) test_c();
     if (want(sel, "z")) test_z();
+    test_contract();
     printf("cblas_test: %s (%d failures)\n", fails ? "FAIL" : "OK", fails);
     return fails ? 1 : 0;
 }

@@ -52,7 +52,8 @@ constants must match what the call actually passed (`al` vs `1.5`).
 
 ## v3blas — higher-level interface, three front-ends (done 2026-10-08)
 
-MATLAB/Octave-style API over the 13 kernels, design in `V3BLAS_API.md`.
+MATLAB/Octave-style API over the 19 element-wise kernels, design in
+`V3BLAS_API.md` (grew from the first 13; lap5/lap7 stay raw-cblas).
 
 - `openblas/v3blas.h` (plain C, C++-safe, single macro × 4 precisions):
   - 1-vectors are plain unit-stride C arrays (no struct, no wrapper);
@@ -76,22 +77,29 @@ MATLAB/Octave-style API over the 13 kernels, design in `V3BLAS_API.md`.
   overloads per precision (no macros under `__cplusplus`); `v3blas_hpp_test.cpp`
   checks every op × precision bitwise (`memcmp`) against `cblas_*`.
 - `openblas/v3blas.f90` (Fortran front-end, F2003 `iso_c_binding` module):
-  generic interfaces `v1axpy ... v3dotxy_dotxz` over 52 `bind(C)` wrappers
-  (BLAS-style arg order, `n` first, unit stride only); `gfortran
-  -std=f2008 -Wall` clean; `v3blas_f90_test.f90` checks 13 generics ×
-  4 precisions against Fortran-recomputed equations (52 checks, 0 fail).
-- `benchmark/v3blas_test.c` (C99, long double reference): all 13 ops × 4 precisions
+  generic interfaces `v1axpy ... v3mom_ke` over 76 wrappers; 3-vector ops
+  take whole fields `u(n, 3)` (columns = component arrays, `n` implicit,
+  runtime `(n,3)` guard); 1-vector ops keep explicit `n` (2026-10-13
+  field-form rewrite); `gfortran -std=f2008 -Wall` clean;
+  `v3blas_f90_test.f90` checks 19 generics × 4 precisions against
+  Fortran-recomputed equations (76 checks, 0 fail; `[s|d|c|z]` CLI).
+- `benchmark/v3blas_test.c` (C99, long double reference): all 19 ops × 4 precisions
   + strided smoke case (v3cross_d inc=2) — all pass
-  (d/z exact, s/c ≤ ~3e-7). C++ compile check passes.
+  (d/z exact, s/c ≤ ~3e-7). C++ compile check passes. All four `_test`
+  programs accept `[s|d|c|z]` to run one precision (default: all).
 - `openblas/CMakeLists.txt`: installs `v3blas.h`, `v3blas.hpp`, `v3blas.f90`
   next to `cblas.h`.
 
 ## Conventions settled while doing #1
 
 - Symbols: `s1xypa`, `d1xypa`, `c1xypa`, `z1xypa`; cblas: `cblas_s1xypa` etc.
-- cblas prototype (output last, BLAS convention):
-  `void cblas_<p>1xypa(blasint n, <T> a, const <T> *q, blasint incq, const <T> *t, blasint inct, <T> *r, blasint incr)`
-  (`<T>` = `void*` for `c`/`z`, complex scalar is a pair of reals)
+- cblas prototype (name-ordered args, output last — `1xypa` literally
+  reads `x y p(a)lus a`, so vectors first, scalar `a` after them; reordered
+  2026-10-13, f77 entry matches):
+  `void cblas_<p>1xypa(blasint n, const <T> *q, blasint incq, const <T> *t, blasint inct, <T> a, <T> *r, blasint incr)`
+  (`<T>` = `void*` for `c`/`z`, complex scalar is a pair of reals;
+  the internal kernel CNAME keeps the OpenBLAS scalar-first convention —
+  only the public layers are name-ordered)
 - Fortran entry: all arguments by pointer.
 - Complex product is bilinear (no conjugation):
   `r = (qr*tr − qi*ti + ar) + i(qr*ti + qi*tr + ai)`
@@ -121,11 +129,14 @@ MATLAB/Octave-style API over the 13 kernels, design in `V3BLAS_API.md`.
 
 ## Side experiments (parked)
 
-- Oversubscription: run the benchmark with 2 OpenBLAS threads on this 1-core machine and see whether a second thread overlaps the in-order core's load stalls (memory-level parallelism). Blocked on the current build: `MAX_CPU_NUMBER=1` is compiled in (CMake `CORE_COUNT`), which clamps `OPENBLAS_NUM_THREADS` to 1 (verified: `openblas_get_num_threads()` returns 1 regardless of the env var). Unblock = reconfigure with `-DCORE_COUNT=2` + full rebuild (~1.5–2 h); note this also changes blocking parameters for all kernels, so results wouldn't isolate the oversubscription effect.
+- Oversubscription: run the benchmark with 2 OpenBLAS threads on this 1-core machine and see whether a second thread overlaps the in-order core's load stalls (memory-level parallelism). NOTE (2026-10-13): the threading layer work already rebuilt with `MAX_CPU_NUMBER=4` and validated at forced `NUM_THREADS=4` (bitwise T1-vs-T4), so the old `CORE_COUNT=1` clamp note is obsolete — the experiment only needs bench runs at NUM_THREADS ∈ {1,2,4}, still meaningless on 1 core beyond correctness.
 
 ## Oddjobs
 
-- fix the 1xypa kernel template so that scalar argument a comes after vector argument x and y (6 arguments each)
+- [x] Reorder `1xypa` so scalar `a` comes after the vector arguments
+      (done 2026-10-13: cblas/f77/common_interface/v3blas.h/.f90 + all
+      call sites; kernel CNAME unchanged — scalar-after-dummies is the
+      internal calling convention the thread marshaller relies on)
 
 ## Threading layer — `blas_physics_thread` (done 2026-10-11)
 
@@ -188,7 +199,7 @@ they must trust.
 
 - [ ] Conformance runner: standalone binary, `dlopen`s an arbitrary BLAS
       (shared or static MKL/ESSL), probes symbols (LP64 + ILP64 name
-      variants), runs the 13 ops × 4 precisions against the long-double
+      variants), runs the 19 ops × 4 precisions against the long-double
       reference vectors from `v3blas_test.c`, prints a per-op pass/fail
       table. Must run on a vendor lib with zero recompilation — this is
       the outreach weapon ("your lib fails 12/12, here's the 2-page spec").
@@ -239,9 +250,9 @@ they must trust.
   nearly equal products, which cancels catastrophically at float precision as
   n grows (the old (i+seed)%997 sawtooth was a ramp with equally spaced
   components; LCG-from-seed is also affine and just hides it).
-- v3blas_bench verifies v3blas == cblas bitwise on identical inputs (its subject
-  is API overhead: call + result free vs raw call with pre-allocated outputs);
-  true-reference checks stay in v3blas_test.c and the unit tests.
+- v3blas_bench is timing-only since the test/bench split (API overhead
+  comparison v3blas vs raw cblas); true-reference checks live in
+  v3blas_test.c and the unit tests.
 - benchmark/ links only an *installed* OpenBLAS (cmake --install build
   --prefix ../pkgs/openblas; headers in include/openblas/). Referencing the
   source + build trees instead duplicates the same headers/macros.

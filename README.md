@@ -129,8 +129,8 @@ cmake --install openblas/build --prefix "$PWD/pkgs/openblas"
 ./openblas/build/utest/openblas_utest_ext
 
 # 4. Build the test/bench/example suite against the installed tree and
-#    run the tests (every line must say OK; 220 + 2765 + 200 + 195 + 80
-#    + 76 checks in total)
+#    run the tests (every line must say OK; 220 + 2765 + 205 + 195 + 80
+#    + 76 checks in total, the 205 incl. five raw-layer contract checks)
 cmake -S benchmark -B benchmark/build
 cmake --build benchmark/build -j"$(nproc)"
 ./benchmark/build/cblas_test                      # raw cblas_* x 4 prec vs long-double ref

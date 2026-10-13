@@ -191,8 +191,8 @@ static void bench_all_ ## P(int n)                                           \
       PUSH("axpy", (ICX ? 8.0 : 2.0), (ICX ? 8.0 : 1.0), t, n, "y=a*x+y");   \
     }                                                                        \
     {                                                                        \
-      Timing t = timed_run([&] { cblas_ ## P ## 1xypa(n, CXA, bq, 1,         \
-          bt, 1, ro[0], 1); });                                              \
+      Timing t = timed_run([&] { cblas_ ## P ## 1xypa(n, bq, 1,             \
+          bt, 1, CXA, ro[0], 1); });                                     \
       PUSH("1xypa", (ICX ? 8.0 : 2.0), (ICX ? 8.0 : 1.0), t, n,              \
            "r=q.*t+a");                                                      \
     }                                                                        \

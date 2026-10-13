@@ -155,12 +155,30 @@ complex data is the principal complex `sqrt(q·q)`, on real data `|q|`.
   ordinary F2003 source; `gfortran -std=f2008 -Wall` clean. Dummy fields
   are all-assumed-shape `(:,:)` with a runtime shape guard, which is the
   form gfortran accepts and associates without copies.
+- Public argument order follows the formula in the name: `1xypa(n, q,
+  t, a, r, …)` literally reads *x y plus a* — vectors first, then the
+  scalar, output last (same in the f77 entry). The CFD family obeys the
+  rule too (`3drag(n, x…, a, eps, r…)`); `3crossscal(n, a, x…, y…, w…)`
+  is the one deliberate exception, keeping the BLAS `scal` tradition of
+  a leading scalar.
+- Raw-layer stride contract (probed and pinned by the `contract` block
+  in `cblas_test.c`): `n ≤ 0` is a no-op; `inc < 0` walks the span
+  `base..base+(n-1)|inc|` **backwards** (the interfaces shift the base
+  pointer, so pass the forward start); `inc = 0` broadcasts a scalar;
+  `w_c` may alias `x_c`/`y_c` in place, but NEVER alias across
+  components (they run sequentially) and partial overlap is UB; NaN
+  propagates silently (`eps < 0` making a sqrt argument negative →
+  IEEE NaN, no trap).
 
 ## Verification
 
 `benchmark/v3blas_test.c` (plain C): all 19 operations at all 4
 precisions against a long-double reference, generic and suffixed names,
 plus a strided smoke case (inc = 2 on the *output* view of `v3cross`).
+All four `_test` programs (cblas, C, C++, F90) take an optional
+`s|d|c|z` argument to run a single precision; default is all four.
+`benchmark/cblas_test.c` additionally pins the raw-layer contract above
+(five `d contract …` checks).
 
 `benchmark/v3blas_example.c` tours the API; `v3blas_bench.cpp` times all
 19 × 4 precisions against the raw `cblas_*` calls (timing only —
