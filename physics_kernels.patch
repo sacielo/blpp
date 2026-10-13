@@ -35907,10 +35907,10 @@ index 0000000..0893c08
 +end module v3blas
 diff --git a/v3blas.h b/v3blas.h
 new file mode 100644
-index 0000000..8c9b836
+index 0000000..932aa0d
 --- /dev/null
 +++ b/v3blas.h
-@@ -0,0 +1,294 @@
+@@ -0,0 +1,295 @@
 +/***************************************************************************
 + * Copyright (c) 2026, The OpenBLAS Project
 + * All rights reserved.
@@ -35977,7 +35977,8 @@ index 0000000..8c9b836
 + *   double r[n];
 + *   v3sqr_d(w, r);                     // r = w·w
 + *
-+ * See V3BLAS_API.md (blpp repo) for the full operation table.
++ * The blpp repo docs/KERNELS.md holds the operation table and the
++ * stride/aliasing/complex-semantics contracts.
 + */
 +
 +#ifndef V3BLAS_H

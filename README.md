@@ -1,168 +1,138 @@
-# blpp — physics kernels for OpenBLAS
+# blpp — element-wise physics kernels for BLAS
 
-A set of **element-wise BLAS extension kernels for field-based physics
-computations**, implemented in [OpenBLAS](https://github.com/OpenMathLib/OpenBLAS)
-(pinned at v0.3.34, carried as a submodule, delivered as a single patch),
-plus a header-only, allocation-free API in three front-ends (C11, C++,
-Fortran).
+Physics codes (MHD, CFD, particle-in-cell, rigid bodies) move **fields of
+2-/3-component vectors**, and their hot loops are element-wise: per-cell
+cross products, dot products, Hadamard products, squared magnitudes —
+never reduced across the field. Standard BLAS has exactly one element-wise
+operation (`axpy`), so everything else degenerates into hand-written loops
+that a BLAS kernel would do better. This project defines those operations
+— **20 kernels × 4 precisions (`s d c z`), plus a MATLAB-flavoured
+front-end in C11, C++ and Fortran** — and maintains working backends.
 
-## Rationale
+Backends are pluggable by design: the semantics and the conformance
+matter, the library does not. Today one backend ships:
 
-Physics codes (MHD, particle-in-cell, rigid bodies, …) rarely move plain
-vectors around; they move **fields of 2- or 3-component vectors**. The
-hot loops are element-wise: per-cell dot products, cross products,
-Hadamard products, squared magnitudes — always element-wise, never
-reduced across the field. Standard BLAS has exactly one element-wise
-operation (`axpy`), so everything else degenerates into hand-written
-loops that a BLAS kernel could do better (blocking, vectorization,
-threading) — if BLAS exposed them.
+| backend | status | details |
+|---|---|---|
+| [OpenBLAS](https://github.com/OpenMathLib/OpenBLAS) | working — one patch on a pinned commit | [`docs/backends/OPENBLAS.md`](docs/backends/OPENBLAS.md) |
+| oneMATH (FOSS oneMKL), CLBlast, BLIS | planned | [`docs/TODO.md`](docs/TODO.md) |
 
-This repo adds the twelve kernels of [`blasKernels.md`](blasKernels.md)
-plus six CFD/plasma menu ops to OpenBLAS — plain-C **generic** kernels
-(no per-arch assembly, so they
-stay portable and reviewable), for all four precisions (`s d c z`), each
-with the usual Fortran 77 / cblas interfaces, wired into the build and
-export lists, and covered by unit + cblas tests in OpenBLAS' own utest
-suite:
-
-| kernel `<p>` | equation | kernel `<p>` | equation |
-|---|---|---|---|
-| `1xypa` | `r = q.*t + a` | `3crossdot` | `r = (x∧y)·w` |
-| `3dot` | `r = x·y` | `3crosssqr` | `r = (x∧y)·(x∧y)` |
-| `3had` | `w = x.*y` | `3crossxy_crossxz` | `u = x∧y, v = x∧w` |
-| `3sqr` | `r = x·x` | `3crossxy_dotxz` | `u = x∧y, r = x·w` |
-| `1norm` | `r = √(q·q)` | `3dotxy_dotxz` | `r = x·y, q = x·w` |
-| `3cross` | `w = x∧y` | `3crossscal` | `w = a·(x∧y)` |
-| `3crosscross` | `r = (x∧y)∧z` | `3norm_unit` | `r = √(x·x+eps), û = x/r` |
-| `3refl` | `q = x − a(x·y)y/(y·y+eps)` | `3exb` | `r = a(x∧y)/(y·y+eps)` |
-| `3drag` | `r = a·x·√(x·x+eps)` | `3mom_ke` | `m = s·x, k = ½s(x·x)` |
-
-(19 operations in the API: one reuses `cblas_*axpy`; the last six are
-the CFD menu — unit vectors, `(u∧B)∧B` Lorentz/MHD terms, E∧B/B²
-drifts, wall reflection, quadratic drag, the primitive→conservative
-map. They inherit the whole pipeline: 4 precisions, `v3blas`
-front-ends, utests, the cblas ABI. Guarded divisions take `eps` as an
-explicit argument (0 = exact). Constant fields (gravity, rotation
-axis, `B̂₀`) need no special op: pass them at `inc = 0`. Still
-candidates, not implemented: `3minmod` (TVD slope limiter), `3sel`
-(branchless upwind selection); curl/div/grad are stencils and belong
-to a different, later ABI.)
-
-On top of the raw `cblas_<p><kernel>` entry points sits **`v3blas`**, a
-thin front-end with MATLAB-flavoured names ([`V3BLAS_API.md`](V3BLAS_API.md)):
-every operation is `void` with outputs as trailing caller-owned arrays —
-the library never allocates — and the precision is either a suffix
-(`v3cross_d`) or picked from the argument types (`_Generic` in C11,
-overloads in C++). In C, a 3-vector is three component arrays with
-independent strides; Fortran hands the same kernels whole fields: a
-3-vector is one `u(n, 3)` array whose columns *are* the component
-arrays, `n` implicit (raw F77 triplets remain one `call d3cross_` away).
-The front-ends are headers/a source file only: `v3blas.h`, `v3blas.hpp`,
-`v3blas.f90`, installed next to `cblas.h`.
-
-## Roadmap — the actual goal: every BLAS, not this BLAS
-
-Every physics project re-implements cross products in its first week,
-forever. The fix is not one fast library; it is **one symbol name in
-every BLAS**, so users write `v3cross(A, B, W)`, link their local BLAS
-(mine, the cluster's, the vendor's) and go — no paradigm choice, no new
-dependency, nothing to install. Diffusion model: the `cblas_*` ABI,
-which became portable precisely because every provider emits the same
-names, not because of performance.
-
-The durable deliverable is therefore a **versioned ABI + semantics
-spec** (symbols, argument order, LP64/ILP64 variants, complex scalar
-convention, increment/aliasing/NaN rules) plus a **conformance suite
-runnable against any vendor library at runtime** (dlopen, no
-recompile). Providers adopt standards they can test against, not
-opinions they must trust. Order of attack: OpenBLAS (open, first
-mover — this repo is its working implementation), BLIS (framework
-built for extension; its group already added axpby), the BLAS
-Extensions standardisation effort (the front that cuBLAS/rocBLAS/MKL
-can follow once a standard exists), then vendor libraries on user
-demand. FOMO after the second adopter. The two-layer split is what
-keeps this portable: providers only ever implement the C ABI layer;
-users only ever write the front-end layer.
-
-Committees ratify shipping practice, they do not invent it — so the
-spec and the forum pitch come AFTER the first open merges, not before.
-The cautionary precedent is XBLAS: reference implementation, test
-deck, no third-party callers — never adopted. What this ops set has
-that XBLAS lacked: near-zero per-vendor implementation cost, demand
-from a demographic BLAS never served, and a front-end usable without
-knowing BLAS exists. Two rules follow. Conformance is tiered:
-tolerance-based across providers (FMA/rounding differ; over-specified
-tests scare vendors), bitwise only within one library. And the
-binding constraint is not engineering but the demand base: this
-becomes a standard when strangers' physics code links these names in
-CI — so migrating real community codes is roadmap work of equal rank
-to any PR. The invariant throughout is the spec + conformance
-vectors; library linkage is one era's delivery vehicle, inline
-headers another — the equations are what must not change.
-
-## Quickstart
-
-Requirements: git, CMake ≥ 3.16, a C compiler, and a Fortran compiler
-(gfortran) for the unit tests and the Fortran front-end test. The patch
-applies to the pinned submodule commit (OpenBLAS v0.3.34).
-
-Everything below — clone, patch, build, install into `pkgs/openblas`,
-run OpenBLAS' own tests, then build and run the v3blas tests and
-benchmarks — is one paste:
+## Quickstart (OpenBLAS backend)
 
 ```sh
-# 1. Clone with the OpenBLAS submodule and apply the physics-kernel patch
-git clone --recurse-submodules https://github.com/sacielo/blpp.git
-cd blpp
-git -C openblas apply ../physics_kernels.patch
-
-# 2. Build OpenBLAS and install it to pkgs/openblas (benchmarks link only
-#    against this installed tree; use -j1 on small/low-RAM machines)
-cmake -S openblas -B openblas/build -DCMAKE_BUILD_TYPE=Release \
-      -DNO_LAPACK=1
-cmake --build openblas/build -j"$(nproc)"
+git clone --recurse-submodules https://github.com/sacielo/blpp.git && cd blpp
+git -C openblas apply physics_kernels.patch
+cmake -S openblas -B openblas/build -DCMAKE_BUILD_TYPE=Release -DNO_LAPACK=1
+cmake --build openblas/build -j"$(nproc)"        # -j1 on small machines
 cmake --install openblas/build --prefix "$PWD/pkgs/openblas"
 
-# 3. OpenBLAS' own test suites (the *_ext suite holds the cblas tests of
-#    the 18 new kernels; both suites must end with 0 failures)
+# OpenBLAS' own suites must end with 0 failures (220 and 2765 checks)
 ./openblas/build/utest/openblas_utest
 ./openblas/build/utest/openblas_utest_ext
 
-# 4. Build the test/bench/example suite against the installed tree and
-#    run the tests (every line must say OK; 220 + 2765 + 205 + 195 + 80
-#    + 76 checks in total, the 205 incl. five raw-layer contract checks)
-cmake -S benchmark -B benchmark/build
-cmake --build benchmark/build -j"$(nproc)"
-./benchmark/build/cblas_test                      # raw cblas_* x 4 prec vs long-double ref
-./benchmark/build/v3blas_test | tail -n 1         # v3blas.h C11 wrapper, same treatment
-./benchmark/build/v3blas_cpp_test | tail -n 1     # C++ overloads, bitwise vs cblas
-./benchmark/build/v3blas_f90_test | tail -n 1     # Fortran generics vs Fortran equations
-./benchmark/build/cblas_example                   # examples: tiny, the printed output is the doc
-./benchmark/build/v3blas_example | tail -n 3
-./benchmark/build/v3blas_cpp_example
-./benchmark/build/v3blas_f90_example
-./benchmark/build/cblas_bench                     # benches: timing tables, nothing verified
-./benchmark/build/v3blas_bench                    # adds the v3blas-vs-cblas overhead column
-./benchmark/build/v3blas_cpp_bench
-./benchmark/build/v3blas_f90_bench
+# the front-end suite: tests verify, benches time, examples teach
+cmake -S benchmark -B benchmark/build && cmake --build benchmark/build
+./benchmark/build/cblas_test          # every *_test must end OK (0 failures)
 ```
 
-The OpenBLAS build takes ~1.5–2 h on a single ARMv6 core and minutes on
-a desktop; the benches re-time every op until stable (up to a few
-minutes on slow hardware). Correctness lives only in the `*_test`
-programs — each one also prints a paste-ready MATLAB/Octave block for
-re-verify-by-hand; the interface layer then costs nothing but the call
-itself (`v3blas_bench`'s overhead column sits at ~1.0). Numbers in
-[`TODO.md`](TODO.md).
+Everything links against the *installed* tree in `pkgs/openblas/`:
+headers in `include/openblas/` (`cblas.h` + the three front-end files),
+`lib/libopenblas.a`.
 
-## Layout
+## Using the APIs
 
-| path | what |
+Two layers, one library. The **raw layer** is the plain BLAS-style ABI,
+`cblas_<p><kernel>`, always available with explicit `n` and per-component
+strides. On top sits **`v3blas`**, a header-only, allocation-free
+front-end in three languages over the same symbols:
+
+| language | file | precision chosen… |
+|---|---|---|
+| C (C11) | `v3blas.h` | by `_Generic` on the arguments, or suffix: `v3cross_d(…)` |
+| C++ (11+) | `v3blas.hpp` | by overload (no macros; include exactly one header) |
+| Fortran (F2003+) | `v3blas.f90` | by argument types (generic module procedures) |
+
+The whole API in three rules:
+
+1. **The library never allocates.** Every operation is `void`; outputs
+   are trailing arguments you provide (like the `y` of `cblas_daxpy`) and
+   may alias inputs. Inputs are never modified.
+2. **A 3-vector is three component arrays.** In C: a `v3<P>` view —
+   `{T *x, *y, *z; blasint incx, incy, incz, n;}` — built with
+   `v3<P>_wrap(x, y, z, n)`; its fields are public, so strided or
+   scattered components are just set by hand. `inc = 0` broadcasts
+   (constant fields are free). Indexing is `blasint`, strides are BLAS
+   semantics (see [`docs/KERNELS.md`](docs/KERNELS.md) for the full
+   contract).
+3. **Complex is bilinear** (no conjugation anywhere); guard parameters
+   (`eps`) and coefficients (`a`) are *real* scalars in every precision.
+
+```c
+#include <v3blas.h>                        /* C11; or <v3blas.hpp> for C++ */
+v3d x = v3d_wrap(x1, x2, x3, n), y = v3d_wrap(y1, y2, y3, n);
+v3d w = v3d_wrap(w1, w2, w3, n);           /* output: your arrays */
+v3cross(x, y, w);                          /* w = x∧y            */
+v3drag(x, 0.5, 1e-30, w);                  /* w = 0.5·x·√(x·x+ε) */
+v1axpy(1.5, x1, y1, r1, n);              /* one-vector ops keep explicit n */
+```
+
+Fortran hands the same kernels **whole fields**: a 3-vector is one
+`u(n, 3)` array — column-major, so each column `u(:, c)` *is* one
+contiguous component array. No `n`, no strides, the shape is guarded at
+runtime:
+
+```fortran
+use v3blas
+real(8) :: x(n,3), y(n,3), w(n,3), r(n)
+call v3cross(x, y, w)            ! w = x∧y
+call v3norm_unit(x, eps, r, w)   ! r = √(x·x+eps), w = x/r
+```
+
+Raw F77 triplets (`call d3cross(n, x1, 1, …)`) stay one call away; the
+front-ends are convenience, not a gate.
+
+### The 19 front-end operations
+
+Shown for `d`; generic names pick the precision from the arguments.
+Equations are element-wise; `n` is explicit for one-vector ops and comes
+from `x.n` (Fortran: `size(x,1)`) otherwise. Full semantics, edge
+contracts and the raw `cblas_*` prototypes for all 20 kernels:
+[`docs/KERNELS.md`](docs/KERNELS.md).
+
+| equation | call | equation | call |
+|---|---|---|---|
+| `r = q.*t + a` | `v1xypa(q, t, a, r, n)` | `r = (x∧y)·w` | `v3crossdot(x, y, w, r)` |
+| `r = √(q·q)` | `v1norm(q, r, n)` | `r = (x∧y)·(x∧y)` | `v3crosssqr(x, y, r)` |
+| `y = α·x + y` | `v1axpy(α, x, y, r, n)` — C writes `r`, F90 in-place | `u = x∧y, v = x∧w` | `v3crossxy_crossxz(x, y, w, u, v)` |
+| `r = x·y` | `v3dot(x, y, r)` | `u = x∧y, r = x·w` | `v3crossxy_dotxz(x, y, w, u, r)` |
+| `w = x.*y` | `v3had(x, y, w)` | `r = x·y, q = x·w` | `v3dotxy_dotxz(x, y, w, r, q)` |
+| `r = x·x` | `v3sqr(x, r)` | `r = (x∧y)∧z` | `v3crosscross(x, y, z, r)` |
+| `w = x∧y` | `v3cross(x, y, w)` | `r = √(x·x+ε), u = x/r` | `v3norm_unit(x, eps, r, u)` |
+| `w = a·(x∧y)` | `v3crossscal(x, y, a, w)` | `q = x − a(x·y)y/(y·y+ε)` | `v3refl(x, y, a, eps, q)` |
+| `r = a·x·√(x·x+ε)` | `v3drag(x, a, eps, r)` | `r = a(x∧y)/(y·y+ε)` | `v3exb(x, y, a, eps, r)` |
+| `m = s·x, k = ½s(x·x)` | `v3mom_ke(s, x, m, k)` | | (`lap5`, `lap7`: raw layer only) |
+
+## Documentation map
+
+| file | what |
 |---|---|
-| `openblas/` | OpenBLAS submodule (v0.3.34, unmodified upstream commit) |
-| `physics_kernels.patch` | all kernel/interface/test wiring, as one `git diff` |
-| `pkgs/openblas/` | install prefix for the patched build |
-| `benchmark/` | v3blas tests, examples and benchmarks (standalone CMake, links only the installed tree) |
-| `blasKernels.md` | the kernel spec this implements |
-| `V3BLAS_API.md` | front-end design: vectors, ownership, the 19 ops, three languages |
-| `TODO.md` | progress log, wiring points per kernel, benchmark data notes |
+| [`docs/KERNELS.md`](docs/KERNELS.md) | the kernel catalog: quick list, equations, prototypes, stride/aliasing/NaN contracts |
+| [`docs/AGENT.md`](docs/AGENT.md) | how to implement kernels (rules, traps, test discipline) — read before writing code |
+| [`docs/backends/OPENBLAS.md`](docs/backends/OPENBLAS.md) | OpenBLAS specifics: patch workflow, wiring, threading, build flags |
+| [`docs/TODO.md`](docs/TODO.md) | open work + closed decisions |
+| [`docs/specs/`](docs/specs/) | the originating specs, frozen (`blasKernels.md`, `grand_plan.md`) |
+| `benchmark/` | the test/bench/example suite (standalone CMake, links only an installed backend) |
+
+## Roadmap — every BLAS, not this BLAS
+
+Every physics project re-implements cross products in its first week,
+forever. The fix is not one fast library; it is **one symbol name in every
+BLAS**: users write `v3cross(A, B, W)`, link their local BLAS, go. The
+durable deliverable is a versioned ABI + semantics spec plus a
+conformance suite runnable against any vendor library at runtime —
+providers adopt standards they can test against, not opinions they must
+trust. OpenBLAS (this repo) is the working reference; BLIS, the BLAS
+Extensions forum and the vendor libraries follow. The two-layer split is
+what keeps it portable: providers implement only the C ABI layer, users
+only the front-end layer. Committees ratify shipping practice — the spec
+and forum pitch come *after* first open merges, not before.
