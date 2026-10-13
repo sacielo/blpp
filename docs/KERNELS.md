@@ -56,8 +56,10 @@ your backend's doc for the mechanism. Semantically irrelevant to the caller.
 ² Ops whose outputs are per-element dot products keep a **pinned summation
 order** (see Contracts) and run serially to preserve it bitwise.
 
-Not kernels but worth knowing: `axpby` (upstream in modern OpenBLAS) covers
-`r = a·x + b·y`; the front-end's `v1axpy` maps to `axpy`. Still-candidate
+Not kernels but worth knowing: standard OpenBLAS already ships `axpy`
+(`r = a·x + y`) and modern OpenBLAS `axpby` (`r = a·x + b·y`); those are
+plain BLAS and deliberately get no wrapper here — `axpy` serves as the
+baseline row in the cblas benchmark. Still-candidate
 ops: `3minmod` (TVD limiter), `3sel` (branchless upwind selection), and the
 indirection/gather-scatter ABI for unstructured meshes
 ([`specs/grand_plan.md`](specs/grand_plan.md)).

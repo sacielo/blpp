@@ -178,10 +178,6 @@ static void bench_all_ ## P(int n)                                         \
     v3 ## P ou = v3 ## P ## _wrap(wo[1], wo[2], wo[3], n);                 \
     v3 ## P ov = v3 ## P ## _wrap(wo[3], wo[4], wo[5], n);                 \
                                                                            \
-    { Timing tp = timed_run([&]{ v1axpy_ ## P(s_ax, bxv, byv, wo[0], n); }); \
-      Timing tc = timed_run_restore([&]{ memcpy(ro[0], byv, (size_t)n * esz); }, \
-          [&]{ cblas_ ## P ## axpy(n, CAX, bxv, 1, ro[0], 1); });          \
-      add_result("v1axpy_" #P, tp, tc, (ICX ? 8.0 : 2.0), n, "y=a*x+y"); } \
                                                                            \
     { v1xypa_ ## P(bq, bt, s_xa, wo[0], n);                                \
       Timing tp = timed_run([&]{ v1xypa_ ## P(bq, bt, s_xa, wo[0], n); }); \

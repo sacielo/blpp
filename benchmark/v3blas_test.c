@@ -1,6 +1,6 @@
 /*
  * v3blas_test.c - verification for the v3blas.h higher-level interface.
- * Runs all 19 physics extension operations at s, d, c, z precision and
+ * Runs all 18 physics extension operations at s, d, c, z precision and
  * compares against a long double reference, plus a strided v3 smoke
  * case.  All arrays are the caller's own (the library never allocates).
  * Plain C99 (proves the header compiles as C).
@@ -40,7 +40,7 @@ static void test_s(void)
     float pu0[N], pu1[N], pu2[N], pur[N];
     float dxy_r[N], dxy_q[N];
 
-    v1axpy_s(1.5f, xv, yv, ax, N);
+    memcpy(ax, yv, sizeof ax); cblas_saxpy(N, 1.5f, xv, 1, ax, 1);  /* baseline */
     v1xypa_s(q, t, 0.25f, xy, N);
     v3dot_s(x, y, dot);
     v3had_s(x, y, v3s_wrap(had0, had1, had2, N));
@@ -106,7 +106,7 @@ static void test_d(void)
     double pu0[N], pu1[N], pu2[N], pur[N];
     double dxy_r[N], dxy_q[N];
 
-    v1axpy_d(1.5, xv, yv, ax, N);
+    memcpy(ax, yv, sizeof ax); cblas_daxpy(N, 1.5, xv, 1, ax, 1);   /* baseline */
     v1xypa_d(q, t, 0.25, xy, N);
     v3dot_d(x, y, dot);
     v3had_d(x, y, v3d_wrap(had0, had1, had2, N));
@@ -206,7 +206,8 @@ static void test_c(void)
     Z pu0[N], pu1[N], pu2[N], pur[N];
     Z dxy_r[N], dxy_q[N];
 
-    v1axpy_c(v3blas_cc(1.5f, 0.5f), xv, yv, ax, N);
+    { Z ac = v3blas_cc(1.5f, 0.5f);
+      memcpy(ax, yv, sizeof ax); cblas_caxpy(N, &ac, xv, 1, ax, 1); /* baseline */ }
     v1xypa_c(q, t, v3blas_cc(0.25f, 0.1f), xy, N);
     v3dot_c(x, y, dot);
     v3had_c(x, y, v3c_wrap(had0, had1, had2, N));
@@ -273,7 +274,8 @@ static void test_z(void)
     Z pu0[N], pu1[N], pu2[N], pur[N];
     Z dxy_r[N], dxy_q[N];
 
-    v1axpy_z(v3blas_zc(1.5, 0.5), xv, yv, ax, N);
+    { Z az = v3blas_zc(1.5, 0.5);
+      memcpy(ax, yv, sizeof ax); cblas_zaxpy(N, &az, xv, 1, ax, 1);  /* baseline */ }
     v1xypa_z(q, t, v3blas_zc(0.25, 0.1), xy, N);
     v3dot_z(x, y, dot);
     v3had_z(x, y, v3z_wrap(had0, had1, had2, N));

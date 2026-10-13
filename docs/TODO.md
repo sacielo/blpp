@@ -70,9 +70,10 @@ decisions already closed so they don't reopen.
 
 ## Closed decisions (don't reopen silently)
 
-- Public arg order reads the name; `1xypa` scalar moved to name position
-  (2026-10-13); the two documented exceptions (`3crossscal` leading
-  scalar, stencils leading `alpha`) stand.
+- Public arg order reads the name; the two documented exceptions
+  (`3crossscal` leading scalar, stencils leading `alpha`) stand.
+- The front-end wraps only the new ops — standard level-1 (`axpy`) stays
+  at the cblas layer (bench baseline), no `v1axpy`.
 - Internal OpenBLAS CNAME keeps scalar-after-dummies (the SMP marshaller
   ABI); only public layers reorder.
 - Reduction-output ops stay serial for the pinned summation order.

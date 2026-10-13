@@ -21,10 +21,8 @@ matter, the library does not. Today one backend ships:
 
 ```sh
 git clone --recurse-submodules https://github.com/sacielo/blpp.git && cd blpp
-git -C openblas apply physics_kernels.patch
-cmake -S openblas -B openblas/build -DCMAKE_BUILD_TYPE=Release -DNO_LAPACK=1
-cmake --build openblas/build -j"$(nproc)"        # -j1 on small machines
-cmake --install openblas/build --prefix "$PWD/pkgs/openblas"
+./docs/backends/OPENBLAS.install.sh     # patch + build + install -> pkgs/openblas
+                                        # (JOBS=1 on small machines)
 
 # OpenBLAS' own suites must end with 0 failures (220 and 2765 checks)
 ./openblas/build/utest/openblas_utest
@@ -43,7 +41,8 @@ headers in `include/openblas/` (`cblas.h` + the three front-end files),
 
 Two layers, one library. The **raw layer** is the plain BLAS-style ABI,
 `cblas_<p><kernel>`, always available with explicit `n` and per-component
-strides. On top sits **`v3blas`**, a header-only, allocation-free
+strides (standard level-1 like `axpy` included - they are not
+repeated on top). On top sits **`v3blas`**, a header-only, allocation-free
 front-end in three languages over the same symbols:
 
 | language | file | precision chosen… |
@@ -73,7 +72,7 @@ v3d x = v3d_wrap(x1, x2, x3, n), y = v3d_wrap(y1, y2, y3, n);
 v3d w = v3d_wrap(w1, w2, w3, n);           /* output: your arrays */
 v3cross(x, y, w);                          /* w = x∧y            */
 v3drag(x, 0.5, 1e-30, w);                  /* w = 0.5·x·√(x·x+ε) */
-v1axpy(1.5, x1, y1, r1, n);              /* one-vector ops keep explicit n */
+v1norm(q, r1, n);                        /* one-vector ops keep explicit n */
 ```
 
 Fortran hands the same kernels **whole fields**: a 3-vector is one
@@ -91,7 +90,7 @@ call v3norm_unit(x, eps, r, w)   ! r = √(x·x+eps), w = x/r
 Raw F77 triplets (`call d3cross(n, x1, 1, …)`) stay one call away; the
 front-ends are convenience, not a gate.
 
-### The 19 front-end operations
+### The 18 front-end operations
 
 Shown for `d`; generic names pick the precision from the arguments.
 Equations are element-wise; `n` is explicit for one-vector ops and comes
@@ -103,14 +102,14 @@ contracts and the raw `cblas_*` prototypes for all 20 kernels:
 |---|---|---|---|
 | `r = q.*t + a` | `v1xypa(q, t, a, r, n)` | `r = (x∧y)·w` | `v3crossdot(x, y, w, r)` |
 | `r = √(q·q)` | `v1norm(q, r, n)` | `r = (x∧y)·(x∧y)` | `v3crosssqr(x, y, r)` |
-| `y = α·x + y` | `v1axpy(α, x, y, r, n)` — C writes `r`, F90 in-place | `u = x∧y, v = x∧w` | `v3crossxy_crossxz(x, y, w, u, v)` |
-| `r = x·y` | `v3dot(x, y, r)` | `u = x∧y, r = x·w` | `v3crossxy_dotxz(x, y, w, u, r)` |
-| `w = x.*y` | `v3had(x, y, w)` | `r = x·y, q = x·w` | `v3dotxy_dotxz(x, y, w, r, q)` |
-| `r = x·x` | `v3sqr(x, r)` | `r = (x∧y)∧z` | `v3crosscross(x, y, z, r)` |
-| `w = x∧y` | `v3cross(x, y, w)` | `r = √(x·x+ε), u = x/r` | `v3norm_unit(x, eps, r, u)` |
-| `w = a·(x∧y)` | `v3crossscal(x, y, a, w)` | `q = x − a(x·y)y/(y·y+ε)` | `v3refl(x, y, a, eps, q)` |
-| `r = a·x·√(x·x+ε)` | `v3drag(x, a, eps, r)` | `r = a(x∧y)/(y·y+ε)` | `v3exb(x, y, a, eps, r)` |
-| `m = s·x, k = ½s(x·x)` | `v3mom_ke(s, x, m, k)` | | (`lap5`, `lap7`: raw layer only) |
+| `r = x·y` | `v3dot(x, y, r)` | `u = x∧y, v = x∧w` | `v3crossxy_crossxz(x, y, w, u, v)` |
+| `w = x.*y` | `v3had(x, y, w)` | `u = x∧y, r = x·w` | `v3crossxy_dotxz(x, y, w, u, r)` |
+| `r = x·x` | `v3sqr(x, r)` | `r = x·y, q = x·w` | `v3dotxy_dotxz(x, y, w, r, q)` |
+| `w = x∧y` | `v3cross(x, y, w)` | `r = (x∧y)∧z` | `v3crosscross(x, y, z, r)` |
+| `w = a·(x∧y)` | `v3crossscal(x, y, a, w)` | `r = √(x·x+ε), u = x/r` | `v3norm_unit(x, eps, r, u)` |
+| `r = a·x·√(x·x+ε)` | `v3drag(x, a, eps, r)` | `q = x − a(x·y)y/(y·y+ε)` | `v3refl(x, y, a, eps, q)` |
+| `m = s·x, k = ½s(x·x)` | `v3mom_ke(s, x, m, k)` | `r = a(x∧y)/(y·y+ε)` | `v3exb(x, y, a, eps, r)` |
+| | | (`lap5`, `lap7`: raw layer only) | |
 
 ## Documentation map
 

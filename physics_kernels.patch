@@ -33475,10 +33475,10 @@ index 0000000..cdfacb1
 +#endif
 diff --git a/v3blas.f90 b/v3blas.f90
 new file mode 100644
-index 0000000..0893c08
+index 0000000..bcbc3bf
 --- /dev/null
 +++ b/v3blas.f90
-@@ -0,0 +1,2426 @@
+@@ -0,0 +1,2361 @@
 +! ****************************************************************************
 +! Copyright (c) 2026, The OpenBLAS Project
 +! All rights reserved.
@@ -33517,7 +33517,6 @@ index 0000000..0893c08
 +!   call v3dot(x, y, r)       ! r = x . y       (r : T(n))
 +!   call v3drag(x, a, eps, r) ! r = a*x*sqrt(x . x + eps)
 +! Pure 1-vector ops keep the BLAS form with explicit n:
-+!   call v1axpy(n, alpha, x, y)
 +!   call v1xypa(n, q, t, a, r)   ! r = q*t + a  (scalar follows the
 +!                                !  vectors, as in every name here)
 +! The compiler picks s/d/c/z from the argument types.  Fields are
@@ -33531,14 +33530,10 @@ index 0000000..0893c08
 +      c_float_complex, c_double_complex
 +  implicit none
 +  private
-+  public :: v1axpy, v1xypa, v3dot, v3had, v3sqr, v1norm, v3cross, v3crossscal &
++  public :: v1xypa, v3dot, v3had, v3sqr, v1norm, v3cross, v3crossscal &
 +      , v3crossdot, v3crosssqr, v3crossxy_crossxz, v3crossxy_dotxz, v3dotxy_dotxz
 +  public :: v3crosscross, v3norm_unit, v3refl, v3exb, v3drag, v3mom_ke
 +
-+  interface v1axpy
-+    module procedure v1axpy_s, v1axpy_d, &
-+                     v1axpy_c, v1axpy_z
-+  end interface v1axpy
 +  interface v1xypa
 +    module procedure v1xypa_s, v1xypa_d, &
 +                     v1xypa_c, v1xypa_z
@@ -33613,38 +33608,6 @@ index 0000000..0893c08
 +  end interface v3mom_ke
 +
 +  interface                        ! private C entry points
-+    subroutine cblas_axpy_s(n, alpha, x, incx, y, incy) &
-+        bind(C, name="cblas_saxpy")
-+      import :: c_int, c_float
-+      integer(c_int), value :: n, incx, incy
-+      real(c_float), value :: alpha
-+      real(c_float) :: x(*)
-+      real(c_float) :: y(*)
-+    end subroutine cblas_axpy_s
-+    subroutine cblas_axpy_d(n, alpha, x, incx, y, incy) &
-+        bind(C, name="cblas_daxpy")
-+      import :: c_int, c_double
-+      integer(c_int), value :: n, incx, incy
-+      real(c_double), value :: alpha
-+      real(c_double) :: x(*)
-+      real(c_double) :: y(*)
-+    end subroutine cblas_axpy_d
-+    subroutine cblas_axpy_c(n, alpha, x, incx, y, incy) &
-+        bind(C, name="cblas_caxpy")
-+      import :: c_int, c_float_complex
-+      integer(c_int), value :: n, incx, incy
-+      complex(c_float_complex) :: alpha
-+      complex(c_float_complex) :: x(*)
-+      complex(c_float_complex) :: y(*)
-+    end subroutine cblas_axpy_c
-+    subroutine cblas_axpy_z(n, alpha, x, incx, y, incy) &
-+        bind(C, name="cblas_zaxpy")
-+      import :: c_int, c_double_complex
-+      integer(c_int), value :: n, incx, incy
-+      complex(c_double_complex) :: alpha
-+      complex(c_double_complex) :: x(*)
-+      complex(c_double_complex) :: y(*)
-+    end subroutine cblas_axpy_z
 +    subroutine cblas_1xypa_s(n, q, incq, t, inct, a, r, incr) &
 +        bind(C, name="cblas_s1xypa")
 +      import :: c_int, c_float
@@ -34928,34 +34891,6 @@ index 0000000..0893c08
 +  end interface
 +
 +contains
-+  subroutine v1axpy_s(n, alpha, x, y)
-+    integer(c_int), value :: n
-+    real(c_float), value :: alpha
-+    real(c_float) :: x(*)
-+    real(c_float) :: y(*)
-+    call cblas_axpy_s(n, alpha, x, 1_c_int, y, 1_c_int)
-+  end subroutine v1axpy_s
-+  subroutine v1axpy_d(n, alpha, x, y)
-+    integer(c_int), value :: n
-+    real(c_double), value :: alpha
-+    real(c_double) :: x(*)
-+    real(c_double) :: y(*)
-+    call cblas_axpy_d(n, alpha, x, 1_c_int, y, 1_c_int)
-+  end subroutine v1axpy_d
-+  subroutine v1axpy_c(n, alpha, x, y)
-+    integer(c_int), value :: n
-+    complex(c_float_complex) :: alpha
-+    complex(c_float_complex) :: x(*)
-+    complex(c_float_complex) :: y(*)
-+    call cblas_axpy_c(n, alpha, x, 1_c_int, y, 1_c_int)
-+  end subroutine v1axpy_c
-+  subroutine v1axpy_z(n, alpha, x, y)
-+    integer(c_int), value :: n
-+    complex(c_double_complex) :: alpha
-+    complex(c_double_complex) :: x(*)
-+    complex(c_double_complex) :: y(*)
-+    call cblas_axpy_z(n, alpha, x, 1_c_int, y, 1_c_int)
-+  end subroutine v1axpy_z
 +  subroutine v1xypa_s(n, q, t, a, r)
 +    integer(c_int), value :: n
 +    real(c_float) :: q(*)
@@ -35907,10 +35842,10 @@ index 0000000..0893c08
 +end module v3blas
 diff --git a/v3blas.h b/v3blas.h
 new file mode 100644
-index 0000000..932aa0d
+index 0000000..307dbca
 --- /dev/null
 +++ b/v3blas.h
-@@ -0,0 +1,295 @@
+@@ -0,0 +1,288 @@
 +/***************************************************************************
 + * Copyright (c) 2026, The OpenBLAS Project
 + * All rights reserved.
@@ -35943,8 +35878,10 @@ index 0000000..932aa0d
 + * v3blas.h - header-only, allocation-free, MATLAB/Octave-style interface
 + * to the physics element-wise extension kernels (1norm, 1xypa, 3dot,
 + * 3had, 3sqr, 3cross, 3crossscal, 3crossdot, 3crosssqr,
-+ * 3crossxy_crossxz, 3crossxy_dotxz, 3dotxy_dotxz, axpy, 3crosscross,
++ * 3crossxy_crossxz, 3crossxy_dotxz, 3dotxy_dotxz, 3crosscross,
 + * 3norm_unit, 3refl, 3exb, 3drag, 3mom_ke), at s, d, c, z precision.
++ * Standard BLAS level-1 ops (axpy and friends) are of course callable
++ * through cblas_ - they are not duplicated here.
 + *
 + * The library never allocates. You own every array, always.
 + *
@@ -36007,11 +35944,11 @@ index 0000000..932aa0d
 +
 +/*
 + * One definition, four precisions. T is the element type (scalar for
-+ * s/d, {re, im} struct for c/z); ALPHA / SCAL are the scalar arguments
-+ * as passed to the cblas entry points (by value for real, as pointers
-+ * for complex).
++ * s/d, {re, im} struct for c/z); SCAL is the scalar argument as passed
++ * to the cblas entry points (by value for real, as a pointer for
++ * complex).
 + */
-+#define V3BLAS_DEFINE(P, T, ALPHA, SCAL, RT)                                   \
++#define V3BLAS_DEFINE(P, T, SCAL, RT)                                   \
 +typedef struct { T *x, *y, *z; blasint incx, incy, incz, n; } v3 ## P;         \
 +                                                                               \
 +static inline v3 ## P v3 ## P ## _wrap(T *x, T *y, T *z, blasint n)            \
@@ -36020,14 +35957,6 @@ index 0000000..932aa0d
 +    v.x = x; v.y = y; v.z = z;                                                 \
 +    v.incx = 1; v.incy = 1; v.incz = 1; v.n = n;                               \
 +    return v;                                                                  \
-+}                                                                              \
-+/* r = alpha*x + y (y itself is untouched) */                                  \
-+static inline void v1axpy_ ## P(T alpha, const T *x, const T *y, T *r,         \
-+    blasint n)                                                                 \
-+{                                                                              \
-+    blasint i;                                                                 \
-+    for (i = 0; i < n; i++) r[i] = y[i];                                       \
-+    cblas_ ## P ## axpy(n, ALPHA, (T *)x, 1, r, 1);                            \
 +}                                                                              \
 +/* r = q.*t + a */                                                             \
 +static inline void v1xypa_ ## P(const T *q, const T *t, T a, T *r, blasint n)  \
@@ -36161,10 +36090,10 @@ index 0000000..932aa0d
 +        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
 +        m.x, m.incx, m.y, m.incy, m.z, m.incz, k, 1);                          \
 +}
-+V3BLAS_DEFINE(s, float, alpha, a, float)
-+V3BLAS_DEFINE(d, double, alpha, a, double)
-+V3BLAS_DEFINE(c, v3blas_floatcomplex, &alpha, &a, float)
-+V3BLAS_DEFINE(z, v3blas_doublecomplex, &alpha, &a, double)
++V3BLAS_DEFINE(s, float, a, float)
++V3BLAS_DEFINE(d, double, a, double)
++V3BLAS_DEFINE(c, v3blas_floatcomplex, &a, float)
++V3BLAS_DEFINE(z, v3blas_doublecomplex, &a, double)
 +
 +#undef V3BLAS_DEFINE
 +
@@ -36180,7 +36109,6 @@ index 0000000..932aa0d
 +             v3blas_floatcomplex*: op ## _c,                                   \
 +             v3blas_doublecomplex*: op ## _z)(__VA_ARGS__)
 +
-+#define v1axpy(alpha, x, y, r, n)        V3BLAS_GEN(v1axpy, (r), alpha, x, y, r, n)
 +#define v1xypa(q, t, a, r, n)            V3BLAS_GEN(v1xypa, (r), q, t, a, r, n)
 +#define v1norm(q, r, n)                  V3BLAS_GEN(v1norm, (r), q, r, n)
 +#define v3dot(x, y, r)                   V3BLAS_GEN(v3dot, (r), x, y, r)
@@ -36208,10 +36136,10 @@ index 0000000..932aa0d
 +#endif /* V3BLAS_H */
 diff --git a/v3blas.hpp b/v3blas.hpp
 new file mode 100644
-index 0000000..8ce1993
+index 0000000..90035a2
 --- /dev/null
 +++ b/v3blas.hpp
-@@ -0,0 +1,93 @@
+@@ -0,0 +1,91 @@
 +/***************************************************************************
 + * Copyright (c) 2026, The OpenBLAS Project
 + * All rights reserved.
@@ -36256,8 +36184,6 @@ index 0000000..8ce1993
 +#include "v3blas.h"
 +
 +#define V3BLAS_CPP(P, T, RT)                                                   \
-+inline void v1axpy(T alpha, const T *x, const T *y, T *r, blasint n)           \
-+{ v1axpy_ ## P(alpha, x, y, r, n); }                                          \
 +inline void v1xypa(const T *q, const T *t, T a, T *r, blasint n)               \
 +{ v1xypa_ ## P(q, t, a, r, n); }                                              \
 +inline void v1norm(const T *q, T *r, blasint n)                                \

@@ -147,6 +147,41 @@ static std::vector<Result> results;
 #define W1 bw0, 1, bw1, 1, bw2, 1
 
 /*
+ * sbmv (BLAS level-2, symmetric banded A*x) called with KD=0, lda=1:
+ * y := alpha * diag(ab) .* x + beta * y - the classic way to fake an
+ * elementwise product with "existing" BLAS. Standard f77 names, so this
+ * compiles against any BLAS, not just OpenBLAS.
+ */
+#define SBMV_F77(NAME, T)                                                      \
+extern "C" void NAME(const char *, const blasint *, const blasint *,          \
+    const T *, const T *, const blasint *, const T *, const blasint *,         \
+    const T *, T *, const blasint *)
+SBMV_F77(ssbmv_, float);
+SBMV_F77(dsbmv_, double);
+extern "C" void csbmv_(const char *, const blasint *, const blasint *,
+    const void *, const void *, const blasint *, const void *, const blasint *,
+    const void *, void *, const blasint *);
+extern "C" void zsbmv_(const char *, const blasint *, const blasint *,
+    const void *, const void *, const blasint *, const void *, const blasint *,
+    const void *, void *, const blasint *);
+static const float  csb_1[2] = { 1.f, 0.f }, csb_0[2] = { 0.f, 0.f };
+static const double zsb_1[2] = { 1., 0. }, zsb_0[2] = { 0., 0. };
+static void sbmv0_s(int n, const float *ab, const float *x, float *y)
+{ blasint N = n, K = 0, ld = 1, o = 1; float a = 1.f, b = 0.f;
+  ssbmv_("U", &N, &K, &a, ab, &ld, x, &o, &b, y, &o); }
+static void sbmv0_d(int n, const double *ab, const double *x, double *y)
+{ blasint N = n, K = 0, ld = 1, o = 1; double a = 1., b = 0.;
+  dsbmv_("U", &N, &K, &a, ab, &ld, x, &o, &b, y, &o); }
+static void sbmv0_c(int n, const std::complex<float> *ab,
+    const std::complex<float> *x, std::complex<float> *y)
+{ blasint N = n, K = 0, ld = 1, o = 1;
+  csbmv_("U", &N, &K, csb_1, ab, &ld, x, &o, csb_0, y, &o); }
+static void sbmv0_z(int n, const std::complex<double> *ab,
+    const std::complex<double> *x, std::complex<double> *y)
+{ blasint N = n, K = 0, ld = 1, o = 1;
+  zsbmv_("U", &N, &K, zsb_1, ab, &ld, x, &o, zsb_0, y, &o); }
+
+/*
  * All four precisions from one body.
  *   ICX:  0 real, 1 complex (selects the complex FLOP convention)
  *   INIT: sets the scalars s_ax (axpy), s_xa (xypa), s_cs (crossscal)
@@ -189,6 +224,17 @@ static void bench_all_ ## P(int n)                                           \
           [&] { std::memcpy(ro[0], ay0, (size_t)n * esz); },                 \
           [&] { cblas_ ## P ## axpy(n, CAX, bxv, 1, ro[0], 1); });           \
       PUSH("axpy", (ICX ? 8.0 : 2.0), (ICX ? 8.0 : 1.0), t, n, "y=a*x+y");   \
+    }                                                                        \
+    {                                                                        \
+      /* "Hadamard with what BLAS already has": sbmv is the symmetric        \
+       * banded matrix-vector product, y := alpha*A*x + beta*y. With         \
+       * bandwidth KD=0 the band degenerates to its diagonal and the op      \
+       * becomes an elementwise product. With lda=1 the band array *is*      \
+       * the vector, so no copy is needed - what remains is the level-2      \
+       * band machinery doing 1xypa(a=0)'s job. Timed without the +a. */     \
+      Timing t = timed_run([&] { sbmv0_ ## P(n, bt, bq, ro[0]); });          \
+      PUSH("sbmv kd=0", (ICX ? 8.0 : 2.0), (ICX ? 8.0 : 1.0), t, n,          \
+           "r=q.*t (diagonal band)");                                        \
     }                                                                        \
     {                                                                        \
       Timing t = timed_run([&] { cblas_ ## P ## 1xypa(n, bq, 1,             \

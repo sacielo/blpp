@@ -94,8 +94,8 @@ digit).
 
 The OpenBLAS way: interface decides, driver dispatches. **Do not reuse
 `blas_level1_thread`** — it only advances the A and B pointers between
-chunks (C stays at base: every thread scribbles the same output — the bug
-that bit `1xypa` first) and mis-multiplies complex strides. Instead
+chunks (C stays at base: every thread scribbles the same output) and
+mis-multiplies complex strides. Instead
 `driver/others/blas_physics_thread.c` provides
 
 ```c
@@ -137,8 +137,8 @@ driver entry compiles only under `if (USE_THREAD)` in CMake.
 `v3blas.h` (C11 `_Generic`, one `V3BLAS_DEFINE` macro × 4 precisions),
 `v3blas.hpp` (inline overloads; both headers C- and C++-clean — include
 exactly one), `v3blas.f90` (F2003 `iso_c_binding` module, generated-style
-but ordinary source: 76 wrappers over 76 bind(C) interfaces; 16
-field-form ops + 3 one-vector ops × 4 precisions; `gfortran -std=f2008
+but ordinary source: 72 wrappers over 72 bind(C) interfaces; 16
+field-form ops + 2 one-vector ops × 4 precisions; `gfortran -std=f2008
 -Wall` clean). All three live at the OpenBLAS root and install next to
 `cblas.h`. The Fortran module represents a 3-vector as one field `u(n, 3)`
 — column-major, so each column `u(:, c)` *is* one contiguous component

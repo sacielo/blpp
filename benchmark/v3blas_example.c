@@ -31,7 +31,7 @@ static void ramp3(v3d v, double base){
 }
 
 int main(void){
-    double alpha = 1.5, a = 0.25, b = 1.5;
+    double a = 0.25, b = 1.5;
 
     /* inputs: three 3-vectors and four 1-vectors, all caller-owned */
     double x0[N], x1[N], x2[N], y0[N], y1[N], y2[N], w0[N], w1[N], w2[N];
@@ -47,10 +47,6 @@ int main(void){
     v3d ow = v3d_wrap(o0, o1, o2, N), ov = v3d_wrap(o3, o4, o5, N);
 
     printf("n = %d\n\n", N);
-
-    /* r = alpha*x + y (y itself is untouched) */
-    v1axpy(alpha, xx, yy, o0, N);
-    printf("v1axpy       r = %gx + y        [0] = %.4f\n", alpha, o0[0]);
 
     /* r = q.*t + a */
     v1xypa(q, t, a, o0, N);

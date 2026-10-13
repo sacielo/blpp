@@ -1,10 +1,10 @@
 ! v3blas_f90_test.f90 - correctness test for the v3blas Fortran front-end.
 !
-! All 19 operations are called through their generic names at all four
+! All 18 operations are called through their generic names at all four
 ! precisions (the compiler picks s/d/c/z from the argument types).  A
 ! 3-vector is one field array u(n, 3): column c is component c, so the
 ! columns are exactly the unit-stride component arrays the kernels read.
-! The one-vector ops (v1axpy, v1xypa, v1norm) keep the explicit-n form.
+! The one-vector ops (v1xypa, v1norm) keep the explicit-n form.
 ! Results are checked against the defining equation recomputed with
 ! Fortran array expressions over the same fields.
 !
@@ -192,11 +192,6 @@ contains
     real(4) :: r(n), q(n), t(n), al, a2, eps
     al = 1.5; a2 = 0.25; eps = 0.25
 
-    t = y1
-    call v1axpy(n, al, x1, y1)
-    call chk('v1axpy  y=a*x+y ('//"s"//')', &
-             real(maxval(abs(y1 - (al*x1 + t)))), 1.0E-5)
-
     call rfill_s(0.1, q); call rfill_s(-0.7, t)
     call v1xypa(n, q, t, a2, r)
     call chk('v1xypa  r=q*t+a ('//"s"//')', &
@@ -294,11 +289,6 @@ contains
     real(8) :: xf(n, 3), yf(n, 3), wf(n, 3), uf(n, 3), vf(n, 3), rf(n, 3)
     real(8) :: r(n), q(n), t(n), al, a2, eps
     al = 1.5d0; a2 = 0.25d0; eps = 0.25d0
-
-    t = y1
-    call v1axpy(n, al, x1, y1)
-    call chk('v1axpy  y=a*x+y ('//"d"//')', &
-             real(maxval(abs(y1 - (al*x1 + t)))), 1.0E-12)
 
     call rfill_d(0.1d0, q); call rfill_d(-0.7d0, t)
     call v1xypa(n, q, t, a2, r)
@@ -400,11 +390,6 @@ contains
     al = cmplx(1.5, 0.5); a2 = cmplx(0.25, 0.1); h = cmplx(0.5, 0.0)
     eps = 0.25
 
-    t = y1
-    call v1axpy(n, al, x1, y1)
-    call chk('v1axpy  y=a*x+y ('//"c"//')', &
-             real(maxval(abs(y1 - (al*x1 + t)))), 1.0E-5)
-
     call cfill_c(0.1, 0.05, q); call cfill_c(-0.7, 0.3, t)
     call v1xypa(n, q, t, a2, r)
     call chk('v1xypa  r=q*t+a ('//"c"//')', &
@@ -504,11 +489,6 @@ contains
     real(8) :: eps
     al = cmplx(1.5d0, 0.5d0, kind=8); a2 = cmplx(0.25d0, 0.1d0, kind=8); h = cmplx(0.5d0, 0.d0, kind=8)
     eps = 0.25d0
-
-    t = y1
-    call v1axpy(n, al, x1, y1)
-    call chk('v1axpy  y=a*x+y ('//"z"//')', &
-             real(maxval(abs(y1 - (al*x1 + t)))), 1.0E-12)
 
     call cfill_z(0.1d0, 0.05d0, q); call cfill_z(-0.7d0, 0.3d0, t)
     call v1xypa(n, q, t, a2, r)
