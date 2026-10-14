@@ -1,7 +1,7 @@
 # blpp — element-wise physics kernels for BLAS
 
 Physics codes (MHD, CFD, particle-in-cell, rigid bodies) move **fields of
-2-/3-component vectors**, and their hot loops are element-wise: per-cell
+3-component vectors**, and their hot loops are element-wise: per-cell
 cross products, dot products, Hadamard products, squared magnitudes —
 never reduced across the field. Standard BLAS has exactly one element-wise
 operation (`axpy`), so everything else degenerates into hand-written loops
