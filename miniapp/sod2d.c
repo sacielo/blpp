@@ -27,6 +27,15 @@
  * Global reductions (dt bound, mass, Mach) are plain loops on purpose:
  * no kernel here does a reduction, by design.
  *
+ * Accuracy is deliberately first-order today: cells are piecewise
+ * constant, so contacts/shocks smear over ~sqrt(N) cells.  The v1.1+
+ * upgrade is a TVD one - MUSCL face states (strides + 1xypa already
+ * cover the stencil algebra) with a componentwise minmod slope limiter,
+ * candidate kernel `3minmod`: it zeroes slopes at extrema (monotone at
+ * shocks, Godunov's theorem dodged) and keeps centered slopes in smooth
+ * fans (second order).  That one nonlinear elementwise op is the only
+ * piece of a high-resolution solver no existing kernel provides.
+ *
  * usage: sod2d [-nx N] [-ny N] [-tend T] [-cfl C] [-av A] [-out K]
  * Writes sod2d.vtk (ASCII) at the end; progress every -out steps.
  */
@@ -213,7 +222,13 @@ static void face_fluxes(grid *g, int nf, size_t off, int str, int is_y)
         g->s[i] = sl > sr ? sl : sr;
     }
     /* F_k = 0.5(q_L v_L + q_R v_R) [+ n_k avg(p)] - 0.5 s (q_R - q_L);
-     * products via v1xypa (r = q.*t), sums via axpy/scal */
+     * products via v1xypa (r = q.*t), sums via axpy/scal.
+     * NB: s is the FASTEST wave at the face, so even a passive contact
+     * (moving at u, or stationary!) is smeared at acoustic speed.  The
+     * cure is upwind selection of advected quantities by the contact
+     * speed - candidate kernel `3sel` (branchless per-face pick of the
+     * L or R 3-vector), see docs/TODO.md; Rusanov + s stays for the
+     * genuine shocks, so robustness is untouched. */
     for (k = 0; k < 4; k++) {
         double *F = g->F[k];
         if (k == 3) {                      /* energy: flux of (E+p)     */
