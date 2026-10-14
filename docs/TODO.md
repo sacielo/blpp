@@ -48,14 +48,18 @@ decisions already closed so they don't reopen.
 - [ ] BLAS Extensions forum: propose the subset whose shape fits their
       Level-1 grammar (`1xypa`/`3had`/`3dot` family); fused forks as a
       separate API-extension request.
-- [ ] Migration of real community codes (mesher geometry loops, an MHD
-      toy) is roadmap work of equal rank to any PR — the binding
-      constraint is users, not engineering.
+- [ ] Migration of real community codes (mesher geometry loops, CFD
+      solvers) is roadmap work of equal rank to any PR — the binding
+      constraint is users, not engineering. First consumer exists:
+      `miniapp/sod2d` (2D Euler, exact-Sod verified); queue: MHD
+      variant (`3cross`/`3crosscross`/`3exb`), particle pusher
+      (`3crossscal`/`3norm_unit`/`1norm`).
 
 ## New kernels
 
 - [ ] `3minmod` (TVD slope limiter), `3sel` (branchless upwind selection)
-      — shapes fit today's ABI, nobody has asked yet.
+      — shapes fit today's ABI; first declared requester is the `sod2d`
+      TVD upgrade.
 - [ ] Indirection ABI (`x[idx[i]]` gather/flux/scatter) for unstructured
       meshes — design in [`specs/grand_plan.md`](specs/grand_plan.md);
       separate spec version, do not bend today's strides to fake it.

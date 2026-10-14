@@ -33,10 +33,12 @@ if git -C openblas apply --check ../physics_kernels.patch 2>/dev/null; then
     git -C openblas apply ../physics_kernels.patch
 fi
 
-# 3. Build and install the library
+# 3. Build and install the library (threaded: the physics kernels ride
+#    OpenBLAS's own SMP machinery, so tests must cover the threaded path)
 echo "==> building OpenBLAS (-j$jobs; on small machines: JOBS=1)"
 "$cmake" -S openblas -B openblas/build \
-    -DCMAKE_BUILD_TYPE=Release -DNO_LAPACK=1 "$@"
+    -DCMAKE_BUILD_TYPE=Release -DNO_LAPACK=1 \
+    -DSMP_SERVER -DUSE_THREAD -DMAX_CPU_NUMBER="$jobs" "$@"
 "$cmake" --build openblas/build -j"$jobs"
 "$cmake" --install openblas/build --prefix "$prefix"
 
@@ -50,6 +52,11 @@ echo "==> building benchmark/"
 "$cmake" -S benchmark -B benchmark/build
 "$cmake" --build benchmark/build -j"$jobs"
 
+# 6. Compile (but do not run) the mini-apps
+echo "==> building miniapp/"
+"$cmake" -S miniapp -B miniapp/build
+"$cmake" --build miniapp/build -j"$jobs"
+
 cat <<EOF
 
 ==> done. installed: $prefix
@@ -60,4 +67,6 @@ cat <<EOF
       ./v3blas_f90_test     Fortran front-end   (72 checks)
       ./cblas_bench [n] [s|d|c|z]   timing tables; *_example: tutorials
     Every *_test must end with "OK (0 failures)".
+    Mini-apps (see miniapp/README.md):
+      ../../miniapp/build/sod2d        2D Sod tube -> sod2d.vtk (~9 s)
 EOF

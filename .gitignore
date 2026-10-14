@@ -5,3 +5,5 @@ pkgs/
 *.mod
 benchmark/runs*/
 bench25_sweep.log
+miniapp/build/
+*.vtk

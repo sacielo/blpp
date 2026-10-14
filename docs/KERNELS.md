@@ -85,7 +85,7 @@ real scalars by value.
 | `inc` | meaning |
 |---|---|
 | `> 0` | element `i` is at `base + i·inc` |
-| `= 0` | broadcast: element 0 repeated — how you pass constant fields (gravity, `B̂₀`, rotation axis) for free |
+| `= 0` | broadcast: element 0 repeated — how you pass constant fields (gravity, `B̂₀`, rotation axis) for free. Multiplying by a per-element *scalar field* is NOT a broadcast: feed that array to all three component slots with stride 1; stride 0 silently freezes the factor at element 0 |
 | `< 0` | walk backwards: the span is `base … base + (n−1)·|inc|`, traversed from its far end. Pass the *forward start*; the interface shifts the base. |
 | `n ≤ 0` | no-op; nothing is read or written |
 
