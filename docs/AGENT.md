@@ -26,6 +26,18 @@ is wired is in [`backends/`](backends/). This file is the process.
    reduction", no cross-references to other docs/files, no developer notes.
    Comments say what the code does, or nothing.
 
+## Communicating with the human
+
+Fluent physics, numerics, Fortran-era computing; not steeped in modern
+Linux/CMake/GitHub plumbing jargon. Explain such topics plainly on first
+use — one concrete example beats a definition — and prefer analogies
+from the BLAS/spec/QC world. Claims must survive a naive question: if
+asked "how is that different from X?" and the answer needs jargon, the
+claim was fuzzy, not the question. Distrust "ship the binary"-style
+handwaving: this collaborator finds the real constraint (linking,
+portability, distribution) within one follow-up — have it solved before
+proposing.
+
 ## Code rules
 
 - Generic-only kernels: one implementation per backend's *generic* tier;
