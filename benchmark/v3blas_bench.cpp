@@ -29,13 +29,13 @@
 #include <functional>
 
 #ifndef K_MIN_TIME
-#define K_MIN_TIME 0.5      /* seconds per kernel; -DK_MIN_TIME=... to slim */
+#define K_MIN_TIME 0.05      /* seconds per kernel; -DK_MIN_TIME=... to slim */
 #endif
 #ifndef K_MIN_ITERS
 #define K_MIN_ITERS 3
 #endif
 #ifndef K_MAX_TIME
-#define K_MAX_TIME 10.0
+#define K_MAX_TIME 1.0
 #endif
 
 static double now_sec(void)
