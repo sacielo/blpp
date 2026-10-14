@@ -118,7 +118,7 @@ one-vector ops (`x.n`, Fortran `size(x,1)`, otherwise).
 | [`docs/TODO.md`](docs/TODO.md) | open work + closed decisions |
 | [`docs/specs/`](docs/specs/) | the originating specs, frozen (`blasKernels.md`, `grand_plan.md`) |
 | `benchmark/` | the test/bench/example suite (standalone CMake, links only an installed backend) |
-| `miniapp/` | working physics codes on the public API — the API's harshest reviewer (first: 2D Sod tube) |
+| `miniapp/` | working physics codes on the public API — the API's harshest reviewer (2D Sod tube; batched rigid tops where BLAS-2 joins) |
 
 ## Roadmap — every BLAS, not this BLAS
 

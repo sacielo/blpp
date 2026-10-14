@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 project(blpp_miniapp C)
 
-# 2D Euler mini-app (sod2d).  Links against an *installed* patched
-# OpenBLAS only - produce it with ../docs/backends/OPENBLAS.install.sh.
+# Mini-apps: working physics codes on the public API (sod2d: 2D Euler;
+# tops3d: batched rigid tops + banded L2).  Links against an *installed*
+# patched OpenBLAS only - produce it with ../docs/backends/OPENBLAS.install.sh.
 set(OPENBLAS_PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/../pkgs/openblas
     CACHE PATH "OpenBLAS install prefix (include/openblas + lib or lib64)")
 
@@ -24,3 +25,10 @@ endif()
 add_executable(sod2d sod2d.c)
 target_include_directories(sod2d PRIVATE ${OPENBLAS_PREFIX}/include/openblas)
 target_link_libraries(sod2d PRIVATE ${OPENBLAS_LIB} pthread m)
+
+add_executable(tops3d tops3d.c)
+target_include_directories(tops3d PRIVATE ${OPENBLAS_PREFIX}/include/openblas)
+target_link_libraries(tops3d PRIVATE ${OPENBLAS_LIB} pthread m)
+
+# Independent reference for tops3d body 0: must NOT link BLAS.
+add_executable(reftop ref/reftop.c)
