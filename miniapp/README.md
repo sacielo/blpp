@@ -49,14 +49,14 @@ v3d inv3 = v3d_wrap(invd, invd, invd, n);   /* stride 1: v[i] uses 1/d[i] */
 v3had(m, inv3, v);
 ```
 
-Setting those strides to 0 freezes the factor at `invd[0]` — silently
+Setting `inv3.inc = 0` freezes the factor at `invd[0]` — silently
 wrong, physically plausible-looking, caught only by checking invariants
 against the analytic solution. A true broadcast (wall-normal `(0,1,0)`,
 constant `eps`) is where stride 0 belongs:
 
 ```c
 v3d nrm = v3d_wrap(&zero, &one, &zero, rows);
-nrm.incx = nrm.incy = nrm.incz = 0;
+nrm.inc = 0;
 v3refl(m_ghost, nrm, nrm, eps0, m_reflected);   /* specular wall */
 ```
 

@@ -175,7 +175,7 @@ static void boundaries(grid *g)
             v3d nn = v3d_wrap(&zero, &one, &zero, g->nxg);
             v3d q = v3d_wrap(AT(g->mx, jt), AT(g->my, jt), AT(g->mz, jt),
                              g->nxg);
-            nn.incx = 0; nn.incy = 0; nn.incz = 0;   /* bcast normal    */
+            nn.inc = 0;   /* bcast normal    */
             v3refl(m, nn, 2.0, 0.0, q);
         }
     }

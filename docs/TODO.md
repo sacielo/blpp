@@ -55,27 +55,6 @@ decisions already closed so they don't reopen.
       variant (`3cross`/`3crosscross`/`3exb`), particle pusher
       (`3crossscal`/`3norm_unit`/`1norm`).
 
-## v1.0 decisions (resolve before tag — after shipping, this is ABI)
-
-- [ ] **One stride per front-end 3-vector?** `v3<P>` carries
-      `incx/incy/incz`, but no consumer in the repo or in examples has
-      ever set them apart (grep: only `2,2,2` and `0,0,0` mutations).
-      Every legitimate layout — contiguous SoA (1), array-of-structs
-      (three offset pointers, shared stride 3), subgrid slice (shared
-      grid stride), one scalar field feeding all three slots (1), true
-      broadcast (0 — each component repeats its own base, which is how
-      `(0,1,0)` wall normals already work) — is expressible with a
-      single `inc`. Collapsing the view to `{x,y,z; inc, n}` makes
-      "a field of 3-component vectors" the enforced definition instead
-      of a convention. Per-component incs stay at the cblas/F77 layer
-      (spec-pinned, marshaller ABI, BLAS-Extensions grammar) and become
-      the documented escape hatch for the exotic mixed case (e.g.
-      strides 1/0/1: a field with one constant component). Cost if we
-      act: two headers, four test lines, docs, patch regen; kernels,
-      F90 and utests untouched. Decide from human-test feedback: if no
-      tester touched the stride fields, land it before v1.0; after the
-      tag it is a breaking change.
-
 ## New kernels
 
 - [ ] `3minmod` (TVD slope limiter), `3sel` (branchless upwind selection)
@@ -106,3 +85,8 @@ decisions already closed so they don't reopen.
 - Octave equation blocks print from tests only.
 - Fortran front-end stays atop the cblas kernels — no change to the
   cblas layer for Fortran's sake.
+- `v3<P>` views carry ONE stride for the whole field (`{x, y, z;
+  inc, n}`): three components with different layouts are not a vector
+  field. Per-component incs remain at the cblas/F77 layer as the
+  documented escape hatch (pre-v1.0, 2026-10: in-tree consumers had
+  never set the strides apart).

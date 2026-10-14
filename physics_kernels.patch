@@ -35842,10 +35842,10 @@ index 0000000..bcbc3bf
 +end module v3blas
 diff --git a/v3blas.h b/v3blas.h
 new file mode 100644
-index 0000000..307dbca
+index 0000000..e6bdce8
 --- /dev/null
 +++ b/v3blas.h
-@@ -0,0 +1,288 @@
+@@ -0,0 +1,302 @@
 +/***************************************************************************
 + * Copyright (c) 2026, The OpenBLAS Project
 + * All rights reserved.
@@ -35888,15 +35888,29 @@ index 0000000..307dbca
 + * A 1-vector is a plain C array of n elements, unit stride - pass it
 + * directly. Need a strided 1-vector? Call the cblas_ entry point.
 + * A 3-vector (v3<P>) is a field of 3-component vectors: three component
-+ * arrays, each with its own stride, matching the cblas extension calls
-+ * (zero-copy). v3<P>_wrap() bundles three unit-stride arrays; override
-+ * the .incx/.incy/.incz fields by hand for strided components.
++ * arrays sharing ONE element stride, .inc - the field's layout.  That
++ * single stride is what makes the view a *field*: every component lives
++ * in the same arrangement, so the view can only describe real vector
++ * fields.  v3<P>_wrap() bundles three unit-stride arrays (.inc = 1);
++ * set v.inc by hand for the standard alternatives: array-of-structs
++ * (.inc = 3, components offset by one element each), subgrid slice
++ * (.inc = shared grid stride), one scalar field feeding all three
++ * slots (three times the same pointer, .inc = 1), or a broadcast
++ * constant (.inc = 0 - each component repeats its OWN base element,
++ * so wrap(&zero, &one, &zero, n) is the vector (0,1,0) everywhere).
++ *
++ * WARNING - the honest leftover: a "field" whose components have
++ * DIFFERENT layouts (e.g. two strided components plus one constant
++ * scalar, incs 1/0/1) is deliberately inexpressible here.  It is a
++ * pathological object, not a vector field; if physics really hands you
++ * one, the cblas_* layer still takes per-component incs (pinned by the
++ * ABI spec) - that is the documented escape hatch.
 + * c/z precision uses the interleaved (re, im) layout consumed by the
 + * cblas c/z extension routines; re and im are always explicit.
 + *
 + * Every operation is a void function.  A 3-vector OUTPUT is a v3<P>
 + * view exactly like an input: same notation both ways, and the view's
-+ * .incx/.incy/.incz are the write strides.  Scalar-field outputs (r,
++ * .inc is the write stride.  Scalar-field outputs (r,
 + * k, ...) are plain unit-stride arrays.  The length always comes from
 + * x.n; outputs may alias the inputs.
 + *
@@ -35949,13 +35963,13 @@ index 0000000..307dbca
 + * complex).
 + */
 +#define V3BLAS_DEFINE(P, T, SCAL, RT)                                   \
-+typedef struct { T *x, *y, *z; blasint incx, incy, incz, n; } v3 ## P;         \
++typedef struct { T *x, *y, *z; blasint inc, n; } v3 ## P;                      \
 +                                                                               \
 +static inline v3 ## P v3 ## P ## _wrap(T *x, T *y, T *z, blasint n)            \
 +{                                                                              \
 +    v3 ## P v;                                                                 \
 +    v.x = x; v.y = y; v.z = z;                                                 \
-+    v.incx = 1; v.incy = 1; v.incz = 1; v.n = n;                               \
++    v.inc = 1; v.n = n;                                                        \
 +    return v;                                                                  \
 +}                                                                              \
 +/* r = q.*t + a */                                                             \
@@ -35966,20 +35980,20 @@ index 0000000..307dbca
 +/* r = x1y1 + x2y2 + x3y3 */                                                   \
 +static inline void v3dot_ ## P(v3 ## P x, v3 ## P y, T *r)                     \
 +{                                                                              \
-+    cblas_ ## P ## 3dot(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,            \
-+                        y.x, y.incx, y.y, y.incy, y.z, y.incz, r, 1);          \
++    cblas_ ## P ## 3dot(x.n, x.x, x.inc, x.y, x.inc, x.z, x.inc,            \
++                        y.x, y.inc, y.y, y.inc, y.z, y.inc, r, 1);          \
 +}                                                                              \
 +/* w = x.*y, per component; output strides come from the view */               \
 +static inline void v3had_ ## P(v3 ## P x, v3 ## P y, v3 ## P w)                \
 +{                                                                              \
-+    cblas_ ## P ## 3had(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,            \
-+                        y.x, y.incx, y.y, y.incy, y.z, y.incz,                 \
-+                        w.x, w.incx, w.y, w.incy, w.z, w.incz);                \
++    cblas_ ## P ## 3had(x.n, x.x, x.inc, x.y, x.inc, x.z, x.inc,            \
++                        y.x, y.inc, y.y, y.inc, y.z, y.inc,                 \
++                        w.x, w.inc, w.y, w.inc, w.z, w.inc);                \
 +}                                                                              \
 +/* r = x1^2 + x2^2 + x3^2 */                                                   \
 +static inline void v3sqr_ ## P(v3 ## P x, T *r)                                \
 +{                                                                              \
-+    cblas_ ## P ## 3sqr(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz, r, 1);     \
++    cblas_ ## P ## 3sqr(x.n, x.x, x.inc, x.y, x.inc, x.z, x.inc, r, 1);     \
 +}                                                                              \
 +/* r = sqrt(q\u00b7q) */                                                       \
 +static inline void v1norm_ ## P(const T *q, T *r, blasint n)                   \
@@ -35989,106 +36003,106 @@ index 0000000..307dbca
 +/* w = x∧y */                                                                  \
 +static inline void v3cross_ ## P(v3 ## P x, v3 ## P y, v3 ## P w)              \
 +{                                                                              \
-+    cblas_ ## P ## 3cross(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,          \
-+                          y.x, y.incx, y.y, y.incy, y.z, y.incz,               \
-+                          w.x, w.incx, w.y, w.incy, w.z, w.incz);              \
++    cblas_ ## P ## 3cross(x.n, x.x, x.inc, x.y, x.inc, x.z, x.inc,          \
++                          y.x, y.inc, y.y, y.inc, y.z, y.inc,               \
++                          w.x, w.inc, w.y, w.inc, w.z, w.inc);              \
 +}                                                                              \
 +/* w = a·(x∧y) */                                                              \
 +static inline void v3crossscal_ ## P(v3 ## P x, v3 ## P y, T a, v3 ## P w)     \
 +{                                                                              \
-+    cblas_ ## P ## 3crossscal(x.n, SCAL, x.x, x.incx, x.y, x.incy,             \
-+        x.z, x.incz, y.x, y.incx, y.y, y.incy, y.z, y.incz,                    \
-+        w.x, w.incx, w.y, w.incy, w.z, w.incz);                                \
++    cblas_ ## P ## 3crossscal(x.n, SCAL, x.x, x.inc, x.y, x.inc,             \
++        x.z, x.inc, y.x, y.inc, y.y, y.inc, y.z, y.inc,                    \
++        w.x, w.inc, w.y, w.inc, w.z, w.inc);                                \
 +}                                                                              \
 +/* r = (x∧y)·w */                                                              \
 +static inline void v3crossdot_ ## P(v3 ## P x, v3 ## P y, v3 ## P w, T *r)     \
 +{                                                                              \
-+    cblas_ ## P ## 3crossdot(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,       \
-+                             y.x, y.incx, y.y, y.incy, y.z, y.incz,            \
-+                             w.x, w.incx, w.y, w.incy, w.z, w.incz, r, 1);     \
++    cblas_ ## P ## 3crossdot(x.n, x.x, x.inc, x.y, x.inc, x.z, x.inc,       \
++                             y.x, y.inc, y.y, y.inc, y.z, y.inc,            \
++                             w.x, w.inc, w.y, w.inc, w.z, w.inc, r, 1);     \
 +}                                                                              \
 +/* r = (x∧y)·(x∧y) */                                                          \
 +static inline void v3crosssqr_ ## P(v3 ## P x, v3 ## P y, T *r)                \
 +{                                                                              \
-+    cblas_ ## P ## 3crosssqr(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,       \
-+                             y.x, y.incx, y.y, y.incy, y.z, y.incz, r, 1);     \
++    cblas_ ## P ## 3crosssqr(x.n, x.x, x.inc, x.y, x.inc, x.z, x.inc,       \
++                             y.x, y.inc, y.y, y.inc, y.z, y.inc, r, 1);     \
 +}                                                                              \
 +/* u = x∧y, v = x∧w */                                                         \
 +static inline void v3crossxy_crossxz_ ## P(v3 ## P x, v3 ## P y,               \
 +    v3 ## P w, v3 ## P u, v3 ## P v)                                           \
 +{                                                                              \
 +    cblas_ ## P ## 3crossxy_crossxz(x.n,                                       \
-+        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
-+        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
-+        w.x, w.incx, w.y, w.incy, w.z, w.incz,                                 \
-+        u.x, u.incx, u.y, u.incy, u.z, u.incz,                                 \
-+        v.x, v.incx, v.y, v.incy, v.z, v.incz);                                \
++        x.x, x.inc, x.y, x.inc, x.z, x.inc,                                 \
++        y.x, y.inc, y.y, y.inc, y.z, y.inc,                                 \
++        w.x, w.inc, w.y, w.inc, w.z, w.inc,                                 \
++        u.x, u.inc, u.y, u.inc, u.z, u.inc,                                 \
++        v.x, v.inc, v.y, v.inc, v.z, v.inc);                                \
 +}                                                                              \
 +/* u = x∧y, r = x·w */                                                         \
 +static inline void v3crossxy_dotxz_ ## P(v3 ## P x, v3 ## P y,                 \
 +    v3 ## P w, v3 ## P u, T *r)                                                \
 +{                                                                              \
 +    cblas_ ## P ## 3crossxy_dotxz(x.n,                                         \
-+        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
-+        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
-+        w.x, w.incx, w.y, w.incy, w.z, w.incz,                                 \
-+        u.x, u.incx, u.y, u.incy, u.z, u.incz, r, 1);                          \
++        x.x, x.inc, x.y, x.inc, x.z, x.inc,                                 \
++        y.x, y.inc, y.y, y.inc, y.z, y.inc,                                 \
++        w.x, w.inc, w.y, w.inc, w.z, w.inc,                                 \
++        u.x, u.inc, u.y, u.inc, u.z, u.inc, r, 1);                          \
 +}                                                                              \
 +/* r = x·y, q = x·w */                                                         \
 +static inline void v3dotxy_dotxz_ ## P(v3 ## P x, v3 ## P y, v3 ## P w,        \
 +    T *r, T *q)                                                                \
 +{                                                                              \
 +    cblas_ ## P ## 3dotxy_dotxz(x.n,                                           \
-+        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
-+        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
-+        w.x, w.incx, w.y, w.incy, w.z, w.incz, r, 1, q, 1);                    \
++        x.x, x.inc, x.y, x.inc, x.z, x.inc,                                 \
++        y.x, y.inc, y.y, y.inc, y.z, y.inc,                                 \
++        w.x, w.inc, w.y, w.inc, w.z, w.inc, r, 1, q, 1);                    \
 +}                                                                              \
 +/* r = (x∧y)∧z */                                                              \
 +static inline void v3crosscross_ ## P(v3 ## P x, v3 ## P y, v3 ## P z,         \
 +    v3 ## P r)                                                                 \
 +{                                                                              \
 +    cblas_ ## P ## 3crosscross(x.n,                                            \
-+        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
-+        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
-+        z.x, z.incx, z.y, z.incy, z.z, z.incz,                                 \
-+        r.x, r.incx, r.y, r.incy, r.z, r.incz);                                \
++        x.x, x.inc, x.y, x.inc, x.z, x.inc,                                 \
++        y.x, y.inc, y.y, y.inc, y.z, y.inc,                                 \
++        z.x, z.inc, z.y, z.inc, z.z, z.inc,                                 \
++        r.x, r.inc, r.y, r.inc, r.z, r.inc);                                \
 +}                                                                              \
 +/* r = sqrt(x·x + eps) (real), u = x/r */                                      \
 +static inline void v3norm_unit_ ## P(v3 ## P x, RT eps, T *r, v3 ## P u)       \
 +{                                                                              \
-+    cblas_ ## P ## 3norm_unit(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,      \
-+        eps, r, 1, u.x, u.incx, u.y, u.incy, u.z, u.incz);                     \
++    cblas_ ## P ## 3norm_unit(x.n, x.x, x.inc, x.y, x.inc, x.z, x.inc,      \
++        eps, r, 1, u.x, u.inc, u.y, u.inc, u.z, u.inc);                     \
 +}                                                                              \
 +/* q = x - a(x·y)y/(y·y + eps) */                                              \
 +static inline void v3refl_ ## P(v3 ## P x, v3 ## P y, RT a, RT eps,            \
 +    v3 ## P q)                                                                 \
 +{                                                                              \
 +    cblas_ ## P ## 3refl(x.n,                                                  \
-+        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
-+        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
-+        a, eps, q.x, q.incx, q.y, q.incy, q.z, q.incz);                        \
++        x.x, x.inc, x.y, x.inc, x.z, x.inc,                                 \
++        y.x, y.inc, y.y, y.inc, y.z, y.inc,                                 \
++        a, eps, q.x, q.inc, q.y, q.inc, q.z, q.inc);                        \
 +}                                                                              \
 +/* r = a(x∧y)/(y·y + eps) */                                                   \
 +static inline void v3exb_ ## P(v3 ## P x, v3 ## P y, RT a, RT eps,             \
 +    v3 ## P r)                                                                 \
 +{                                                                              \
 +    cblas_ ## P ## 3exb(x.n,                                                   \
-+        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
-+        y.x, y.incx, y.y, y.incy, y.z, y.incz,                                 \
-+        a, eps, r.x, r.incx, r.y, r.incy, r.z, r.incz);                        \
++        x.x, x.inc, x.y, x.inc, x.z, x.inc,                                 \
++        y.x, y.inc, y.y, y.inc, y.z, y.inc,                                 \
++        a, eps, r.x, r.inc, r.y, r.inc, r.z, r.inc);                        \
 +}                                                                              \
 +/* r = a·x·sqrt(x·x + eps), per component */                                   \
 +static inline void v3drag_ ## P(v3 ## P x, RT a, RT eps, v3 ## P r)            \
 +{                                                                              \
-+    cblas_ ## P ## 3drag(x.n, x.x, x.incx, x.y, x.incy, x.z, x.incz,           \
-+        a, eps, r.x, r.incx, r.y, r.incy, r.z, r.incz);                        \
++    cblas_ ## P ## 3drag(x.n, x.x, x.inc, x.y, x.inc, x.z, x.inc,           \
++        a, eps, r.x, r.inc, r.y, r.inc, r.z, r.inc);                        \
 +}                                                                              \
 +/* m = s.*x (per component), k = 0.5·s·(x·x) */                                \
 +static inline void v3mom_ke_ ## P(const T *s, v3 ## P x, v3 ## P m, T *k)      \
 +{                                                                              \
 +    cblas_ ## P ## 3mom_ke(x.n, (T *)s, 1,                                     \
-+        x.x, x.incx, x.y, x.incy, x.z, x.incz,                                 \
-+        m.x, m.incx, m.y, m.incy, m.z, m.incz, k, 1);                          \
++        x.x, x.inc, x.y, x.inc, x.z, x.inc,                                 \
++        m.x, m.inc, m.y, m.inc, m.z, m.inc, k, 1);                          \
 +}
 +V3BLAS_DEFINE(s, float, a, float)
 +V3BLAS_DEFINE(d, double, a, double)

@@ -43,7 +43,7 @@ int main(void){
 
     /* output buffers, reused between demos */
     double o0[N], o1[N], o2[N], o3[N], o4[N], o5[N];
-    /* outputs are views too: their .incx/.incy/.incz are the write strides */
+    /* outputs are views too: their .inc is the write stride */
     v3d ow = v3d_wrap(o0, o1, o2, N), ov = v3d_wrap(o3, o4, o5, N);
 
     printf("n = %d\n\n", N);
@@ -121,12 +121,12 @@ int main(void){
            cz0[0].re, cz0[0].im, cz1[0].re, cz1[0].im,
            cz2[0].re, cz2[0].im);
 
-    /* strided input: the view fields are public, set the incs by hand */
+    /* strided input: the view fields are public, set the field stride by hand */
     double raw[3 * 2 * N];
     for (int i = 0; i < 3 * 2 * N; i++)
         raw[i] = 0.01 * i;
     v3d vx = v3d_wrap(raw, raw + 2 * N, raw + 4 * N, N);
-    vx.incx = 2; vx.incy = 2; vx.incz = 2;
+    vx.inc = 2;
     v3sqr_d(vx, o0);   /* suffixed name - a v3d view says the precision */
     printf("v3sqr_d (strided) r = x1^2+x2^2+x3^2 [0] = %.4f\n", o0[0]);
 

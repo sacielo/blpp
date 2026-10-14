@@ -164,10 +164,10 @@ static void test_d(void)
         }
         v3d sx = v3d_wrap(bx, by, bz, N);
         v3d sy = v3d_wrap(byx, byy, byz, N);
-        sx.incx = 2; sx.incy = 2; sx.incz = 2;
-        sy.incx = 2; sy.incy = 2; sy.incz = 2;
+        sx.inc = 2;
+        sy.inc = 2;
         v3d so = v3d_wrap(sw0, sw1, sw2, N);   /* strided OUTPUTS now too */
-        so.incx = 2; so.incy = 2; so.incz = 2;
+        so.inc = 2;
         v3cross(sx, sy, so);  /* C11 _Generic name */
         for (int c = 0; c < 3; c++) {
             ld e = 0;

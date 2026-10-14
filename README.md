@@ -60,11 +60,16 @@ The whole API in three rules:
 1. **The library never allocates.** Every operation is `void`; outputs
    are trailing arguments you provide (like the `y` of `cblas_daxpy`) and
    may alias inputs. Inputs are never modified.
-2. **A 3-vector is three component arrays.** In C: a `v3<P>` view —
-   `{T *x, *y, *z; blasint incx, incy, incz, n;}` — built with
-   `v3<P>_wrap(x, y, z, n)`; its fields are public, so strided or
-   scattered components are just set by hand. `inc = 0` broadcasts
-   (constant fields are free). Indexing is `blasint`, strides are BLAS
+2. **A 3-vector is three component arrays sharing one element stride.**
+   In C: a `v3<P>` view — `{T *x, *y, *z; blasint inc, n;}` — built with
+   `v3<P>_wrap(x, y, z, n)` (contiguous); its `.inc` is set by hand for
+   the other field layouts: array-of-structs (3), subgrid slice (grid
+   stride), broadcast constant (0 — each component repeats its own base,
+   so `wrap(&zero, &one, &zero, n)` *is* the vector (0,1,0) everywhere).
+   One stride per view is the tightened definition of a field: layouts
+   that mix strides between components are not vector fields and live
+   one layer down — the `cblas_*` calls keep per-component incs as the
+   documented escape hatch. Indexing is `blasint`, strides are BLAS
    semantics (see [`docs/KERNELS.md`](docs/KERNELS.md) for the full
    contract).
 3. **Complex is bilinear** (no conjugation anywhere); guard parameters
