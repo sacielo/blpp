@@ -4,20 +4,26 @@ project(benchmark CXX C Fortran)
 # This project only builds these executables. It links against an
 # *installed* OpenBLAS and nothing else (source and build trees are not
 # added to the include path: they carry duplicate copies of the same
-# headers/macros). Install OpenBLAS once, e.g.:
-#   cd ../openblas
-#   cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="-O2" -DNO_LAPACK=1
-#   cmake --build build -j1
-#   cmake --install build --prefix ../pkgs/openblas
+# headers/macros). To produce that installed tree, run
+#   ../docs/backends/OPENBLAS.install.sh
 set(OPENBLAS_PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/../pkgs/openblas
-    CACHE PATH "OpenBLAS install prefix (include/openblas + lib)")
+    CACHE PATH "OpenBLAS install prefix (include/openblas + lib or lib64)")
 
 # pkgs/ is not in git; it is what the install step puts there.
 if(NOT EXISTS ${OPENBLAS_PREFIX}/include/openblas/v3blas.f90)
   message(FATAL_ERROR
     "No patched OpenBLAS found under ${OPENBLAS_PREFIX}.\n"
-    "Build and install it first (README steps 1-2):\n"
-    "  cmake --install openblas/build --prefix <this repo>/pkgs/openblas")
+    "Build and install it first:  docs/backends/OPENBLAS.install.sh")
+endif()
+
+# Fedora/openSUSE-style toolchains install to lib64/ instead of lib/.
+set(OPENBLAS_LIB ${OPENBLAS_PREFIX}/lib/libopenblas.a)
+if(NOT EXISTS ${OPENBLAS_LIB})
+  set(OPENBLAS_LIB ${OPENBLAS_PREFIX}/lib64/libopenblas.a)
+endif()
+if(NOT EXISTS ${OPENBLAS_LIB})
+  message(FATAL_ERROR "libopenblas.a not found under ${OPENBLAS_PREFIX}/lib[64]/"
+    " - rerun docs/backends/OPENBLAS.install.sh")
 endif()
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -31,7 +37,7 @@ endif()
 function(add_ob_target target)
   add_executable(${target} ${ARGN})
   target_include_directories(${target} PRIVATE ${OPENBLAS_PREFIX}/include/openblas)
-  target_link_libraries(${target} PRIVATE ${OPENBLAS_PREFIX}/lib/libopenblas.a pthread m)
+  target_link_libraries(${target} PRIVATE ${OPENBLAS_LIB} pthread m)
 endfunction()
 
 # Three roles, per interface (cblas_*, v3blas C11/C++/F90):

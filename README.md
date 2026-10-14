@@ -19,23 +19,27 @@ matter, the library does not. Today one backend ships:
 
 ## Quickstart (OpenBLAS backend)
 
+To get started with OpenBLAS, just run the script:
+
 ```sh
-git clone --recurse-submodules https://github.com/sacielo/blpp.git && cd blpp
-./docs/backends/OPENBLAS.install.sh     # patch + build + install -> pkgs/openblas
-                                        # (JOBS=1 on small machines)
+git clone https://github.com/sacielo/blpp.git && cd blpp
+./docs/backends/OPENBLAS.install.sh      # JOBS=1 on small machines
+```
 
-# OpenBLAS' own suites must end with 0 failures (220 and 2765 checks)
-./openblas/build/utest/openblas_utest
-./openblas/build/utest/openblas_utest_ext
+It clones OpenBLAS at the pinned commit (if not already there), applies
+`physics_kernels.patch`, builds and installs into `pkgs/openblas/`,
+requires OpenBLAS' own suites to pass, and **compiles** (without
+running) the benchmark/test/example suite. Then run the tests yourself -
+every `*_test` must end `OK (0 failures)`:
 
-# the front-end suite: tests verify, benches time, examples teach
-cmake -S benchmark -B benchmark/build && cmake --build benchmark/build
-./benchmark/build/cblas_test          # every *_test must end OK (0 failures)
+```sh
+cd benchmark/build && ./cblas_test && ./v3blas_test && ./v3blas_cpp_test && ./v3blas_f90_test
 ```
 
 Everything links against the *installed* tree in `pkgs/openblas/`:
 headers in `include/openblas/` (`cblas.h` + the three front-end files),
-`lib/libopenblas.a`.
+static library in `lib/` (some distros install to `lib64/`, which the
+benchmark CMake also finds).
 
 ## Using the APIs
 
@@ -90,26 +94,14 @@ call v3norm_unit(x, eps, r, w)   ! r = √(x·x+eps), w = x/r
 Raw F77 triplets (`call d3cross(n, x1, 1, …)`) stay one call away; the
 front-ends are convenience, not a gate.
 
-### The 18 front-end operations
+### Which operations
 
-Shown for `d`; generic names pick the precision from the arguments.
-Equations are element-wise; `n` is explicit for one-vector ops and comes
-from `x.n` (Fortran: `size(x,1)`) otherwise. Full semantics, edge
-contracts and the raw `cblas_*` prototypes for all 20 kernels:
-[`docs/KERNELS.md`](docs/KERNELS.md).
-
-| equation | call | equation | call |
-|---|---|---|---|
-| `r = q.*t + a` | `v1xypa(q, t, a, r, n)` | `r = (x∧y)·w` | `v3crossdot(x, y, w, r)` |
-| `r = √(q·q)` | `v1norm(q, r, n)` | `r = (x∧y)·(x∧y)` | `v3crosssqr(x, y, r)` |
-| `r = x·y` | `v3dot(x, y, r)` | `u = x∧y, v = x∧w` | `v3crossxy_crossxz(x, y, w, u, v)` |
-| `w = x.*y` | `v3had(x, y, w)` | `u = x∧y, r = x·w` | `v3crossxy_dotxz(x, y, w, u, r)` |
-| `r = x·x` | `v3sqr(x, r)` | `r = x·y, q = x·w` | `v3dotxy_dotxz(x, y, w, r, q)` |
-| `w = x∧y` | `v3cross(x, y, w)` | `r = (x∧y)∧z` | `v3crosscross(x, y, z, r)` |
-| `w = a·(x∧y)` | `v3crossscal(x, y, a, w)` | `r = √(x·x+ε), u = x/r` | `v3norm_unit(x, eps, r, u)` |
-| `r = a·x·√(x·x+ε)` | `v3drag(x, a, eps, r)` | `q = x − a(x·y)y/(y·y+ε)` | `v3refl(x, y, a, eps, q)` |
-| `m = s·x, k = ½s(x·x)` | `v3mom_ke(s, x, m, k)` | `r = a(x∧y)/(y·y+ε)` | `v3exb(x, y, a, eps, r)` |
-| | | (`lap5`, `lap7`: raw layer only) | |
+The 18 front-end operations - equations, raw `cblas_*` prototypes, and
+the stride/aliasing/NaN contracts of all 20 kernels (the stencils
+`lap5`/`lap7` live at the raw layer only) - are listed in one place:
+**[`docs/KERNELS.md`](docs/KERNELS.md)**. Shown for `d`; the generic
+names pick the precision from the arguments, and `n` is explicit for the
+one-vector ops (`x.n`, Fortran `size(x,1)`, otherwise).
 
 ## Documentation map
 
