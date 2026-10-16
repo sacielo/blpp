@@ -6,7 +6,12 @@ echo "2. ==> applying physics_kernels.patch"
 git -C openblas apply ../physics_kernels.patch
 
 echo "3. ==> building OpenBLAS"
-ccmake -S openblas -B openblas/build -DCMAKE_BUILD_TYPE=Release
+if command -v ccmake ; then MYCMAKE="ccmake"; else MYCMAKE="cmake"; fi
+$MYCMAKE -S openblas -B openblas/build -DCMAKE_BUILD_TYPE=Release \
+ -DBUILD_BENCHMARKS=OFF -DBUILD_LAPACK_DEPRECATED=OFF -DBUILD_RELAPACK=OFF \
+ -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -DBUILD_TESTING=ON -DC_LAPACK=OFF \
+ -DBUILD_WITHOUT_CBLAS=OFF -DBUILD_WITHOUT_LAPACK=ON -DBUILD_WITHOUT_LAPACKE=ON \
+ -DNO_WARMUP=ON -DPHYS_KERNELS_O3=ON  -DCMAKE_INSTALL_PREFIX=${2-"pkgs/openblas"}
 cmake --build openblas/build -j$1
 cmake --install openblas/build --prefix ${2-"pkgs/openblas"}
 

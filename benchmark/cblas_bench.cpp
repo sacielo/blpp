@@ -8,7 +8,7 @@
  * usage: cblas_bench [n] [s|d|c|z]
  *
  * Columns:
- *   ms/run      per-call wall time (min 0.05 s / 3 iters per kernel)
+ *   ms/run      per-call wall time (min 0.005 s / 3 iters per kernel)
  *   FLOP/s      standard count: 1 per add/mul/sqrt; complex bilinear
  *               product = 6, complex add = 2 (printed exponential)
  *   Melem/s     million elements per second
@@ -33,7 +33,7 @@
 #include "cblas.h"
 
 #ifndef K_MIN_TIME
-#define K_MIN_TIME 0.05      /* seconds per kernel; -DK_MIN_TIME=... to slim */
+#define K_MIN_TIME 0.005      /* seconds per kernel; -DK_MIN_TIME=... to slim */
 #endif
 #ifndef K_MIN_ITERS
 #define K_MIN_ITERS 3

@@ -29,7 +29,7 @@
 #include <functional>
 
 #ifndef K_MIN_TIME
-#define K_MIN_TIME 0.05      /* seconds per kernel; -DK_MIN_TIME=... to slim */
+#define K_MIN_TIME 0.005      /* seconds per kernel; -DK_MIN_TIME=... to slim */
 #endif
 #ifndef K_MIN_ITERS
 #define K_MIN_ITERS 3
