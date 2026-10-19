@@ -30,7 +30,7 @@ cmake --build miniapp/build -j$1
 
 cat <<EOF
 
-==> done. installed: ${2-"pkgs/openblas"}
+==> done. installed: $prefix
     The suite is built, now you can run it from benchmark/build/:
       ./cblas_test          raw cblas_* layer   (205 checks)
       ./v3blas_test         C11 front-end       (195 checks)
@@ -40,6 +40,4 @@ cat <<EOF
     Every *_test must end with "OK (0 failures)".
     Mini-apps (see miniapp/README.md):
       ../../miniapp/build/sod2d        2D Sod tube -> sod2d.vtk (~9 s)
-      ../../miniapp/build/tops3d       N rigid tops -> tops3d.vtk (~12 s);
-                                       cross-check: ../../miniapp/build/reftop
 EOF

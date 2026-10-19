@@ -6,7 +6,7 @@ for i in 1 2 3 4 ; do
 	./sweep25.sh
 	./analyze25.py
 
-	mv runs-$(hostname | cut -d. -f1) thr_$i
+	mv runs-$(hostname) thr_$i
 
 
 done
