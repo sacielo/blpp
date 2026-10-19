@@ -10,14 +10,18 @@ repo root. The submodule pointer is never advanced.
 ## Build notes
 
 The canonical clone/patch/build/install/verify sequence is the script
-itself: [`OPENBLAS.install.sh`](OPENBLAS.install.sh) — run it from a bare
-clone; it clones the pinned commit, applies the patch, builds,
+itself: [`install/openblas.sh`](../../install/openblas.sh) — run it from a bare
+clone (jobs as arg 1, install prefix optional arg 2); it clones the
+pinned commit, applies the patch, builds,
 installs, requires the utest suites (220 + 2765 checks; the `_ext` suite
 holds the cblas tests of the new kernels) to pass, and builds the
-benchmark suite without running it. Backend-specific facts: threading builds add
-`-DSMP_SERVER -DUSE_THREAD -DMAX_CPU_NUMBER=4
--DBUILD_{SINGLE,DOUBLE,COMPLEX,COMPLEX16}=1` (validated with forced
-`OPENBLAS_NUM_THREADS=4`, bitwise T1-vs-T4 on every threaded entry);
+benchmark suite and mini-apps without running them. Backend-specific facts:
+threading builds need the single flag `-DUSE_THREAD=ON` —
+`cmake/system.cmake` then adds `-DSMP_SERVER` itself and derives
+`MAX_CPU_NUMBER` from the `NUM_THREADS` option (default: nproc); those
+latter two are make-system variables, useless on the cmake command
+line. Validated threading behavior: forced
+`OPENBLAS_NUM_THREADS=4`, bitwise T1-vs-T4 on every threaded entry;
 `cmake` is the only working build path in this checkout (no
 `configure`/Make prebuild). The `benchmark/` suite links **only** the
 installed tree (`pkgs/openblas/{include/openblas,lib}`) — referencing the

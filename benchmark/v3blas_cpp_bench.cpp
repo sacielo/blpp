@@ -25,7 +25,7 @@
 #define K_MIN_TIME 0.005
 #endif
 #ifndef K_MIN_ITERS
-#define K_MIN_ITERS 3
+#define K_MIN_ITERS 5
 #endif
 #ifndef K_MAX_TIME
 #define K_MAX_TIME 1.0

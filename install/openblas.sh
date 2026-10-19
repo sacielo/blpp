@@ -11,7 +11,8 @@ $MYCMAKE -S openblas -B openblas/build -DCMAKE_BUILD_TYPE=Release \
  -DBUILD_BENCHMARKS=OFF -DBUILD_LAPACK_DEPRECATED=OFF -DBUILD_RELAPACK=OFF \
  -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -DBUILD_TESTING=ON -DC_LAPACK=OFF \
  -DBUILD_WITHOUT_CBLAS=OFF -DBUILD_WITHOUT_LAPACK=ON -DBUILD_WITHOUT_LAPACKE=ON \
- -DNO_WARMUP=ON -DPHYS_KERNELS_O3=ON  -DCMAKE_INSTALL_PREFIX=${2-"pkgs/openblas"}
+ -DNO_WARMUP=ON -DPHYS_KERNELS_O3=ON -DUSE_THREAD=ON \
+ -DCMAKE_INSTALL_PREFIX=${2-"pkgs/openblas"}
 cmake --build openblas/build -j$1
 cmake --install openblas/build --prefix ${2-"pkgs/openblas"}
 
@@ -29,7 +30,7 @@ cmake --build miniapp/build -j$1
 
 cat <<EOF
 
-==> done. installed: $prefix
+==> done. installed: ${2-"pkgs/openblas"}
     The suite is built, now you can run it from benchmark/build/:
       ./cblas_test          raw cblas_* layer   (205 checks)
       ./v3blas_test         C11 front-end       (195 checks)
@@ -39,4 +40,6 @@ cat <<EOF
     Every *_test must end with "OK (0 failures)".
     Mini-apps (see miniapp/README.md):
       ../../miniapp/build/sod2d        2D Sod tube -> sod2d.vtk (~9 s)
+      ../../miniapp/build/tops3d       N rigid tops -> tops3d.vtk (~12 s);
+                                       cross-check: ../../miniapp/build/reftop
 EOF

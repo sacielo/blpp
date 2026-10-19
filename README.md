@@ -23,13 +23,14 @@ To get started with OpenBLAS, just run the script:
 
 ```sh
 git clone https://github.com/sacielo/blpp.git && cd blpp
-./docs/backends/OPENBLAS.install.sh      # JOBS=1 on small machines
+./install/openblas.sh 4                  # jobs as arg 1; 1 on small machines
 ```
 
 It clones OpenBLAS at the pinned commit (if not already there), applies
 `physics_kernels.patch`, builds and installs into `pkgs/openblas/`,
 requires OpenBLAS' own suites to pass, and **compiles** (without
-running) the benchmark/test/example suite. Then run the tests yourself -
+running) the benchmark/test/example suite and the mini-apps. Then run
+the tests yourself -
 every `*_test` must end `OK (0 failures)`:
 
 ```sh
