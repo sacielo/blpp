@@ -1,19 +1,23 @@
-! v3blas_f90_bench.f90 - timing for the v3blas Fortran front-end.
+! v3blas_f90_bench.F90 - timing for the v3blas Fortran front-end.
 ! Four representative ops per real kind (the full generic matrix is
 ! v3blas_f90_test's job; timing only, nothing is verified here).  The
-! budget loop mirrors the C++ benches: run until 0.005 s or 2000 calls.
+#include "bench_timing.h"
+
+! budget loop mirrors the C++ benches: run until K_MIN_TIME or nmax
+! calls (shared constants: bench_timing.h, included above).
 ! Fields are u(n, 3): the columns are the contiguous component arrays,
 ! so each call maps straight onto the SoA layout the kernels read.
 !
 ! Build (see CMakeLists.txt; v3blas.f90 comes from the install):
 !   gfortran -O2 ../pkgs/openblas/include/openblas/v3blas.f90 \
-!       v3blas_f90_bench.f90 -L../pkgs/openblas/lib -lopenblas -lm \
+!       v3blas_f90_bench.F90 -L../pkgs/openblas/lib -lopenblas -lm \
 !       -o v3blas_f90_bench
 program v3blas_f90_bench
   use v3blas
   use, intrinsic :: iso_c_binding, only: c_int
   implicit none
   integer, parameter :: n = 4096, nmax = 2000
+  real, parameter :: budget = K_MIN_TIME
   real(kind=4), parameter :: a4 = 1.5, e4 = 0.25
   real(kind=8), parameter :: a8 = 1.5d0, e8 = 0.25d0
   real(kind=4) :: xf(n, 3), yf(n, 3), rf(n, 3), s4(n), k4(n)
@@ -33,7 +37,7 @@ program v3blas_f90_bench
   s4 = 0.5; s8 = 0.5d0
 
   write(*, '(a)') 'v3blas_f90_bench: timing only (correctness: v3blas_f90_test)'
-  write(*, '(a,i0,a)') 'n = ', n, '   budget: 0.005 s or 2000 calls per kernel'
+  write(*, '(a,i0,a)') 'n = ', n, '   budget: K_MIN_TIME s or nmax calls per kernel'
   write(*, '(a11,a12,a11,1x,a)') 'kernel', 'ms/run', 'GFLOP/s', 'equation'
 
   do sel = 1, 4
@@ -67,7 +71,7 @@ contains
        end select
        k = k + 1
        call system_clock(c1)
-       if (k >= nmax .or. real(c1 - c0) / cr > 0.005) exit
+       if (k >= nmax .or. real(c1 - c0) / cr > budget) exit
     end do
     el = real(c1 - c0) / cr
     write(*, '(a9,a2,f11.4,f10.3,1x,a)') trim(nm), '_s', el / k * 1000.0, &
@@ -97,7 +101,7 @@ contains
        end select
        k = k + 1
        call system_clock(c1)
-       if (k >= nmax .or. real(c1 - c0) / cr > 0.005) exit
+       if (k >= nmax .or. real(c1 - c0) / cr > budget) exit
     end do
     el = real(c1 - c0) / cr
     write(*, '(a9,a2,f11.4,f10.3,1x,a)') trim(nm), '_d', el / k * 1000.0, &

@@ -4,7 +4,8 @@
  * overload resolution picks the precision from the argument types.
  * Timing only - bitwise equality of these calls with cblas_* is
  * v3blas_cpp_test's job.  Budget loop as in the other benches: run each
- * kernel until 0.005 s or 3 calls (override: -DK_MIN_TIME=... etc).
+ * kernel until K_MIN_TIME and K_MIN_ITERS calls, cap K_MAX_TIME
+ * (shared constants: bench_timing.h).
  *
  * Build:
  *   g++ -O2 -std=c++11 -I ../pkgs/openblas/include/openblas \
@@ -21,15 +22,7 @@
 #include <vector>
 #include <functional>
 
-#ifndef K_MIN_TIME
-#define K_MIN_TIME 0.005
-#endif
-#ifndef K_MIN_ITERS
-#define K_MIN_ITERS 5
-#endif
-#ifndef K_MAX_TIME
-#define K_MAX_TIME 1.0
-#endif
+#include "bench_timing.h"
 
 static double now_sec(void)
 {

@@ -8,7 +8,8 @@
  * usage: cblas_bench [n] [s|d|c|z]
  *
  * Columns:
- *   ms/run      per-call wall time (min 0.005 s / 5 iters per kernel)
+ *   ms/run      per-call wall time (min K_MIN_TIME / K_MIN_ITERS per
+ *               kernel, cap K_MAX_TIME: see bench_timing.h)
  *   FLOP/s      standard count: 1 per add/mul/sqrt; complex bilinear
  *               product = 6, complex add = 2 (printed exponential)
  *   Melem/s     million elements per second
@@ -31,16 +32,7 @@
 #include <vector>
 
 #include "cblas.h"
-
-#ifndef K_MIN_TIME
-#define K_MIN_TIME 0.005      /* seconds per kernel; -DK_MIN_TIME=... to slim */
-#endif
-#ifndef K_MIN_ITERS
-#define K_MIN_ITERS 5
-#endif
-#ifndef K_MAX_TIME
-#define K_MAX_TIME 1.0
-#endif
+#include "bench_timing.h"
 
 static double now_sec(void)
 {

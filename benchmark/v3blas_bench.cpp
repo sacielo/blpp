@@ -28,15 +28,7 @@
 #include <vector>
 #include <functional>
 
-#ifndef K_MIN_TIME
-#define K_MIN_TIME 0.005      /* seconds per kernel; -DK_MIN_TIME=... to slim */
-#endif
-#ifndef K_MIN_ITERS
-#define K_MIN_ITERS 5
-#endif
-#ifndef K_MAX_TIME
-#define K_MAX_TIME 1.0
-#endif
+#include "bench_timing.h"
 
 static double now_sec(void)
 {

@@ -67,10 +67,12 @@ add_ob_target(v3blas_cpp_bench v3blas_cpp_bench.cpp)
 add_ob_target(v3blas_cpp_example v3blas_cpp_example.cpp)
 
 # ---- v3blas.f90 (Fortran generic module) ---------------------------------
+# the .F90 suffix = preprocess: v3blas_f90_bench.F90 includes bench_timing.h
+set_source_files_properties(v3blas_f90_bench.F90 PROPERTIES Fortran_PREPROCESS ON)
 add_ob_target(v3blas_f90_test
   ${OPENBLAS_PREFIX}/include/openblas/v3blas.f90 v3blas_f90_test.f90)
 add_ob_target(v3blas_f90_bench
-  ${OPENBLAS_PREFIX}/include/openblas/v3blas.f90 v3blas_f90_bench.f90)
+  ${OPENBLAS_PREFIX}/include/openblas/v3blas.f90 v3blas_f90_bench.F90)
 add_ob_target(v3blas_f90_example
   ${OPENBLAS_PREFIX}/include/openblas/v3blas.f90 v3blas_f90_example.f90)
 
