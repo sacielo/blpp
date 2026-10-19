@@ -8,8 +8,10 @@
  * reason; nothing else may be printed.
  *
  * Per output element, two lines, numbers inline everywhere:
- *     d3dot_save = 15;              <- what the BLAS kernel returned
- *     d3dot = dot([1,2,3],[4,5,6]); <- recomputed from the inputs
+ *     d3dot_save = 15             <- what the BLAS kernel returned
+ *     d3dot = dot([1,2,3],[4,5,6]) <- recomputed from the inputs
+ * NO trailing semicolon: Octave/MATLAB must echo both lines so the
+ * printed pair can be compared by eye (a silent run proves nothing).
  * using Octave/MATLAB builtins (dot, cross), i.e. an INDEPENDENT
  * implementation - not a re-typed copy of our kernel.  The input
  * literals are expanded into every formula as printed numbers, so
@@ -238,8 +240,8 @@ static void octave_dump(char pch, int esz, int iscx, int nslot,
         snprintf(fb, sizeof fb, "%s", ex);
         if (ov_expand(fb, sizeof fb, repl))
             printf("%% %s: formula expansion overflowed\n", nm);
-        printf("%s = %s;\n", sv, vb);
-        printf("%s = %s;\n", nm, fb);
+        printf("%s = %s\n", sv, vb);   /* no ; : must echo  */
+        printf("%s = %s\n", nm, fb);
     }
     printf("%% =====================================================================\n");
 }
