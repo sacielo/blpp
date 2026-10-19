@@ -10,13 +10,13 @@
  * analyze25.py), not in one window.  Override any value at compile
  * time: -DK_MIN_TIME=... etc. */
 #ifndef K_MIN_TIME
-#define K_MIN_TIME 0.005     /* seconds per kernel  */
+#define K_MIN_TIME 0.005 /* seconds per kernel  */
 #endif
 #ifndef K_MIN_ITERS
-#define K_MIN_ITERS 5        /* calls per kernel    */
+#define K_MIN_ITERS 5 /* calls per kernel    */
 #endif
 #ifndef K_MAX_TIME
-#define K_MAX_TIME 1.0       /* seconds per kernel  */
+#define K_MAX_TIME 1.0 /* seconds per kernel  */
 #endif
 
 #endif /* BENCH_TIMING_H */

@@ -1,0 +1,34 @@
+# Compact style for the benchmark harness and mini-apps: 2-space indent,
+# no 80-col wrapping (long lines are fine), `{` on the header line, short
+# blocks/if/loops collapse to one line.  Goal: one kernel fits one screen.
+# OpenBLAS itself keeps its own upstream style - this file is NOT at the
+# repo root on purpose.
+---
+BasedOnStyle: LLVM
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+ContinuationIndentWidth: 2
+ColumnLimit: 400
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: All
+AllowShortLambdasOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: Always
+AllowShortLoopsOnASingleLine: true
+AllowShortBlocksOnASingleLine: Always
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortEnumsOnASingleLine: true
+AlwaysBreakAfterReturnType: None
+BinPackArguments: true
+BinPackParameters: true
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+IndentCaseLabels: false
+NamespaceIndentation: None
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false
+SortIncludes: false
+IncludeBlocks: Preserve
+ReflowComments: false
+AlignEscapedNewlines: DontAlign
+SpaceBeforeParens: ControlStatements
