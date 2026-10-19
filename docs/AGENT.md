@@ -71,10 +71,11 @@ proposing.
   nothing; `*_bench` programs time and verify nothing; `*_example`
   programs teach (one `main`, textbook calls, printed output is the doc).
 - Tests double as spec documentation: their whole stdout IS a valid
-  MATLAB/Octave file (d precision only; every message a `%` comment):
-  per first element, `name_save = <kernel value>;` then `name =`
-  recomputed by builtins (`dot`, `cross`) over inline literals
-  (bilinear notation; `lap5/7` share one `U=[...]` line).
+  MATLAB/Octave file (d precision only; every message a `%` comment).
+  One pair of lines per output, WHOLE vectors not per-component
+  (`d3cross_save = [..]` then `d3cross = cross([..],[..])`), builtins
+  (`dot`, `cross`) over inline literals, NO trailing `;` so Octave
+  echoes the pair (`lap5/7` share one silent `U=[...]` line).
 - Benchmark input data is `hash2(seed, i)`-derived in [−0.5, 0.5) — full
   avalanche. Never ramp/affine/LCG data: nearly-equal products in cross
   products cancel catastrophically at float precision as n grows.

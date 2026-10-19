@@ -7,17 +7,14 @@
  * Every human-readable message in the tests is a % comment for this
  * reason; nothing else may be printed.
  *
- * Per output element, two lines, numbers inline everywhere:
- *     d3dot_save = 15             <- what the BLAS kernel returned
- *     d3dot = dot([1,2,3],[4,5,6]) <- recomputed from the inputs
+ * One PAIR of lines per output, vectors intact - Octave is not C:
+ *     d3cross_save = [-0.03,0.06,-0.03]      <- what the kernel gave
+ *     d3cross = cross([..],[..])             <- builtin redoes it
  * NO trailing semicolon: Octave/MATLAB must echo both lines so the
  * printed pair can be compared by eye (a silent run proves nothing).
- * using Octave/MATLAB builtins (dot, cross), i.e. an INDEPENDENT
- * implementation - not a re-typed copy of our kernel.  The input
- * literals are expanded into every formula as printed numbers, so
- * there is no variable preamble; the only shared line is U=[...] for
- * the lap5/lap7 stencils (49 numbers, cited 9 times).  Compare by
- * eye, or diff in Octave.
+ * Inputs are inlined as printed numbers, no variable preamble; the
+ * only shared line is U=[...] for the lap5/lap7 stencils (40 numbers,
+ * cited 9 times, kept silent with ;).
  *
  * Caveat if c/z printing is ever enabled: dot() conjugates its first
  * argument while all our products are bilinear, so dot-family slots
@@ -32,17 +29,15 @@
 #include <ctype.h>
 #include <string.h>
 
-/* slot order matches the g[] arrays of the tests:
- *  0 axpy, 1 1xypa, 2 3dot, 3-5 3had, 6 3sqr, 7 1norm, 8-10 3cross,
- * 11-13 3crossscal, 14 3crossdot, 15 3crosssqr, 16-18 crossxy_crossxz.u,
- * 19-21 crossxy_crossxz.v, 22-24 crossxy_dotxz.u, 25 crossxy_dotxz.r,
- * 26 dotxy_dotxz.r, 27 dotxy_dotxz.q, 28-30 crosscross, 31 norm_unit.r,
- * 32-34 norm_unit.u, 35-37 refl, 38-40 exb, 41-43 drag, 44-46 mom,
- * 47 ke, 48 lap5, 49 lap7.
- * %s = precision prefix.  Scalars are baked in (a = 1.5, eps = 0.25;
- * 0.25+0.1i for 1xypa, 1.5+0.5i for axpy/crossscal).  Component slots
- * carry "(n)": the save line indexes the saved vector, the formula
- * line indexes the builtin result - both legal Octave and MATLAB. */
+/* slot order matches the g[] arrays of the tests (axpy=0, 1xypa=1,
+ * 3dot=2, 3had=3..5, 3sqr=6, 1norm=7, 3cross=8..10, crossscal=11..13,
+ * crossdot=14, crosssqr=15, crossxy_crossxz.u=16..18 .v=19..21,
+ * crossxy_dotxz.u=22..24 .r=25, dotxy_dotxz.r=26 .q=27,
+ * crosscross=28..30, norm_unit.r=31 .u=32..34, refl=35..37, exb=38..40,
+ * drag=41..43, mom=44..46, ke=47, lap5=48, lap7=49).  %s = precision
+ * prefix.  Scalars are baked in (a = 1.5, eps = 0.25; 0.25+0.1i for
+ * 1xypa, 1.5+0.5i for axpy/crossscal).  Outputs are scalars or whole
+ * 3-vectors (ov_out_ncomp); names carry no indices. */
 #define OV_VX   "[x1(1),x2(1),x3(1)]"
 #define OV_VY   "[y1(1),y2(1),y3(1)]"
 #define OV_VW   "[w1(1),w2(1),w3(1)]"
@@ -52,62 +47,50 @@
 #define OV_YY   "dot(" OV_VY "," OV_VY ")"
 #define OV_CXY  "cross(" OV_VX "," OV_VY ")"
 
-static const char *ov_names[50] = {
-    "%saxpy", "%s1xypa", "%s3dot",
-    "%s3had(1)", "%s3had(2)", "%s3had(3)",
-    "%s3sqr", "%s1norm",
-    "%s3cross(1)", "%s3cross(2)", "%s3cross(3)",
-    "%s3crossscal(1)", "%s3crossscal(2)", "%s3crossscal(3)",
-    "%s3crossdot", "%s3crosssqr",
-    "%scrossxy_crossxz.u(1)", "%scrossxy_crossxz.u(2)", "%scrossxy_crossxz.u(3)",
-    "%scrossxy_crossxz.v(1)", "%scrossxy_crossxz.v(2)", "%scrossxy_crossxz.v(3)",
-    "%scrossxy_dotxz.u(1)", "%scrossxy_dotxz.u(2)", "%scrossxy_dotxz.u(3)",
-    "%scrossxy_dotxz.r",
-    "%sdotxy_dotxz.r", "%sdotxy_dotxz.q",
-    "%s3crosscross(1)", "%s3crosscross(2)", "%s3crosscross(3)",
-    "%s3norm_unit", "%s3norm_unit.u(1)", "%s3norm_unit.u(2)", "%s3norm_unit.u(3)",
-    "%s3refl(1)", "%s3refl(2)", "%s3refl(3)",
-    "%s3exb(1)", "%s3exb(2)", "%s3exb(3)",
-    "%s3drag(1)", "%s3drag(2)", "%s3drag(3)",
-    "%s3mom(1)", "%s3mom(2)", "%s3mom(3)",
-    "%s3ke", "%slap5", "%slap7"
+static const char *ov_out_names[26] = {
+    "%saxpy", "%s1xypa", "%s3dot", "%s3had", "%s3sqr", "%s1norm",
+    "%s3cross", "%s3crossscal", "%s3crossdot", "%s3crosssqr",
+    "%scrossxy_crossxz_u", "%scrossxy_crossxz_v",
+    "%scrossxy_dotxz_u", "%scrossxy_dotxz_r",
+    "%sdotxy_dotxz_r", "%sdotxy_dotxz_q",
+    "%s3crosscross", "%s3norm_unit", "%s3norm_unit_u",
+    "%s3refl", "%s3exb", "%s3drag", "%s3mom", "%s3ke",
+    "%slap5", "%slap7"
 };
 
-static const char *ov_expr_r[50] = {
+static const unsigned char ov_out_slot[26] = {
+    0, 1, 2, 3, 6, 7, 8, 11, 14, 15, 16, 19, 22, 25, 26, 27,
+    28, 31, 32, 35, 38, 41, 44, 47, 48, 49
+};
+
+static const unsigned char ov_out_ncomp[26] = {
+    1, 1, 1, 3, 1, 1, 3, 3, 1, 1, 3, 3, 3, 1, 1, 1, 3, 1, 3,
+    3, 3, 3, 3, 1, 1, 1
+};
+
+static const char *ov_out_expr_r[26] = {
     "1.5*xv(1)+yv(1)",                                       /* axpy */
     "q(1).*t(1)+0.25",                                       /* 1xypa */
     OV_DOT,                                                  /* 3dot */
-    "x1(1).*y1(1)", "x2(1).*y2(1)", "x3(1).*y3(1)",          /* 3had */
+    OV_VX ".*" OV_VY,                                        /* 3had */
     OV_SQR,                                                  /* 3sqr */
     "abs(q(1))",                                             /* 1norm */
-    OV_CXY "(1)", OV_CXY "(2)", OV_CXY "(3)",          /* 3cross */
-    "1.5*" OV_CXY "(1)", "1.5*" OV_CXY "(2)",
-    "1.5*" OV_CXY "(3)",                                   /* crossscal */
+    OV_CXY,                                                  /* 3cross */
+    "1.5*" OV_CXY,                                           /* crossscal */
     "dot(" OV_CXY "," OV_VW ")",                             /* crossdot */
     "dot(" OV_CXY "," OV_CXY ")",                            /* crosssqr */
-    OV_CXY "(1)", OV_CXY "(2)", OV_CXY "(3)",               /* cxy.u */
-    "cross(" OV_VX "," OV_VW ")(1)", "cross(" OV_VX "," OV_VW ")(2)",
-    "cross(" OV_VX "," OV_VW ")(3)",                         /* cxy.v */
-    OV_CXY "(1)", OV_CXY "(2)", OV_CXY "(3)",               /* cxdot.u */
+    OV_CXY,                                                  /* cxcxz.u */
+    "cross(" OV_VX "," OV_VW ")",                            /* cxcxz.v */
+    OV_CXY,                                                  /* cxdot.u */
     "dot(" OV_CXY "," OV_VW ")",                             /* cxdot.r */
     OV_DOT, OV_XW,                                           /* dxdx r,q */
-    "cross(" OV_CXY "," OV_VW ")(1)",                        /* crosscross */
-    "cross(" OV_CXY "," OV_VW ")(2)",
-    "cross(" OV_CXY "," OV_VW ")(3)",
+    "cross(" OV_CXY "," OV_VW ")",                           /* crosscross */
     "sqrt(" OV_SQR "+0.25)",                                 /* norm_unit r */
-    "x1(1)/sqrt(" OV_SQR "+0.25)",
-    "x2(1)/sqrt(" OV_SQR "+0.25)",
-    "x3(1)/sqrt(" OV_SQR "+0.25)",
-    "x1(1)-1.5*" OV_DOT "/(" OV_YY "+0.25)*y1(1)",           /* refl */
-    "x2(1)-1.5*" OV_DOT "/(" OV_YY "+0.25)*y2(1)",
-    "x3(1)-1.5*" OV_DOT "/(" OV_YY "+0.25)*y3(1)",
-    "1.5*" OV_CXY "(1)/(" OV_YY "+0.25)",                  /* exb */
-    "1.5*" OV_CXY "(2)/(" OV_YY "+0.25)",
-    "1.5*" OV_CXY "(3)/(" OV_YY "+0.25)",
-    "1.5*x1(1)*sqrt(" OV_SQR "+0.25)",                       /* drag */
-    "1.5*x2(1)*sqrt(" OV_SQR "+0.25)",
-    "1.5*x3(1)*sqrt(" OV_SQR "+0.25)",
-    "q(1).*x1(1)", "q(1).*x2(1)", "q(1).*x3(1)",             /* mom */
+    OV_VX "./sqrt(" OV_SQR "+0.25)",                         /* norm_unit u */
+    OV_VX "-1.5*" OV_DOT "/(" OV_YY "+0.25)*" OV_VY,         /* refl */
+    "1.5*" OV_CXY "/(" OV_YY "+0.25)",                       /* exb */
+    "1.5*" OV_VX "*sqrt(" OV_SQR "+0.25)",                   /* drag */
+    "q(1).*" OV_VX,                                          /* mom */
     "0.5*q(1)*" OV_SQR,                                      /* ke */
     "0.25*((U(14)+U(20))+(U(10)+U(24))-4*U(17))",            /* lap5 */
     "0.25*((U(14)+U(20))+(U(10)+U(24))+(U(6)+U(28))-6*U(17))" /* lap7 */
@@ -115,15 +98,13 @@ static const char *ov_expr_r[50] = {
 
 /* complex-only overrides: the kernels whose scalar is complex, and
  * 1norm (abs() above is real-only; the kernel is sqrt(q*q)).  The
- * dot-family slots are NOT overridden - see the conjugation caveat
+ * dot-family entries are NOT overridden - see the conjugation caveat
  * in the header comment before enabling c/z printing. */
-static const char *ov_expr_c[50] = {
-    [0]  = "(1.5+0.5i)*xv(1)+yv(1)",
-    [1]  = "(q(1).*t(1))+(0.25+0.1i)",
-    [7]  = "sqrt(q(1).*q(1))",
-    [11] = "(1.5+0.5i)*" OV_CXY "(1)",
-    [12] = "(1.5+0.5i)*" OV_CXY "(2)",
-    [13] = "(1.5+0.5i)*" OV_CXY "(3)",
+static const char *ov_out_expr_c[26] = {
+    [0] = "(1.5+0.5i)*xv(1)+yv(1)",
+    [1] = "(q(1).*t(1))+(0.25+0.1i)",
+    [5] = "sqrt(q(1).*q(1))",
+    [7] = "(1.5+0.5i)*" OV_CXY,
 };
 
 #undef OV_VX
@@ -134,14 +115,6 @@ static const char *ov_expr_c[50] = {
 #undef OV_XW
 #undef OV_YY
 #undef OV_CXY
-
-static void ov_val(char *buf, size_t sz, cr v, int iscx)
-{
-    if (!iscx || v.im == 0)
-        snprintf(buf, sz, "%.17g", (double)v.re);
-    else
-        snprintf(buf, sz, "(%.17g%+.17gi)", (double)v.re, (double)v.im);
-}
 
 /* formulas are written over tokens (below); ov_expand() replaces them
  * with printed-number literals at emit time: lowercase tokens match
@@ -186,11 +159,21 @@ static int ov_expand(char *buf, size_t sz, const char *repl[17])
     return -1;
 }
 
+static void ov_val(char *buf, size_t sz, cr v, int iscx)
+{
+    if (!iscx || v.im == 0)
+        snprintf(buf, sz, "%.17g", (double)v.re);
+    else
+        snprintf(buf, sz, "(%.17g%+.17gi)", (double)v.re, (double)v.im);
+}
+
 /*
- * in[]: 13 byte-pointers to the input arrays (order ov_in_names),
- * element 0 = first element.  u: padded lap buffer with element 0 at
- * index 16, or NULL to skip the lap rows.  nslot: 48 or 50.
- * d precision only: other precisions print nothing (see header).
+ * in[]: 13 byte-pointers to the input arrays (order ov_toks),
+ * element 0 = first element.  g[]: kernel outputs, slot order as in
+ * the comment above.  u: padded lap buffer with element 0 at index
+ * 16, or NULL to skip the lap rows.  nslot: 48 or 50 (lap entries
+ * beyond it are skipped).  d precision only: other precisions print
+ * nothing (see header).
  */
 static void octave_dump(char pch, int esz, int iscx, int nslot,
                         const void *const *g, const void *const *in,
@@ -227,21 +210,32 @@ static void octave_dump(char pch, int esz, int iscx, int nslot,
         }
         printf("]; %% U(17) = element 1, pad 16\n");
     }
-    for (int k = 0; k < nslot; k++) {
-        const char *ex = (iscx && ov_expr_c[k]) ? ov_expr_c[k] : ov_expr_r[k];
-        snprintf(nm, sizeof nm, ov_names[k], pstr);
-        char *par = strchr(nm, '(');
-        if (par)
-            snprintf(sv, sizeof sv, "%.*s_save%s", (int)(par - nm), nm, par);
-        else
-            snprintf(sv, sizeof sv, "%s_save", nm);
-        xval(esz, iscx, (const unsigned char *)g[k], &v);
-        ov_val(vb, sizeof vb, v, iscx);
+    for (int k = 0; k < 26; k++) {
+        int slot = ov_out_slot[k], nc = ov_out_ncomp[k];
+        const char *ex = (iscx && ov_out_expr_c[k]) ? ov_out_expr_c[k]
+                                                    : ov_out_expr_r[k];
+        if (slot + nc > nslot)
+            continue;
+        snprintf(nm, sizeof nm, ov_out_names[k], pstr);
+        snprintf(sv, sizeof sv, "%s_save", nm);
+        if (nc == 1) {
+            xval(esz, iscx, (const unsigned char *)g[slot], &v);
+            ov_val(vb, sizeof vb, v, iscx);
+            snprintf(fb, sizeof fb, "%s", vb);
+        } else {
+            char c[3][64];
+            for (int j = 0; j < 3; j++) {
+                xval(esz, iscx, (const unsigned char *)g[slot + j], &v);
+                ov_val(c[j], sizeof c[j], v, iscx);
+            }
+            snprintf(fb, sizeof fb, "[%s,%s,%s]", c[0], c[1], c[2]);
+        }
+        printf("%s = %s\n", sv, fb);                /* no ; : must echo */
         snprintf(fb, sizeof fb, "%s", ex);
         if (ov_expand(fb, sizeof fb, repl))
             printf("%% %s: formula expansion overflowed\n", nm);
-        printf("%s = %s\n", sv, vb);   /* no ; : must echo  */
-        printf("%s = %s\n", nm, fb);
+        else
+            printf("%s = %s\n", nm, fb);
     }
     printf("%% =====================================================================\n");
 }
