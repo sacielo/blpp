@@ -82,7 +82,8 @@ decisions already closed so they don't reopen.
   ABI); only public layers reorder.
 - Reduction-output ops stay serial for the pinned summation order.
 - Benches time, tests verify, examples teach (2026-10-12 split).
-- Octave equation blocks print from tests only.
+- Octave check = the tests' stdout (d precision): runnable .m, save
+  lines + builtin formulas; prints from tests only.
 - Fortran front-end stays atop the cblas kernels — no change to the
   cblas layer for Fortran's sake.
 - `v3<P>` views carry ONE stride for the whole field (`{x, y, z;

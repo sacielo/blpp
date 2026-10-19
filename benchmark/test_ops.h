@@ -27,10 +27,10 @@ static const char *prec = "?";
 static void chk(const char *op, ld e, ld eps)
 {
     if (e > eps) {
-        printf("%s %-24s max_rel_err = %.3e  FAIL\n", prec, op, (double)e);
+        printf("%% %s %-24s max_rel_err = %.3e  FAIL\n", prec, op, (double)e);
         fails++;
     } else {
-        printf("%s %-24s max_rel_err = %.3e  ok\n", prec, op, (double)e);
+        printf("%% %s %-24s max_rel_err = %.3e  ok\n", prec, op, (double)e);
     }
 }
 

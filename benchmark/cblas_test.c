@@ -174,7 +174,7 @@ RUNTEST(z, 'z', v3blas_doublecomplex, 1, 16, 1e-12L,
    negative sqrt argument (eps<0) propagates IEEE NaN without trapping. */
 static void ct(int cond, const char *what)
 {
-    printf("d contract %-22s %s\n", what, cond ? "ok" : "FAIL");
+    printf("%% d contract %-22s %s\n", what, cond ? "ok" : "FAIL");
     if (!cond) fails++;
 }
 
@@ -221,6 +221,6 @@ int main(int argc, char **argv)
     if (want(sel, "c")) test_c();
     if (want(sel, "z")) test_z();
     test_contract();
-    printf("cblas_test: %s (%d failures)\n", fails ? "FAIL" : "OK", fails);
+    printf("%% cblas_test: %s (%d failures)\n", fails ? "FAIL" : "OK", fails);
     return fails ? 1 : 0;
 }

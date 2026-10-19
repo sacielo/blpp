@@ -70,9 +70,11 @@ proposing.
 - Correctness and timing never mix: `*_test` programs verify and time
   nothing; `*_bench` programs time and verify nothing; `*_example`
   programs teach (one `main`, textbook calls, printed output is the doc).
-- Tests double as spec documentation: they print a paste-ready
-  MATLAB/Octave block of the worked first-element equations (bilinear
-  notation, `% => value` self-checks).
+- Tests double as spec documentation: their whole stdout IS a valid
+  MATLAB/Octave file (d precision only; every message a `%` comment):
+  per first element, `name_save = <kernel value>;` then `name =`
+  recomputed by builtins (`dot`, `cross`) over inline literals
+  (bilinear notation; `lap5/7` share one `U=[...]` line).
 - Benchmark input data is `hash2(seed, i)`-derived in [−0.5, 0.5) — full
   avalanche. Never ramp/affine/LCG data: nearly-equal products in cross
   products cancel catastrophically at float precision as n grows.

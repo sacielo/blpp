@@ -333,6 +333,6 @@ int main(int argc, char **argv)
     if (want(sel, "d")) test_d();
     if (want(sel, "c")) test_c();
     if (want(sel, "z")) test_z();
-    printf("v3blas_test: %s (%d failures)\n", fails ? "FAIL" : "OK", fails);
+    printf("%% v3blas_test: %s (%d failures)\n", fails ? "FAIL" : "OK", fails);
     return fails ? 1 : 0;
 }
