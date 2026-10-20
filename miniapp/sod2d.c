@@ -185,13 +185,11 @@ static void boundaries(grid *g) {
     int jt = k ? g->nyg - 1 : 0, jc = k ? g->nyg - 2 : 1;
     memcpy(AT(g->d, jt), AT(g->d, jc), (size_t)g->nxg * sizeof(double));
     memcpy(AT(g->E, jt), AT(g->E, jc), (size_t)g->nxg * sizeof(double));
-    {
-      v3d m = v3d_wrap(AT(g->mx, jc), AT(g->my, jc), AT(g->mz, jc), g->nxg);
-      v3d nn = v3d_wrap(&zero, &one, &zero, g->nxg);
-      v3d q = v3d_wrap(AT(g->mx, jt), AT(g->my, jt), AT(g->mz, jt), g->nxg);
-      nn.inc = 0; /* bcast normal    */
-      v3refl(m, nn, 2.0, 0.0, q);
-    }
+    v3d m = v3d_wrap(AT(g->mx, jc), AT(g->my, jc), AT(g->mz, jc), g->nxg);
+    v3d nn = v3d_wrap(&zero, &one, &zero, g->nxg);
+    v3d q = v3d_wrap(AT(g->mx, jt), AT(g->my, jt), AT(g->mz, jt), g->nxg);
+    nn.inc = 0; /* bcast normal    */
+    v3refl(m, nn, 2.0, 0.0, q);
   }
 }
 

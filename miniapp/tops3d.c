@@ -356,11 +356,9 @@ int main(int ac, char **av) {
       y[YLY][b] = 0.02;
       y[YLZ][b] = 2.0;
       mass[b] = 1.0;
-      {
-        double th = 0.15; /* tilt 0.15 rad about e1 */
-        y[YQS][b] = cos(0.5 * th);
-        y[YQX][b] = sin(0.5 * th);
-      }
+      double th = 0.15; /* tilt 0.15 rad about e1 */
+      y[YQS][b] = cos(0.5 * th);
+      y[YQX][b] = sin(0.5 * th);
     } else { /* random free tops */
       d[0] = 0.4 + 1.8 * rnd();
       d[1] = 0.4 + 1.8 * rnd();
@@ -403,16 +401,14 @@ int main(int ac, char **av) {
 
   /* ---- initial invariants and spin, for the drift report ---- */
   double E0 = 0, L20 = 0, om3he;
-  {
-    pack3(La, y[YLX], y[YLY], y[YLZ]);
-    cblas_dsbmv(CblasColMajor, CblasUpper, 3 * nT, 2, 1.0, bandI, 3, La, 1, 0.0, Wa, 1);
-    unpack3(Wa, omx, omy, omz);
-    for (int b = 0; b < nT; b++) {
-      E0 += energy_of(b);
-      if (b != 1) L20 += y[YLX][b] * y[YLX][b] + y[YLY][b] * y[YLY][b] + y[YLZ][b] * y[YLZ][b];
-    }
-    om3he = b13[1] * y[YLX][1] + b23[1] * y[YLY][1] + b33[1] * y[YLZ][1];
+  pack3(La, y[YLX], y[YLY], y[YLZ]);
+  cblas_dsbmv(CblasColMajor, CblasUpper, 3 * nT, 2, 1.0, bandI, 3, La, 1, 0.0, Wa, 1);
+  unpack3(Wa, omx, omy, omz);
+  for (int b = 0; b < nT; b++) {
+    E0 += energy_of(b);
+    if (b != 1) L20 += y[YLX][b] * y[YLX][b] + y[YLY][b] * y[YLY][b] + y[YLZ][b] * y[YLZ][b];
   }
+  om3he = b13[1] * y[YLX][1] + b23[1] * y[YLY][1] + b33[1] * y[YLZ][1];
 
   /* ---- integrate: classical RK4 over the 7-component state ----
      * (free top: RK4's tiny secular drift is exactly what the printed

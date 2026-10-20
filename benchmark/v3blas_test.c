@@ -71,10 +71,8 @@ static void test_s(void) {
 
   const void *g[48] = {ax, xy, dot, had0, had1, had2, sqr, norm, cr0, cr1, cr2, cs0, cs1, cs2, crd, crsq, uu0, uu1, uu2, vv0, vv1, vv2, pu0, pu1, pu2, pur, dxy_r, dxy_q, cc0, cc1, cc2, nur, nn0, nn1, nn2, rf0, rf1, rf2, ex0, ex1, ex2, dr0, dr1, dr2, mm0, mm1, mm2, ke};
   cmp_all(4, 0, g, R, N, 1e-5L);
-  {
-    const void *in[13] = {x0, x1, x2, y0, y1, y2, w0, w1, w2, q, t, xv, yv};
-    octave_dump('s', 4, 0, 48, g, in, NULL);
-  }
+  const void *in[13] = {x0, x1, x2, y0, y1, y2, w0, w1, w2, q, t, xv, yv};
+  octave_dump('s', 4, 0, 48, g, in, NULL);
 }
 
 static void test_d(void) {
@@ -132,42 +130,38 @@ static void test_d(void) {
 
   const void *g[48] = {ax, xy, dot, had0, had1, had2, sqr, norm, cr0, cr1, cr2, cs0, cs1, cs2, crd, crsq, uu0, uu1, uu2, vv0, vv1, vv2, pu0, pu1, pu2, pur, dxy_r, dxy_q, cc0, cc1, cc2, nur, nn0, nn1, nn2, rf0, rf1, rf2, ex0, ex1, ex2, dr0, dr1, dr2, mm0, mm1, mm2, ke};
   cmp_all(8, 0, g, R, N, 1e-12L);
-  {
-    const void *in[13] = {x0, x1, x2, y0, y1, y2, w0, w1, w2, q, t, xv, yv};
-    octave_dump('d', 8, 0, 48, g, in, NULL);
-  }
+  const void *in[13] = {x0, x1, x2, y0, y1, y2, w0, w1, w2, q, t, xv, yv};
+  octave_dump('d', 8, 0, 48, g, in, NULL);
 
   /* strided smoke: v3cross_d on components with inc = 2 */
-  {
-    double bx[2 * N], by[2 * N], bz[2 * N];
-    double byx[2 * N], byy[2 * N], byz[2 * N];
-    double sw0[2 * N], sw1[2 * N], sw2[2 * N];
-    refset RS[N];
+  double bx[2 * N], by[2 * N], bz[2 * N];
+  double byx[2 * N], byy[2 * N], byz[2 * N];
+  double sw0[2 * N], sw1[2 * N], sw2[2 * N];
+  refset RS[N];
+  for (int i = 0; i < N; i++) {
+    bx[2 * i] = (double)VAL(21, i);
+    by[2 * i] = (double)VAL(22, i);
+    bz[2 * i] = (double)VAL(23, i);
+    byx[2 * i] = (double)VAL(24, i);
+    byy[2 * i] = (double)VAL(25, i);
+    byz[2 * i] = (double)VAL(26, i);
+    refset_fill(i, 21, 0, &RS[i]);
+  }
+  v3d sx = v3d_wrap(bx, by, bz, N);
+  v3d sy = v3d_wrap(byx, byy, byz, N);
+  sx.inc = 2;
+  sy.inc = 2;
+  v3d so = v3d_wrap(sw0, sw1, sw2, N); /* strided OUTPUTS now too */
+  so.inc = 2;
+  v3cross(sx, sy, so); /* C11 _Generic name */
+  for (int c = 0; c < 3; c++) {
+    ld e = 0;
+    const double *a = (const double *[]){sw0, sw1, sw2}[c];
     for (int i = 0; i < N; i++) {
-      bx[2 * i] = (double)VAL(21, i);
-      by[2 * i] = (double)VAL(22, i);
-      bz[2 * i] = (double)VAL(23, i);
-      byx[2 * i] = (double)VAL(24, i);
-      byy[2 * i] = (double)VAL(25, i);
-      byz[2 * i] = (double)VAL(26, i);
-      refset_fill(i, 21, 0, &RS[i]);
+      cr gv = {a[2 * i], 0}, rv = RS[i].crw[c];
+      if (relerr(gv, rv) > e) e = relerr(gv, rv);
     }
-    v3d sx = v3d_wrap(bx, by, bz, N);
-    v3d sy = v3d_wrap(byx, byy, byz, N);
-    sx.inc = 2;
-    sy.inc = 2;
-    v3d so = v3d_wrap(sw0, sw1, sw2, N); /* strided OUTPUTS now too */
-    so.inc = 2;
-    v3cross(sx, sy, so); /* C11 _Generic name */
-    for (int c = 0; c < 3; c++) {
-      ld e = 0;
-      const double *a = (const double *[]){sw0, sw1, sw2}[c];
-      for (int i = 0; i < N; i++) {
-        cr gv = {a[2 * i], 0}, rv = RS[i].crw[c];
-        if (relerr(gv, rv) > e) e = relerr(gv, rv);
-      }
-      chk("strided v3cross_d", e, 1e-12L);
-    }
+    chk("strided v3cross_d", e, 1e-12L);
   }
 }
 
@@ -200,11 +194,9 @@ static void test_c(void) {
   Z pu0[N], pu1[N], pu2[N], pur[N];
   Z dxy_r[N], dxy_q[N];
 
-  {
-    Z ac = v3blas_cc(1.5f, 0.5f);
-    memcpy(ax, yv, sizeof ax);
-    cblas_caxpy(N, &ac, xv, 1, ax, 1); /* baseline */
-  }
+  Z ac = v3blas_cc(1.5f, 0.5f);
+  memcpy(ax, yv, sizeof ax);
+  cblas_caxpy(N, &ac, xv, 1, ax, 1); /* baseline */
   v1xypa_c(q, t, v3blas_cc(0.25f, 0.1f), xy, N);
   v3dot_c(x, y, dot);
   v3had_c(x, y, v3c_wrap(had0, had1, had2, N));
@@ -230,10 +222,8 @@ static void test_c(void) {
 
   const void *g[48] = {ax, xy, dot, had0, had1, had2, sqr, norm, cr0, cr1, cr2, cs0, cs1, cs2, crd, crsq, uu0, uu1, uu2, vv0, vv1, vv2, pu0, pu1, pu2, pur, dxy_r, dxy_q, cc0, cc1, cc2, nur, nn0, nn1, nn2, rf0, rf1, rf2, ex0, ex1, ex2, dr0, dr1, dr2, mm0, mm1, mm2, ke};
   cmp_all(8, 1, g, R, N, 1e-5L);
-  {
-    const void *in[13] = {x0, x1, x2, y0, y1, y2, w0, w1, w2, q, t, xv, yv};
-    octave_dump('c', 8, 1, 48, g, in, NULL);
-  }
+  const void *in[13] = {x0, x1, x2, y0, y1, y2, w0, w1, w2, q, t, xv, yv};
+  octave_dump('c', 8, 1, 48, g, in, NULL);
 }
 
 static void test_z(void) {
@@ -265,11 +255,9 @@ static void test_z(void) {
   Z pu0[N], pu1[N], pu2[N], pur[N];
   Z dxy_r[N], dxy_q[N];
 
-  {
-    Z az = v3blas_zc(1.5, 0.5);
-    memcpy(ax, yv, sizeof ax);
-    cblas_zaxpy(N, &az, xv, 1, ax, 1); /* baseline */
-  }
+  Z az = v3blas_zc(1.5, 0.5);
+  memcpy(ax, yv, sizeof ax);
+  cblas_zaxpy(N, &az, xv, 1, ax, 1); /* baseline */
   v1xypa_z(q, t, v3blas_zc(0.25, 0.1), xy, N);
   v3dot_z(x, y, dot);
   v3had_z(x, y, v3z_wrap(had0, had1, had2, N));
@@ -295,10 +283,8 @@ static void test_z(void) {
 
   const void *g[48] = {ax, xy, dot, had0, had1, had2, sqr, norm, cr0, cr1, cr2, cs0, cs1, cs2, crd, crsq, uu0, uu1, uu2, vv0, vv1, vv2, pu0, pu1, pu2, pur, dxy_r, dxy_q, cc0, cc1, cc2, nur, nn0, nn1, nn2, rf0, rf1, rf2, ex0, ex1, ex2, dr0, dr1, dr2, mm0, mm1, mm2, ke};
   cmp_all(16, 1, g, R, N, 1e-12L);
-  {
-    const void *in[13] = {x0, x1, x2, y0, y1, y2, w0, w1, w2, q, t, xv, yv};
-    octave_dump('z', 16, 1, 48, g, in, NULL);
-  }
+  const void *in[13] = {x0, x1, x2, y0, y1, y2, w0, w1, w2, q, t, xv, yv};
+  octave_dump('z', 16, 1, 48, g, in, NULL);
 }
 
 static int want(const char *sel, const char *tag) { return !*sel || !strcmp(sel, tag); }

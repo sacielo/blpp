@@ -153,23 +153,21 @@ static void refset_fill(int i, int b, int iscx, refset *R) {
   ccross3(x, w, R->v);
   R->xw = cdot3c(x, w);
   /* new CFD ops: real a = 1.5, eps = 0.25 in every precision */
-  {
-    cr tmp[3], epsc = {0.25L, 0.0L}, asc = {1.5L, 0.0L};
-    cr half = {0.5L, 0.0L}, sxx, dyy, ff;
-    ccross3(x, y, tmp);
-    ccross3(tmp, w, R->cc);
-    sxx = cdot3c(x, x);
-    R->nur = csqrt_cr(cadd(sxx, epsc)); /* sqrt(x.x + eps) */
-    for (int c = 0; c < 3; c++) R->nu[c] = cdiv(x[c], R->nur);
-    dyy = cdot3c(y, y);
-    ff = cdiv(cmul(asc, cdot3c(x, y)), cadd(dyy, epsc));
-    for (int c = 0; c < 3; c++) R->rf[c] = csub(x[c], cmul(ff, y[c]));
-    ff = cdiv(asc, cadd(dyy, epsc));
-    for (int c = 0; c < 3; c++) R->ex[c] = cmul(ff, R->crw[c]);
-    for (int c = 0; c < 3; c++) R->dr[c] = cmul(cmul(asc, x[c]), R->nur);
-    for (int c = 0; c < 3; c++) R->mm[c] = cmul(q, x[c]);
-    R->kk = cmul(cmul(half, q), sxx);
-  }
+  cr tmp[3], epsc = {0.25L, 0.0L}, asc = {1.5L, 0.0L};
+  cr half = {0.5L, 0.0L}, sxx, dyy, ff;
+  ccross3(x, y, tmp);
+  ccross3(tmp, w, R->cc);
+  sxx = cdot3c(x, x);
+  R->nur = csqrt_cr(cadd(sxx, epsc)); /* sqrt(x.x + eps) */
+  for (int c = 0; c < 3; c++) R->nu[c] = cdiv(x[c], R->nur);
+  dyy = cdot3c(y, y);
+  ff = cdiv(cmul(asc, cdot3c(x, y)), cadd(dyy, epsc));
+  for (int c = 0; c < 3; c++) R->rf[c] = csub(x[c], cmul(ff, y[c]));
+  ff = cdiv(asc, cadd(dyy, epsc));
+  for (int c = 0; c < 3; c++) R->ex[c] = cmul(ff, R->crw[c]);
+  for (int c = 0; c < 3; c++) R->dr[c] = cmul(cmul(asc, x[c]), R->nur);
+  for (int c = 0; c < 3; c++) R->mm[c] = cmul(q, x[c]);
+  R->kk = cmul(cmul(half, q), sxx);
 }
 
 /* extract one result element (re, im) from a kernel output array */
